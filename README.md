@@ -1,2 +1,2 @@
-# myos
+# MyOS
 My OS...
