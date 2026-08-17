@@ -18,6 +18,11 @@ struct shell_environment_entry {
 static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
 static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
+static const char *const shell_commands[] = {
+    "help", "echo", "uname", "ps", "meminfo", "date", "uptime", "ls", "cat", "touch", "write", "rm",
+    "set", "get", "env", "sleep", "run", "spawn", "pipe", "wait", "kill", "stress", "reboot", "poweroff",
+    "dmesg", "clear", "exit"
+};
 
 static uint64_t system_call(uint64_t number, uint64_t argument1, uint64_t argument2, uint64_t argument3) {
     register uint64_t rax __asm__("rax") = number;
@@ -121,6 +126,27 @@ static void history_store(const char *line) {
     shell_history_count++;
 }
 
+static int text_starts_with(const char *text, const char *prefix) {
+    uint64_t index = 0U;
+
+    while (prefix[index] != '\0') {
+        if (text[index] != prefix[index]) { return 0; }
+        index++;
+    }
+    return 1;
+}
+
+static void line_replace(char *line, uint64_t capacity, uint64_t *length, const char *replacement) {
+    uint64_t replacement_length = text_length(replacement);
+
+    if (replacement_length + 1U > capacity) { return; }
+    while (*length != 0U) { write_text("\b \b"); (*length)--; }
+    for (uint64_t index = 0U; index < replacement_length; index++) { line[index] = replacement[index]; }
+    line[replacement_length] = '\0';
+    *length = replacement_length;
+    write_text(replacement);
+}
+
 static void history_replace_line(char *line, uint64_t capacity, uint64_t *length, const char *replacement) {
     uint64_t replacement_length = text_length(replacement);
 
@@ -139,6 +165,43 @@ static void history_replace_line(char *line, uint64_t capacity, uint64_t *length
     write_text(replacement);
 }
 
+static void complete_line(char *line, uint64_t capacity, uint64_t *length) {
+    char replacement[USER_LINE_CAPACITY];
+    const char *token;
+    uint64_t token_start = *length;
+    uint64_t matches = 0U;
+    const char *match = (const char *)0;
+
+    while (token_start != 0U && line[token_start - 1U] != ' ') { token_start--; }
+    token = line + token_start;
+    if (token_start == 0U) {
+        for (uint64_t index = 0U; index < sizeof(shell_commands) / sizeof(shell_commands[0]); index++) {
+            if (text_starts_with(shell_commands[index], token) != 0) {
+                matches++;
+                match = shell_commands[index];
+            }
+        }
+    } else {
+        for (uint64_t index = 0U; index < UINT64_C(64); index++) {
+            struct myos_vfs_entry entry;
+
+            if (system_call(MYOS_SYS_VFS_ENTRY, index, (uint64_t)(uintptr_t)&entry, sizeof(entry)) == UINT64_MAX) {
+                break;
+            }
+            if (text_starts_with(entry.name, token) != 0) {
+                matches++;
+                match = entry.name;
+            }
+        }
+    }
+    if (matches != 1U || match == (const char *)0) { return; }
+    if (token_start + text_length(match) + 1U > capacity) { return; }
+    for (uint64_t index = 0U; index < token_start; index++) { replacement[index] = line[index]; }
+    for (uint64_t index = 0U; match[index] != '\0'; index++) { replacement[token_start + index] = match[index]; }
+    replacement[token_start + text_length(match)] = '\0';
+    line_replace(line, capacity, length, replacement);
+}
+
 static uint64_t read_line(char *line, uint64_t capacity) {
     uint64_t length = 0U;
     uint64_t history_position = shell_history_count;
@@ -150,6 +213,10 @@ static uint64_t read_line(char *line, uint64_t capacity) {
         if (character == '\r' || character == '\n') {
             write_char('\n');
             break;
+        }
+        if (character == '\t') {
+            complete_line(line, capacity, &length);
+            continue;
         }
         if (character == '\x1B') {
             char bracket;
