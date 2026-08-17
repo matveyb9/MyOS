@@ -4,6 +4,17 @@
 #define USER_WRITE_LIMIT UINT64_C(256)
 #define USER_LINE_CAPACITY 128U
 #define PIT_HZ UINT64_C(100)
+#define SHELL_ENV_MAX 8U
+#define SHELL_ENV_NAME_MAX 16U
+#define SHELL_ENV_VALUE_MAX 64U
+
+struct shell_environment_entry {
+    int used;
+    char name[SHELL_ENV_NAME_MAX];
+    char value[SHELL_ENV_VALUE_MAX];
+};
+
+static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
 
 static uint64_t system_call(uint64_t number, uint64_t argument1, uint64_t argument2, uint64_t argument3) {
     register uint64_t rax __asm__("rax") = number;
@@ -132,6 +143,90 @@ static uint64_t parse_decimal(const char *text) {
     return value;
 }
 
+static int environment_name_equal(const char *left, const char *right) {
+    return text_equal(left, right);
+}
+
+static const char *environment_lookup(const char *name) {
+    for (uint64_t index = 0U; index < SHELL_ENV_MAX; index++) {
+        if (shell_environment[index].used != 0 && environment_name_equal(shell_environment[index].name, name) != 0) {
+            return shell_environment[index].value;
+        }
+    }
+    return (const char *)0;
+}
+
+static int environment_set(char *name, const char *value) {
+    struct shell_environment_entry *entry = (struct shell_environment_entry *)0;
+    uint64_t name_length = 0U;
+    uint64_t value_length = 0U;
+
+    while (name[name_length] != '\0' && name_length + 1U < SHELL_ENV_NAME_MAX) {
+        const char character = name[name_length];
+
+        if (!((character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z')
+              || (character >= '0' && character <= '9') || character == '_')) {
+            return 0;
+        }
+        name_length++;
+    }
+    if (name_length == 0U || name[name_length] != '\0') {
+        return 0;
+    }
+    while (value[value_length] != '\0' && value_length + 1U < SHELL_ENV_VALUE_MAX) {
+        value_length++;
+    }
+    if (value[value_length] != '\0') {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < SHELL_ENV_MAX; index++) {
+        if (shell_environment[index].used != 0 && environment_name_equal(shell_environment[index].name, name) != 0) {
+            entry = &shell_environment[index];
+        }
+        if (entry == (struct shell_environment_entry *)0 && shell_environment[index].used == 0) {
+            entry = &shell_environment[index];
+        }
+    }
+    if (entry == (struct shell_environment_entry *)0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index <= name_length; index++) {
+        entry->name[index] = name[index];
+    }
+    for (uint64_t index = 0U; index <= value_length; index++) {
+        entry->value[index] = value[index];
+    }
+    entry->used = 1;
+    return 1;
+}
+
+static void environment_expand(const char *source, char *destination, uint64_t capacity) {
+    uint64_t write_index = 0U;
+
+    for (uint64_t read_index = 0U; source[read_index] != '\0' && write_index + 1U < capacity;) {
+        if (source[read_index] == '$') {
+            char name[SHELL_ENV_NAME_MAX];
+            uint64_t name_length = 0U;
+            const char *value;
+
+            read_index++;
+            while (source[read_index] != '\0' && source[read_index] != ' ' && name_length + 1U < sizeof(name)) {
+                name[name_length++] = source[read_index++];
+            }
+            name[name_length] = '\0';
+            value = environment_lookup(name);
+            if (value != (const char *)0) {
+                for (uint64_t index = 0U; value[index] != '\0' && write_index + 1U < capacity; index++) {
+                    destination[write_index++] = value[index];
+                }
+            }
+        } else {
+            destination[write_index++] = source[read_index++];
+        }
+    }
+    destination[write_index] = '\0';
+}
+
 static int make_spawn_request(struct myos_spawn_request *request, char *line) {
     char *arguments;
     uint64_t path_length = 0U;
@@ -164,7 +259,7 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm sleep run spawn pipe wait kill stress reboot poweroff dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm set get env sleep run spawn pipe wait kill stress reboot poweroff dmesg clear exit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -497,6 +592,37 @@ static void command_kill(const char *argument) {
     write_text(" terminated; use wait to reap it.\n");
 }
 
+static void command_set(char *argument) {
+    char *value = first_argument(argument);
+
+    if (argument[0] == '\0' || value[0] == '\0' || environment_set(argument, value) == 0) {
+        write_text("Usage: set <NAME> <value up to 63 bytes>\n");
+        return;
+    }
+}
+
+static void command_get(const char *argument) {
+    const char *value = environment_lookup(argument);
+
+    if (argument[0] == '\0' || value == (const char *)0) {
+        write_text("Variable not found.\n");
+        return;
+    }
+    write_text(value);
+    write_char('\n');
+}
+
+static void command_env(void) {
+    for (uint64_t index = 0U; index < SHELL_ENV_MAX; index++) {
+        if (shell_environment[index].used != 0) {
+            write_text(shell_environment[index].name);
+            write_char('=');
+            write_text(shell_environment[index].value);
+            write_char('\n');
+        }
+    }
+}
+
 static void command_pipe(char *argument) {
     struct myos_spawn_request writer = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
     struct myos_spawn_request reader = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
@@ -608,8 +734,11 @@ static void command_sleep(const char *argument) {
 
 static void execute_command(char *line) {
     char *argument;
+    char expanded_argument[USER_LINE_CAPACITY];
 
     argument = first_argument(line);
+    environment_expand(argument, expanded_argument, sizeof(expanded_argument));
+    argument = expanded_argument;
     if (line[0] == '\0') {
         return;
     }
@@ -638,6 +767,12 @@ static void execute_command(char *line) {
         command_write(argument);
     } else if (text_equal(line, "rm")) {
         command_rm(argument);
+    } else if (text_equal(line, "set")) {
+        command_set(argument);
+    } else if (text_equal(line, "get")) {
+        command_get(argument);
+    } else if (text_equal(line, "env")) {
+        command_env();
     } else if (text_equal(line, "run")) {
         command_run(argument);
     } else if (text_equal(line, "spawn")) {
