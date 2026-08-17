@@ -15,6 +15,7 @@
 #include <shell.h>
 
 #define SHELL_LINE_CAPACITY 128U
+#define SHELL_PAGING_TEST_ADDRESS UINT64_C(0xFFFFA00000000000)
 
 static int text_equal(const char *left, const char *right) {
     while (*left != '\0' && *right != '\0') {
@@ -49,6 +50,7 @@ static void print_help(void) {
     serial_write("  meminfo           Show memory supplied by the bootloader.\n");
     serial_write("  firmware          Show the current firmware environment.\n");
     serial_write("  pmm               Show physical page-manager statistics.\n");
+    serial_write("  ownmap            Show physical-frame ownership totals.\n");
     serial_write("  alloc             Allocate and report one 4 KiB physical frame.\n");
     serial_write("  pmmtest           Verify PMM allocate, reserve and free semantics.\n");
     serial_write("  ticks             Show elapsed PIT timer ticks.\n");
@@ -56,9 +58,10 @@ static void print_help(void) {
     serial_write("  flags             Show RFLAGS and the interrupt-enable flag.\n");
     serial_write("  keyboard          Show PS/2 keyboard buffer diagnostics.\n");
     serial_write("  paging            Show active PML4 and MyOS mapping counters.\n");
+    serial_write("  pagingtest        Verify map, translate, unmap and guard-page policy.\n");
     serial_write("  heap              Show kernel heap statistics.\n");
     serial_write("  heaptest          Verify multi-page heap allocation, free and reuse.\n");
-    serial_write("  pagefault         Trigger a controlled unmapped heap page fault.\n");
+    serial_write("  pagefault         Trigger the controlled heap guard-page fault.\n");
     serial_write("  fbinfo            Show framebuffer console geometry and scroll counter.\n");
     serial_write("  fbdemo            Print enough lines to exercise framebuffer scrolling.\n");
     serial_write("  echo <text>       Print text.\n");
@@ -78,7 +81,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "version")) {
-        serial_write("MyOS 0.7.0-dev (x86_64, freestanding C11 + NASM)\n");
+        serial_write("MyOS 0.8.0-dev (x86_64, freestanding C11 + NASM)\n");
         return;
     }
 
@@ -104,6 +107,21 @@ static void execute_command(const char *line, const struct shell_context *contex
         serial_write("; free frames: ");
         serial_write_hex64(pmm_free_frame_count());
         serial_write("; page size: 0x1000 bytes.\n");
+        return;
+    }
+
+    if (text_equal(line, "ownmap")) {
+        serial_write("Frame owners — free: ");
+        serial_write_hex64(pmm_frame_owner_count(FRAME_OWNER_FREE));
+        serial_write("; kernel: ");
+        serial_write_hex64(pmm_frame_owner_count(FRAME_OWNER_KERNEL));
+        serial_write("; bootloader: ");
+        serial_write_hex64(pmm_frame_owner_count(FRAME_OWNER_BOOTLOADER));
+        serial_write("; user: ");
+        serial_write_hex64(pmm_frame_owner_count(FRAME_OWNER_USER));
+        serial_write("; unmanaged: ");
+        serial_write_hex64(pmm_frame_owner_count(FRAME_OWNER_UNMANAGED));
+        serial_write("\n");
         return;
     }
 
@@ -187,6 +205,28 @@ static void execute_command(const char *line, const struct shell_context *contex
         return;
     }
 
+    if (text_equal(line, "pagingtest")) {
+        const uint64_t before = paging_mapping_count();
+        const uint64_t frame = pmm_allocate_frame();
+        uint64_t translated = 0U;
+        int passed = 0;
+
+        if (frame != PMM_INVALID_ADDRESS
+            && paging_map_page(SHELL_PAGING_TEST_ADDRESS, frame, PAGING_FLAG_WRITABLE) != 0
+            && paging_translate(SHELL_PAGING_TEST_ADDRESS, &translated) != 0
+            && translated == frame
+            && paging_unmap_page(SHELL_PAGING_TEST_ADDRESS) != 0
+            && paging_translate(SHELL_PAGING_TEST_ADDRESS, &translated) == 0
+            && pmm_free_frame(frame) != 0
+            && paging_mapping_count() == before
+            && paging_is_guard_page(PAGING_KERNEL_HEAP_GUARD_ADDRESS) != 0) {
+            passed = 1;
+        }
+        serial_write(passed != 0 ? "Paging map/unmap/guard test passed.\n"
+                                 : "Paging map/unmap/guard test failed.\n");
+        return;
+    }
+
     if (text_equal(line, "heap")) {
         serial_write("Kernel heap used: ");
         serial_write_hex64(heap_used_bytes());
@@ -231,8 +271,8 @@ static void execute_command(const char *line, const struct shell_context *contex
 
     if (text_equal(line, "pagefault")) {
         volatile uint8_t *const fault_address =
-            (volatile uint8_t *)(uintptr_t)(PAGING_KERNEL_HEAP_START + PAGING_KERNEL_HEAP_SIZE);
-        serial_write("Triggering controlled unmapped heap page fault.\n");
+            (volatile uint8_t *)(uintptr_t)PAGING_KERNEL_HEAP_GUARD_ADDRESS;
+        serial_write("Triggering controlled heap guard-page fault.\n");
         (void)*fault_address;
         return;
     }

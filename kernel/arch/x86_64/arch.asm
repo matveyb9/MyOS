@@ -3,6 +3,17 @@ DEFAULT REL
 
 SECTION .text
 
+extern __kernel_stack_top
+extern kmain
+
+global kernel_entry
+kernel_entry:
+    cld
+    lea rsp, [rel __kernel_stack_top]
+    xor rbp, rbp
+    call kmain
+    jmp arch_halt
+
 global arch_halt
 arch_halt:
     cli

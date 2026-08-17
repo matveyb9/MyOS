@@ -1,5 +1,5 @@
 OUTPUT_FORMAT(elf64-x86-64)
-ENTRY(kmain)
+ENTRY(kernel_entry)
 
 PHDRS
 {
@@ -13,6 +13,7 @@ SECTIONS
 {
     /* Limine's x86_64 protocol requires the kernel in the upper 2 GiB. */
     . = 0xffffffff80000000;
+    __kernel_start = .;
 
     .limine_requests : {
         KEEP(*(.limine_requests_start))
@@ -39,7 +40,16 @@ SECTIONS
     .bss : {
         *(.bss .bss.*)
         *(COMMON)
+        . = ALIGN(0x1000);
+        __kernel_stack_guard = .;
+        . += 0x1000;
+        __kernel_stack_bottom = .;
+        . += 0x10000;
+        __kernel_stack_top = .;
     } :data
+
+    . = ALIGN(0x1000);
+    __kernel_end = .;
 
     /DISCARD/ : {
         *(.eh_frame*)
