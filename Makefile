@@ -14,6 +14,7 @@ USER_CALC      := $(USER_BUILD_DIR)/calc
 USER_PIPEWRITE := $(USER_BUILD_DIR)/pipewrite
 USER_PIPEREAD  := $(USER_BUILD_DIR)/piperead
 USER_WC        := $(USER_BUILD_DIR)/wc
+USER_GREP      := $(USER_BUILD_DIR)/grep
 USER_MOTD      := user/motd.txt
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
@@ -112,8 +113,13 @@ $(USER_WC): user/wc.c user/linker.ld include/syscall.h
 	$(CC) $(USER_CFLAGS) -c user/wc.c -o $(USER_BUILD_DIR)/wc.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/wc.o -o $@
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_MOTD) tools/mkcpio.py
-	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) argshow $(USER_ARGSHOW) calc $(USER_CALC) pipewrite $(USER_PIPEWRITE) piperead $(USER_PIPEREAD) wc $(USER_WC) motd.txt $(USER_MOTD)
+$(USER_GREP): user/grep.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/grep.c -o $(USER_BUILD_DIR)/grep.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/grep.o -o $@
+
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_MOTD) tools/mkcpio.py
+	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) argshow $(USER_ARGSHOW) calc $(USER_CALC) pipewrite $(USER_PIPEWRITE) piperead $(USER_PIPEREAD) wc $(USER_WC) grep $(USER_GREP) motd.txt $(USER_MOTD)
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)
