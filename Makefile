@@ -57,27 +57,27 @@ $(KERNEL): $(OBJECTS) boot/linker.ld
 	@mkdir -p $(dir $@)
 	$(LD) $(LDFLAGS) $(OBJECTS) -o $@
 
-$(USER_INIT): user/init.c user/linker.ld
+$(USER_INIT): user/init.c user/linker.ld include/syscall.h
 	@mkdir -p $(USER_BUILD_DIR)
 	$(CC) $(USER_CFLAGS) -c user/init.c -o $(USER_BUILD_DIR)/init.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/init.o -o $@
 
-$(USER_HELLO): user/hello.c user/linker.ld
+$(USER_HELLO): user/hello.c user/linker.ld include/syscall.h
 	@mkdir -p $(USER_BUILD_DIR)
 	$(CC) $(USER_CFLAGS) -c user/hello.c -o $(USER_BUILD_DIR)/hello.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/hello.o -o $@
 
-$(USER_SLEEPER): user/sleeper.c user/linker.ld
+$(USER_SLEEPER): user/sleeper.c user/linker.ld include/syscall.h
 	@mkdir -p $(USER_BUILD_DIR)
 	$(CC) $(USER_CFLAGS) -c user/sleeper.c -o $(USER_BUILD_DIR)/sleeper.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/sleeper.o -o $@
 
-$(USER_ORPHANER): user/orphaner.c user/linker.ld
+$(USER_ORPHANER): user/orphaner.c user/linker.ld include/syscall.h
 	@mkdir -p $(USER_BUILD_DIR)
 	$(CC) $(USER_CFLAGS) -c user/orphaner.c -o $(USER_BUILD_DIR)/orphaner.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/orphaner.o -o $@
 
-$(USER_SAFETY): user/safety.c user/linker.ld
+$(USER_SAFETY): user/safety.c user/linker.ld include/syscall.h
 	@mkdir -p $(USER_BUILD_DIR)
 	$(CC) $(USER_CFLAGS) -c user/safety.c -o $(USER_BUILD_DIR)/safety.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/safety.o -o $@

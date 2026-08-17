@@ -6,7 +6,7 @@
 #include <paging.h>
 #include <syscall.h>
 
-#define SCHEDULER_MAX_TASKS 8U
+#define SCHEDULER_MAX_TASKS 16U
 
 enum task_state {
     TASK_STATE_UNUSED = 0,
