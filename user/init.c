@@ -133,7 +133,7 @@ static uint64_t parse_decimal(const char *text) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo sleep run dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo sleep run spawn wait dmesg clear exit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -194,6 +194,44 @@ static void command_meminfo(void) {
     write_text(" (bytes: ");
     write_number(frames * UINT64_C(4096));
     write_text(")\n");
+}
+
+static void command_spawn(const char *argument) {
+    const uint64_t length = text_length(argument);
+    uint64_t result;
+
+    if (length == 0U) {
+        write_text("Usage: spawn <program>\n");
+        return;
+    }
+    result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)argument, length);
+    if (result == UINT64_MAX) {
+        write_text("Unable to start program.\n");
+        return;
+    }
+    write_text("Started background process ");
+    write_number(result);
+    write_char('\n');
+}
+
+static void command_wait(const char *argument) {
+    const uint64_t task_id = parse_decimal(argument);
+    uint64_t status;
+
+    if (argument[0] == '\0') {
+        write_text("Usage: wait <pid>\n");
+        return;
+    }
+    status = system_call(MYOS_SYS_WAIT, task_id, 0U, 0U);
+    if (status == UINT64_MAX) {
+        write_text("Wait failed.\n");
+        return;
+    }
+    write_text("Process ");
+    write_number(task_id);
+    write_text(" exited with status ");
+    write_number(status);
+    write_char('\n');
 }
 
 static void command_run(const char *argument) {
@@ -259,6 +297,10 @@ static void execute_command(char *line) {
         command_meminfo();
     } else if (text_equal(line, "run")) {
         command_run(argument);
+    } else if (text_equal(line, "spawn")) {
+        command_spawn(argument);
+    } else if (text_equal(line, "wait")) {
+        command_wait(argument);
     } else if (text_equal(line, "sleep")) {
         command_sleep(argument);
     } else if (text_equal(line, "dmesg")) {

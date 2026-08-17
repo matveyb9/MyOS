@@ -6,6 +6,7 @@ KERNEL         := $(BUILD_DIR)/kernel.elf
 USER_BUILD_DIR := $(BUILD_DIR)/user
 USER_INIT      := $(USER_BUILD_DIR)/init
 USER_HELLO     := $(USER_BUILD_DIR)/hello
+USER_SLEEPER   := $(USER_BUILD_DIR)/sleeper
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
 LIMINE_DIR     := third_party/limine-binary
@@ -63,8 +64,13 @@ $(USER_HELLO): user/hello.c user/linker.ld
 	$(CC) $(USER_CFLAGS) -c user/hello.c -o $(USER_BUILD_DIR)/hello.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/hello.o -o $@
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) tools/mkcpio.py
-	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO)
+$(USER_SLEEPER): user/sleeper.c user/linker.ld
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/sleeper.c -o $(USER_BUILD_DIR)/sleeper.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/sleeper.o -o $@
+
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) tools/mkcpio.py
+	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER)
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)
