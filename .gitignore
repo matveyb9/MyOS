@@ -2,6 +2,7 @@
 /build/
 /*.iso
 /*.hdd
+/myos-source-*.zip
 
 # Downloaded and rebuilt on demand by Makefile
 /third_party/limine-binary/
