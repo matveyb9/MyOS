@@ -8,6 +8,7 @@
 #include <paging.h>
 #include <pmm.h>
 #include <scheduler.h>
+#include <vfs.h>
 
 #define CPIO_HEADER_SIZE 110U
 #define ELF64_HEADER_SIZE 64U
@@ -297,12 +298,12 @@ int initramfs_init(const struct limine_module_response *modules) {
     archive = (const uint8_t *)module->address;
     archive_length = module->size;
     {
-        const uint8_t *init_data;
-        uint64_t init_size;
+        struct vfs_file init_file;
 
-        init_available = cpio_find("init", &init_data, &init_size);
+        init_available = vfs_mount_newc(archive, archive_length) != 0
+                         && vfs_open("init", &init_file) != 0;
     }
-    archive_files = init_available != 0 ? 1U : 0U;
+    archive_files = vfs_file_count();
     return init_available;
 }
 
