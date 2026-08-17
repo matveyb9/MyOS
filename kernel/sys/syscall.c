@@ -10,6 +10,7 @@
 #include <pmm.h>
 #include <serial.h>
 #include <scheduler.h>
+#include <rtc.h>
 #include <syscall.h>
 #include <vfs.h>
 
@@ -132,6 +133,29 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
             return UINT64_MAX;
         }
         *((struct myos_task_info *)(uintptr_t)buffer) = info;
+        return 0U;
+    }
+    if (number == MYOS_SYS_UPTIME) {
+        if (descriptor != 0U || buffer != 0U || length != 0U) {
+            return UINT64_MAX;
+        }
+        return pit_ticks();
+    }
+    if (number == MYOS_SYS_RTC_TIME) {
+        struct rtc_time time;
+        struct myos_rtc_time result;
+
+        if (descriptor != 0U || length != sizeof(result) || user_buffer_is_valid(buffer, sizeof(result)) == 0
+            || rtc_read_time(&time) == 0) {
+            return UINT64_MAX;
+        }
+        result.year = time.year;
+        result.month = time.month;
+        result.day = time.day;
+        result.hour = time.hour;
+        result.minute = time.minute;
+        result.second = time.second;
+        *((struct myos_rtc_time *)(uintptr_t)buffer) = result;
         return 0U;
     }
     if (number == MYOS_SYS_VFS_ENTRY) {

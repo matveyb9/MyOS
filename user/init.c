@@ -133,7 +133,7 @@ static uint64_t parse_decimal(const char *text) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo ls cat sleep run spawn wait stress reboot poweroff dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo date uptime ls cat sleep run spawn wait stress reboot poweroff dmesg clear exit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -187,6 +187,55 @@ static void command_ps(void) {
         }
         write_char('\n');
     }
+}
+
+static void write_padded_two(uint64_t value) {
+    if (value < 10U) {
+        write_char('0');
+    }
+    write_number(value);
+}
+
+static void command_date(void) {
+    struct myos_rtc_time time;
+
+    if (system_call(MYOS_SYS_RTC_TIME, 0U, (uint64_t)(uintptr_t)&time, sizeof(time)) == UINT64_MAX) {
+        write_text("RTC time unavailable.\n");
+        return;
+    }
+    write_number(time.year);
+    write_char('-');
+    write_padded_two(time.month);
+    write_char('-');
+    write_padded_two(time.day);
+    write_char(' ');
+    write_padded_two(time.hour);
+    write_char(':');
+    write_padded_two(time.minute);
+    write_char(':');
+    write_padded_two(time.second);
+    write_text(" UTC\n");
+}
+
+static void command_uptime(void) {
+    const uint64_t ticks = system_call(MYOS_SYS_UPTIME, 0U, 0U, 0U);
+    const uint64_t total_seconds = ticks / PIT_HZ;
+    const uint64_t days = total_seconds / UINT64_C(86400);
+    const uint64_t hours = (total_seconds / UINT64_C(3600)) % UINT64_C(24);
+    const uint64_t minutes = (total_seconds / UINT64_C(60)) % UINT64_C(60);
+    const uint64_t seconds = total_seconds % UINT64_C(60);
+
+    write_text("Uptime: ");
+    write_number(days);
+    write_text("d ");
+    write_padded_two(hours);
+    write_text("h ");
+    write_padded_two(minutes);
+    write_text("m ");
+    write_padded_two(seconds);
+    write_text("s (");
+    write_number(ticks);
+    write_text(" ticks)\n");
 }
 
 static void command_ls(void) {
@@ -385,6 +434,10 @@ static void execute_command(char *line) {
         command_ps();
     } else if (text_equal(line, "meminfo")) {
         command_meminfo();
+    } else if (text_equal(line, "date")) {
+        command_date();
+    } else if (text_equal(line, "uptime")) {
+        command_uptime();
     } else if (text_equal(line, "ls")) {
         command_ls();
     } else if (text_equal(line, "cat")) {

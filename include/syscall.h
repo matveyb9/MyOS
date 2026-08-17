@@ -17,6 +17,8 @@
 #define MYOS_SYS_VFS_READ UINT64_C(12)
 #define MYOS_SYS_REBOOT UINT64_C(13)
 #define MYOS_SYS_POWEROFF UINT64_C(14)
+#define MYOS_SYS_UPTIME UINT64_C(15)
+#define MYOS_SYS_RTC_TIME UINT64_C(16)
 
 #define MYOS_TASK_SLOT_COUNT UINT64_C(8)
 #define MYOS_TASK_NAME_MAX UINT64_C(16)
@@ -41,6 +43,15 @@ struct myos_task_info {
     uint64_t run_count;
     uint64_t exit_status;
     char name[MYOS_TASK_NAME_MAX];
+};
+
+struct myos_rtc_time {
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
 };
 
 struct myos_vfs_entry {
