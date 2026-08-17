@@ -150,9 +150,10 @@ $(PROJECT).iso: $(KERNEL) $(INITRAMFS) $(LIMINE_DIR)/limine boot/limine.conf
 
 $(PROJECT).img: $(KERNEL) $(INITRAMFS) $(LIMINE_DIR)/limine boot/limine.conf
 	@rm -f $@
-	dd if=/dev/zero of=$@ bs=1M count=64 status=none
-	PATH=$$PATH:/usr/sbin:/sbin sgdisk $@ -n 1:2048 -t 1:ef00 -m 1
-	$(LIMINE_DIR)/limine bios-install $@
+	dd if=/dev/zero of=$@ bs=1M count=128 status=none
+	PATH=$$PATH:/usr/sbin:/sbin sgdisk -og $@
+	PATH=$$PATH:/usr/sbin:/sbin sgdisk -a 1 -n 1:34:2047 -t 1:ef02 -c 1:'MyOS BIOS boot' -n 2:2048:67583 -t 2:ef00 -c 2:'MyOS EFI' -n 3:67584:262110 -t 3:8300 -c 3:'MyOS data' $@
+	$(LIMINE_DIR)/limine bios-install $@ 1 --no-gpt-to-mbr-isohybrid-conversion
 	mformat -i $(PROJECT).img@@1M
 	mmd -i $(PROJECT).img@@1M ::/EFI ::/EFI/BOOT ::/boot ::/boot/limine
 	mcopy -i $(PROJECT).img@@1M $(KERNEL) ::/boot/kernel.elf
