@@ -3,6 +3,10 @@
 #include <stdint.h>
 
 #include <arch.h>
+#include <irq.h>
+#include <keyboard.h>
+#include <pic.h>
+#include <pit.h>
 #include <pmm.h>
 #include <serial.h>
 #include <shell.h>
@@ -43,6 +47,10 @@ static void print_help(void) {
     serial_write("  firmware          Show the current firmware environment.\n");
     serial_write("  pmm               Show physical page-manager statistics.\n");
     serial_write("  alloc             Allocate and report one 4 KiB physical frame.\n");
+    serial_write("  ticks             Show elapsed PIT timer ticks.\n");
+    serial_write("  irqs              Show enabled IRQ counters and PIC mask.\n");
+    serial_write("  flags             Show RFLAGS and the interrupt-enable flag.\n");
+    serial_write("  keyboard          Show PS/2 keyboard buffer diagnostics.\n");
     serial_write("  echo <text>       Print text.\n");
     serial_write("  clear             Clear the serial terminal.\n");
     serial_write("  crash             Trigger a divide error to test the IDT.\n");
@@ -60,7 +68,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "version")) {
-        serial_write("MyOS 0.3.0-dev (x86_64, freestanding C11 + NASM)\n");
+        serial_write("MyOS 0.4.0-dev (x86_64, freestanding C11 + NASM)\n");
         return;
     }
 
@@ -101,6 +109,44 @@ static void execute_command(const char *line, const struct shell_context *contex
         return;
     }
 
+    if (text_equal(line, "ticks")) {
+        serial_write("PIT ticks: ");
+        serial_write_hex64(pit_ticks());
+        serial_write(" at ");
+        serial_write_hex64(pit_frequency_hz());
+        serial_write(" Hz.\n");
+        return;
+    }
+
+    if (text_equal(line, "irqs")) {
+        serial_write("IRQ0 timer count: ");
+        serial_write_hex64(irq_count(0U));
+        serial_write("; IRQ1 keyboard count: ");
+        serial_write_hex64(irq_count(1U));
+        serial_write("; PIC mask: ");
+        serial_write_hex64(pic_current_mask());
+        serial_write("\n");
+        return;
+    }
+
+    if (text_equal(line, "flags")) {
+        const uint64_t flags = arch_read_rflags();
+        serial_write("RFLAGS: ");
+        serial_write_hex64(flags);
+        serial_write("; IF: ");
+        serial_write((flags & (UINT64_C(1) << 9U)) != 0U ? "enabled\n" : "disabled\n");
+        return;
+    }
+
+    if (text_equal(line, "keyboard")) {
+        serial_write("PS/2 keyboard IRQ count: ");
+        serial_write_hex64(irq_count(1U));
+        serial_write("; dropped characters: ");
+        serial_write_hex64(keyboard_dropped_char_count());
+        serial_write("\n");
+        return;
+    }
+
     if (text_starts_with(line, "echo ")) {
         serial_write(line + 5);
         serial_write("\n");
@@ -135,7 +181,16 @@ void shell_run(const struct shell_context *context) {
     print_prompt();
 
     for (;;) {
-        const char input = serial_read_char();
+        char input;
+
+        if (keyboard_has_char() != 0) {
+            input = keyboard_read_char();
+        } else if (serial_input_available() != 0) {
+            input = serial_read_char();
+        } else {
+            arch_wait_for_interrupt();
+            continue;
+        }
 
         if (input == '\r' || input == '\n') {
             serial_write("\n");

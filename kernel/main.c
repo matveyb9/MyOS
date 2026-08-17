@@ -7,6 +7,12 @@
 #include <arch.h>
 #include <gdt.h>
 #include <idt.h>
+#include <irq.h>
+#include <keyboard.h>
+#include <lapic.h>
+#include <paging.h>
+#include <pic.h>
+#include <pit.h>
 #include <pmm.h>
 #include <serial.h>
 #include <shell.h>
@@ -30,6 +36,12 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_memmap_request memory_map_request = {
     .id = LIMINE_MEMMAP_REQUEST_ID,
+    .revision = 0
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_hhdm_request hhdm_request = {
+    .id = LIMINE_HHDM_REQUEST_ID,
     .revision = 0
 };
 
@@ -183,9 +195,23 @@ void kmain(void) {
     serial_init();
     gdt_init();
     idt_init();
+    idt_install_irq_gates();
+    irq_init();
     pmm_init(memory_map_request.response);
+    paging_init(hhdm_request.response == NULL ? 0U : hhdm_request.response->offset);
+    (void)lapic_init();
+    pic_init();
+    irq_register_handler(0U, pit_on_irq);
+    irq_register_handler(1U, keyboard_on_irq);
+    pit_init(PIT_FREQUENCY_HZ);
+    const int keyboard_ready = keyboard_init();
+    pic_clear_mask(0U);
+    if (keyboard_ready != 0) {
+        pic_clear_mask(1U);
+    }
+    arch_enable_interrupts();
 
-    serial_write("\nMyOS 0.3.0-dev — x86_64 kernel\n");
+    serial_write("\nMyOS 0.4.0-dev — x86_64 kernel\n");
     serial_write("--------------------------------\n");
 
     report_boot_environment();
@@ -195,8 +221,17 @@ void kmain(void) {
     serial_write("[ok] PMM free frames: ");
     serial_write_hex64(pmm_free_frame_count());
     serial_write("\n");
-    serial_write("[ok] Bootstrap complete. Interrupts are intentionally disabled.\n");
-    serial_write("[next] IDT, exceptions, timer, memory manager, keyboard.\n");
+    serial_write("[ok] Local APIC virtual wire: ");
+    serial_write(lapic_is_active() != 0 ? "enabled\n" : "unavailable (legacy PIC only)\n");
+    serial_write("[ok] PIC remapped; PIT frequency: ");
+    serial_write_hex64(pit_frequency_hz());
+    serial_write(" Hz; mask: ");
+    serial_write_hex64(pic_current_mask());
+    serial_write("\n");
+    serial_write("[ok] PS/2 keyboard IRQ: ");
+    serial_write(keyboard_ready != 0 ? "enabled\n" : "unavailable; serial input remains active\n");
+    serial_write("[ok] Bootstrap complete. IRQ0 timer is enabled.\n");
+    serial_write("[next] framebuffer text console and richer keyboard layouts.\n");
 
     const struct shell_context shell_context = {
         .usable_memory_bytes = usable_memory_bytes(),
