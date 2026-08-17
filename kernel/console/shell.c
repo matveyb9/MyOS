@@ -12,6 +12,7 @@
 #include <paging.h>
 #include <pmm.h>
 #include <serial.h>
+#include <scheduler.h>
 #include <shell.h>
 
 #define SHELL_LINE_CAPACITY 128U
@@ -39,6 +40,19 @@ static int text_starts_with(const char *text, const char *prefix) {
     return 1;
 }
 
+static const char *task_state_name(enum task_state state) {
+    if (state == TASK_STATE_READY) {
+        return "ready";
+    }
+    if (state == TASK_STATE_RUNNING) {
+        return "running";
+    }
+    if (state == TASK_STATE_TERMINATED) {
+        return "terminated";
+    }
+    return "unused";
+}
+
 static void print_prompt(void) {
     serial_write("myos> ");
 }
@@ -59,6 +73,7 @@ static void print_help(void) {
     serial_write("  keyboard          Show PS/2 keyboard buffer diagnostics.\n");
     serial_write("  paging            Show active PML4 and MyOS mapping counters.\n");
     serial_write("  pagingtest        Verify map, translate, unmap and guard-page policy.\n");
+    serial_write("  tasks             Show round-robin kernel-thread scheduler state.\n");
     serial_write("  heap              Show kernel heap statistics.\n");
     serial_write("  heaptest          Verify multi-page heap allocation, free and reuse.\n");
     serial_write("  pagefault         Trigger the controlled heap guard-page fault.\n");
@@ -81,7 +96,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "version")) {
-        serial_write("MyOS 0.8.0-dev (x86_64, freestanding C11 + NASM)\n");
+        serial_write("MyOS 0.9.0-dev (x86_64, freestanding C11 + NASM)\n");
         return;
     }
 
@@ -224,6 +239,28 @@ static void execute_command(const char *line, const struct shell_context *contex
         }
         serial_write(passed != 0 ? "Paging map/unmap/guard test passed.\n"
                                  : "Paging map/unmap/guard test failed.\n");
+        return;
+    }
+
+    if (text_equal(line, "tasks")) {
+        serial_write("Scheduler current task: ");
+        serial_write_hex64(scheduler_current_task_id());
+        serial_write("; runnable: ");
+        serial_write_hex64(scheduler_runnable_task_count());
+        serial_write("; switches: ");
+        serial_write_hex64(scheduler_switch_count());
+        serial_write("\n");
+        for (uint64_t task_id = 0U; task_id < SCHEDULER_MAX_TASKS; task_id++) {
+            serial_write("  task ");
+            serial_write_hex64(task_id);
+            serial_write(" ");
+            serial_write(scheduler_task_name(task_id));
+            serial_write(": ");
+            serial_write(task_state_name(scheduler_task_state(task_id)));
+            serial_write("; runs: ");
+            serial_write_hex64(scheduler_task_run_count(task_id));
+            serial_write("\n");
+        }
         return;
     }
 

@@ -17,6 +17,7 @@
 #include <pit.h>
 #include <pmm.h>
 #include <serial.h>
+#include <scheduler.h>
 #include <shell.h>
 
 /*
@@ -78,6 +79,18 @@ static volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARK
 extern uint8_t __kernel_start[];
 extern uint8_t __kernel_end[];
 extern uint8_t __kernel_stack_guard[];
+
+static volatile uint64_t scheduler_worker_a_ticks;
+static volatile uint64_t scheduler_worker_b_ticks;
+
+static void scheduler_worker(void *argument) {
+    volatile uint64_t *counter = (volatile uint64_t *)argument;
+
+    for (;;) {
+        (*counter)++;
+        arch_wait_for_interrupt();
+    }
+}
 
 static int reserve_kernel_image(void) {
     struct limine_executable_address_response *response = executable_address_request.response;
@@ -186,6 +199,11 @@ void kmain(void) {
     idt_init();
     idt_install_irq_gates();
     irq_init();
+    scheduler_init();
+    const int worker_a_task =
+        scheduler_create_kernel_thread("worker-a", scheduler_worker, (void *)&scheduler_worker_a_ticks);
+    const int worker_b_task =
+        scheduler_create_kernel_thread("worker-b", scheduler_worker, (void *)&scheduler_worker_b_ticks);
     pmm_init(memory_map_request.response);
     const int kernel_image_reserved = reserve_kernel_image();
     paging_init(hhdm_request.response == NULL ? 0U : hhdm_request.response->offset);
@@ -205,7 +223,7 @@ void kmain(void) {
     }
     arch_enable_interrupts();
 
-    serial_write("\nMyOS 0.8.0-dev — x86_64 kernel\n");
+    serial_write("\nMyOS 0.9.0-dev — x86_64 kernel\n");
     serial_write("--------------------------------\n");
 
     report_boot_environment();
@@ -226,6 +244,8 @@ void kmain(void) {
     serial_write_hex64(PAGING_KERNEL_HEAP_START);
     serial_write("; guard pages: ");
     serial_write(stack_guard_ready != 0 && heap_guard_ready != 0 ? "active\n" : "degraded\n");
+    serial_write("[ok] Scheduler: ");
+    serial_write(worker_a_task >= 0 && worker_b_task >= 0 ? "two kernel workers ready\n" : "worker creation degraded\n");
     serial_write("[ok] Local APIC virtual wire: ");
     serial_write(lapic_is_active() != 0 ? "enabled\n" : "unavailable (legacy PIC only)\n");
     serial_write("[ok] PIC remapped; PIT frequency: ");
@@ -237,7 +257,7 @@ void kmain(void) {
     serial_write(keyboard_ready != 0 ? "enabled\n" : "unavailable; serial input remains active\n");
     serial_write("[ok] Bootstrap complete. IRQ0 timer is enabled.\n");
     serial_write("[ok] Framebuffer text console is active; COM1 remains mirrored.\n");
-    serial_write("[next] scheduler and kernel-thread context switching.\n");
+    serial_write("[next] ring 3 entry, TSS and system-call boundary.\n");
 
     const struct shell_context shell_context = {
         .usable_memory_bytes = usable_memory_bytes(),

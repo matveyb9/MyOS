@@ -3,6 +3,7 @@
 #include <irq.h>
 #include <lapic.h>
 #include <pic.h>
+#include <scheduler.h>
 
 static irq_handler_t handlers[IRQ_COUNT];
 static volatile uint64_t counters[IRQ_COUNT];
@@ -20,9 +21,9 @@ void irq_register_handler(uint8_t irq, irq_handler_t handler) {
     }
 }
 
-void irq_dispatch(uint8_t irq) {
+uint64_t *irq_dispatch(uint8_t irq, uint64_t *interrupted_context) {
     if (irq >= IRQ_COUNT) {
-        return;
+        return interrupted_context;
     }
 
     counters[irq]++;
@@ -31,6 +32,10 @@ void irq_dispatch(uint8_t irq) {
     }
     pic_send_eoi(irq);
     lapic_send_eoi();
+    if (irq == 0U) {
+        return scheduler_on_timer(interrupted_context);
+    }
+    return interrupted_context;
 }
 
 uint64_t irq_count(uint8_t irq) {

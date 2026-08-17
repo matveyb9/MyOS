@@ -107,12 +107,10 @@ irq_common:
     push r15
 
     mov rdi, [rsp + 120] ; IRQ number pushed by the stub
-    mov rax, rsp
+    mov rsi, rsp          ; complete saved context, beginning with r15
     and rsp, -16
-    sub rsp, 16
-    mov [rsp], rax
     call irq_dispatch
-    mov rsp, [rsp]
+    mov rsp, rax          ; selected context for pop sequence and iretq
 
     pop r15
     pop r14
