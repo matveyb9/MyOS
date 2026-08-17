@@ -3,10 +3,12 @@
 #include <stdint.h>
 
 #include <arch.h>
+#include <heap.h>
 #include <irq.h>
 #include <keyboard.h>
 #include <pic.h>
 #include <pit.h>
+#include <paging.h>
 #include <pmm.h>
 #include <serial.h>
 #include <shell.h>
@@ -51,6 +53,9 @@ static void print_help(void) {
     serial_write("  irqs              Show enabled IRQ counters and PIC mask.\n");
     serial_write("  flags             Show RFLAGS and the interrupt-enable flag.\n");
     serial_write("  keyboard          Show PS/2 keyboard buffer diagnostics.\n");
+    serial_write("  paging            Show active PML4 and MyOS mapping counters.\n");
+    serial_write("  heap              Show kernel heap statistics.\n");
+    serial_write("  heaptest          Allocate and verify a multi-page heap block.\n");
     serial_write("  echo <text>       Print text.\n");
     serial_write("  clear             Clear the serial terminal.\n");
     serial_write("  crash             Trigger a divide error to test the IDT.\n");
@@ -68,7 +73,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "version")) {
-        serial_write("MyOS 0.4.0-dev (x86_64, freestanding C11 + NASM)\n");
+        serial_write("MyOS 0.5.0-dev (x86_64, freestanding C11 + NASM)\n");
         return;
     }
 
@@ -144,6 +149,55 @@ static void execute_command(const char *line, const struct shell_context *contex
         serial_write("; dropped characters: ");
         serial_write_hex64(keyboard_dropped_char_count());
         serial_write("\n");
+        return;
+    }
+
+    if (text_equal(line, "paging")) {
+        uint64_t lapic_physical = 0U;
+        serial_write("Active PML4 physical: ");
+        serial_write_hex64(paging_active_root_physical());
+        serial_write("; MyOS mappings: ");
+        serial_write_hex64(paging_mapping_count());
+        serial_write("; LAPIC physical: ");
+        if (paging_translate(PAGING_LAPIC_VIRTUAL_ADDRESS, &lapic_physical) != 0) {
+            serial_write_hex64(lapic_physical);
+        } else {
+            serial_write("unmapped");
+        }
+        serial_write("\n");
+        return;
+    }
+
+    if (text_equal(line, "heap")) {
+        serial_write("Kernel heap used: ");
+        serial_write_hex64(heap_used_bytes());
+        serial_write(" / ");
+        serial_write_hex64(heap_capacity_bytes());
+        serial_write(" bytes; mapped pages: ");
+        serial_write_hex64(heap_mapped_page_count());
+        serial_write("; allocations: ");
+        serial_write_hex64(heap_allocation_count());
+        serial_write("\n");
+        return;
+    }
+
+    if (text_equal(line, "heaptest")) {
+        uint8_t *first = kmalloc(64U);
+        uint8_t *second = kmalloc((size_t)PAGING_PAGE_SIZE + 64U);
+        if (first == (uint8_t *)0 || second == (uint8_t *)0) {
+            serial_write("Heap allocation failed.\n");
+            return;
+        }
+        first[0] = 0xA5U;
+        first[63] = 0x5AU;
+        second[0] = 0x3CU;
+        second[PAGING_PAGE_SIZE] = 0xC3U;
+        if (first[0] == 0xA5U && first[63] == 0x5AU && second[0] == 0x3CU
+            && second[PAGING_PAGE_SIZE] == 0xC3U) {
+            serial_write("Heap multi-page write/read test passed.\n");
+        } else {
+            serial_write("Heap multi-page write/read test failed.\n");
+        }
         return;
     }
 

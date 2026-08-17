@@ -6,6 +6,7 @@
 
 #include <arch.h>
 #include <gdt.h>
+#include <heap.h>
 #include <idt.h>
 #include <irq.h>
 #include <keyboard.h>
@@ -199,6 +200,8 @@ void kmain(void) {
     irq_init();
     pmm_init(memory_map_request.response);
     paging_init(hhdm_request.response == NULL ? 0U : hhdm_request.response->offset);
+    const int paging_ready = paging_take_control();
+    heap_init();
     (void)lapic_init();
     pic_init();
     irq_register_handler(0U, pit_on_irq);
@@ -211,7 +214,7 @@ void kmain(void) {
     }
     arch_enable_interrupts();
 
-    serial_write("\nMyOS 0.4.0-dev — x86_64 kernel\n");
+    serial_write("\nMyOS 0.5.0-dev — x86_64 kernel\n");
     serial_write("--------------------------------\n");
 
     report_boot_environment();
@@ -220,6 +223,15 @@ void kmain(void) {
     serial_write("[ok] GDT and exception IDT installed.\n");
     serial_write("[ok] PMM free frames: ");
     serial_write_hex64(pmm_free_frame_count());
+    serial_write("\n");
+    serial_write("[ok] Managed paging: ");
+    serial_write(paging_ready != 0 ? "active PML4 at " : "unavailable; using bootloader tables at ");
+    serial_write_hex64(paging_active_root_physical());
+    serial_write("\n");
+    serial_write("[ok] Kernel heap: ");
+    serial_write_hex64(heap_capacity_bytes());
+    serial_write(" bytes reserved at ");
+    serial_write_hex64(PAGING_KERNEL_HEAP_START);
     serial_write("\n");
     serial_write("[ok] Local APIC virtual wire: ");
     serial_write(lapic_is_active() != 0 ? "enabled\n" : "unavailable (legacy PIC only)\n");
