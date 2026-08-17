@@ -571,7 +571,7 @@ static void execute_command(char *line) {
         write_text(argument);
         write_char('\n');
     } else if (text_equal(line, "uname")) {
-        write_text("MyOS 0.11.0-dev x86_64\n");
+        write_text("MyOS 0.12.0-dev x86_64\n");
     } else if (text_equal(line, "ps")) {
         command_ps();
     } else if (text_equal(line, "meminfo")) {
@@ -626,7 +626,7 @@ void _start(void) __attribute__((noreturn));
 void _start(void) {
     char line[USER_LINE_CAPACITY];
 
-    write_text("MyOS user shell 0.11.0-dev\n");
+    write_text("MyOS user shell 0.12.0-dev\n");
     write_text("Type 'help' for available commands.\n");
     for (;;) {
         write_text("myos$ ");
