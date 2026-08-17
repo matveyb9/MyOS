@@ -2,7 +2,10 @@
 
 #include <arch.h>
 #include <gdt.h>
+#include <keyboard.h>
 #include <paging.h>
+#include <pit.h>
+#include <pmm.h>
 #include <serial.h>
 #include <syscall.h>
 
@@ -49,6 +52,28 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         }
         write_syscalls++;
         return length;
+    }
+    if (number == MYOS_SYS_READ) {
+        char character;
+
+        if (descriptor != 0U || length == 0U || user_buffer_is_valid(buffer, 1U) == 0) {
+            return UINT64_MAX;
+        }
+        if (serial_input_available() != 0) {
+            character = serial_read_char();
+        } else if (keyboard_has_char() != 0) {
+            character = keyboard_read_char();
+        } else {
+            return 0U;
+        }
+        ((char *)(uintptr_t)buffer)[0] = character;
+        return 1U;
+    }
+    if (number == MYOS_SYS_TICKS) {
+        return pit_ticks();
+    }
+    if (number == MYOS_SYS_FREE_FRAMES) {
+        return pmm_free_frame_count();
     }
     if (number == MYOS_SYS_EXIT) {
         serial_write("[user] exit requested; system halted.\n");

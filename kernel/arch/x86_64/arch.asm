@@ -141,7 +141,7 @@ syscall_entry:
     pop r11
     pop rcx
     mov rsp, [rel syscall_user_rsp]
-    sysret
+    o64 sysret
 
 extern idt_handle_exception
 extern irq_dispatch

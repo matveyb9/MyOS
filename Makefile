@@ -23,9 +23,9 @@ CFLAGS         := -std=gnu11 -O0 -g $(WARNINGS) \
                  -m64 -march=x86-64 -mabi=sysv -mno-red-zone -mcmodel=kernel \
                  -mno-mmx -mno-sse -mno-sse2 \
                  -Iinclude
-NASMFLAGS      := -f elf64 -g -F dwarf -Wall
-LDFLAGS        := -m elf_x86_64 -nostdlib -static -z max-page-size=0x1000 \
-                 --gc-sections -T boot/linker.ld
+NASMFLAGS       := -f elf64 -g -F dwarf -Wall
+USER_CFLAGS     := -std=gnu11 -O0 -g -Wall -Wextra -Werror -Wshadow -Wconversion -Wundef -ffreestanding -fno-stack-protector -fno-pic -fno-pie -fno-asynchronous-unwind-tables -fno-omit-frame-pointer -m64 -march=x86-64 -mabi=sysv -mno-red-zone -mcmodel=small -mno-mmx -mno-sse -mno-sse2 -Iinclude
+LDFLAGS         := -m elf_x86_64 -nostdlib -static -z max-page-size=0x1000 --gc-sections -T boot/linker.ld
 
 C_SOURCES      := $(shell find kernel -name '*.c' | sort)
 ASM_SOURCES    := $(shell find kernel -name '*.asm' | sort)
@@ -52,9 +52,9 @@ $(KERNEL): $(OBJECTS) boot/linker.ld
 	@mkdir -p $(dir $@)
 	$(LD) $(LDFLAGS) $(OBJECTS) -o $@
 
-$(USER_INIT): user/init.asm user/linker.ld
+$(USER_INIT): user/init.c user/linker.ld
 	@mkdir -p $(USER_BUILD_DIR)
-	$(NASM) $(NASMFLAGS) $< -o $(USER_BUILD_DIR)/init.o
+	$(CC) $(USER_CFLAGS) -c user/init.c -o $(USER_BUILD_DIR)/init.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/init.o -o $@
 
 $(INITRAMFS): $(USER_INIT) tools/mkcpio.py

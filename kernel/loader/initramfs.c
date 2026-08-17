@@ -224,7 +224,7 @@ static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *en
                                                   + index * ELF64_PROGRAM_HEADER_SIZE);
         uint64_t page_flags;
 
-        if (program->type != ELF64_PT_LOAD) {
+        if (program->type != ELF64_PT_LOAD || program->memory_size == 0U) {
             continue;
         }
         if (program->memory_size < program->file_size || program->offset > image_size

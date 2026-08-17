@@ -103,7 +103,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "version")) {
-        serial_write("MyOS 0.10.0-dev (x86_64, freestanding C11 + NASM)\n");
+        serial_write("MyOS 0.11.0-dev (x86_64, freestanding C11 + NASM)\n");
         return;
     }
 
