@@ -2,6 +2,7 @@
 /build/
 /*.iso
 /*.hdd
+/*.img
 /myos-source-*.zip
 
 # Downloaded and rebuilt on demand by Makefile

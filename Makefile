@@ -37,13 +37,13 @@ ASM_SOURCES    := $(shell find kernel -name '*.asm' | sort)
 OBJECTS        := $(patsubst %.c,$(BUILD_DIR)/obj/%.c.o,$(C_SOURCES)) \
                   $(patsubst %.asm,$(BUILD_DIR)/obj/%.asm.o,$(ASM_SOURCES))
 
-.PHONY: all kernel initramfs iso hdd run run-graphic run-uefi run-uefi-graphic debug clean distclean inspect help
+.PHONY: all kernel initramfs iso img run run-graphic run-uefi run-uefi-graphic debug clean distclean inspect help
 
 all: iso
 kernel: $(KERNEL)
 initramfs: $(INITRAMFS)
 iso: $(PROJECT).iso
-hdd: $(PROJECT).hdd
+img: $(PROJECT).img
 
 $(BUILD_DIR)/obj/%.c.o: %.c
 	@mkdir -p $(dir $@)
@@ -106,18 +106,18 @@ $(PROJECT).iso: $(KERNEL) $(INITRAMFS) $(LIMINE_DIR)/limine boot/limine.conf
 		$(ISO_ROOT) -o $@
 	$(LIMINE_DIR)/limine bios-install $@
 
-$(PROJECT).hdd: $(KERNEL) $(INITRAMFS) $(LIMINE_DIR)/limine boot/limine.conf
+$(PROJECT).img: $(KERNEL) $(INITRAMFS) $(LIMINE_DIR)/limine boot/limine.conf
 	@rm -f $@
 	dd if=/dev/zero of=$@ bs=1M count=64 status=none
 	PATH=$$PATH:/usr/sbin:/sbin sgdisk $@ -n 1:2048 -t 1:ef00 -m 1
 	$(LIMINE_DIR)/limine bios-install $@
-	mformat -i $(PROJECT).hdd@@1M
-	mmd -i $(PROJECT).hdd@@1M ::/EFI ::/EFI/BOOT ::/boot ::/boot/limine
-	mcopy -i $(PROJECT).hdd@@1M $(KERNEL) ::/boot/kernel.elf
-	mcopy -i $(PROJECT).hdd@@1M $(INITRAMFS) ::/boot/initramfs.cpio
-	mcopy -i $(PROJECT).hdd@@1M boot/limine.conf ::/boot/limine.conf
-	mcopy -i $(PROJECT).hdd@@1M $(LIMINE_DIR)/limine-bios.sys ::/boot/limine/limine-bios.sys
-	mcopy -i $(PROJECT).hdd@@1M $(LIMINE_DIR)/BOOTX64.EFI ::/EFI/BOOT/BOOTX64.EFI
+	mformat -i $(PROJECT).img@@1M
+	mmd -i $(PROJECT).img@@1M ::/EFI ::/EFI/BOOT ::/boot ::/boot/limine
+	mcopy -i $(PROJECT).img@@1M $(KERNEL) ::/boot/kernel.elf
+	mcopy -i $(PROJECT).img@@1M $(INITRAMFS) ::/boot/initramfs.cpio
+	mcopy -i $(PROJECT).img@@1M boot/limine.conf ::/boot/limine.conf
+	mcopy -i $(PROJECT).img@@1M $(LIMINE_DIR)/limine-bios.sys ::/boot/limine/limine-bios.sys
+	mcopy -i $(PROJECT).img@@1M $(LIMINE_DIR)/BOOTX64.EFI ::/EFI/BOOT/BOOTX64.EFI
 
 run: $(PROJECT).iso
 	qemu-system-x86_64 -machine q35 -m 256M -cdrom $(PROJECT).iso -boot d \
@@ -151,7 +151,7 @@ inspect: $(KERNEL)
 	readelf -h -l -S $(KERNEL)
 
 clean:
-	rm -rf $(BUILD_DIR) $(PROJECT).iso $(PROJECT).hdd
+	rm -rf $(BUILD_DIR) $(PROJECT).iso $(PROJECT).img
 
 distclean: clean
 	rm -rf $(LIMINE_DIR)
@@ -163,7 +163,7 @@ help:
 		'make run-graphic    Start BIOS QEMU with framebuffer window and COM1 output.' \
 		'make run-uefi       Start UEFI QEMU headlessly and show COM1 output.' \
 		'make run-uefi-graphic Start UEFI QEMU with framebuffer window and COM1 output.' \
-		'make hdd            Build a raw hybrid HDD/USB image. Flash only to a dedicated test device.' \
+		'make img            Build a raw hybrid GPT disk/USB image. Flash only to a dedicated test device.' \
 		'make debug          Start QEMU paused with a GDB server on TCP port 1234.'
 
 -include $(OBJECTS:.o=.d)
