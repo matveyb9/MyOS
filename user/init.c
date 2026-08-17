@@ -1,11 +1,6 @@
 #include <stdint.h>
 
-#define MYOS_SYS_WRITE UINT64_C(1)
-#define MYOS_SYS_EXIT UINT64_C(2)
-#define MYOS_SYS_READ UINT64_C(3)
-#define MYOS_SYS_TICKS UINT64_C(4)
-#define MYOS_SYS_FREE_FRAMES UINT64_C(5)
-#define MYOS_SYS_SPAWN UINT64_C(6)
+#include <syscall.h>
 #define USER_WRITE_LIMIT UINT64_C(256)
 #define USER_LINE_CAPACITY 128U
 #define PIT_HZ UINT64_C(100)
@@ -141,12 +136,51 @@ static void command_help(void) {
     write_text("Commands: help echo uname ps meminfo sleep run dmesg clear exit\n");
 }
 
+static const char *task_state_name(uint64_t state) {
+    if (state == MYOS_TASK_STATE_READY) {
+        return "ready";
+    }
+    if (state == MYOS_TASK_STATE_RUNNING) {
+        return "running";
+    }
+    if (state == MYOS_TASK_STATE_SLEEPING) {
+        return "sleeping";
+    }
+    if (state == MYOS_TASK_STATE_ZOMBIE) {
+        return "zombie";
+    }
+    return "unused";
+}
+
+static const char *task_kind_name(uint64_t kind) {
+    return kind == MYOS_TASK_KIND_USER ? "user" : "kernel";
+}
+
 static void command_ps(void) {
-    write_text("PID  STATE    COMMAND\n");
-    write_text("1    running  /init user shell\n");
-    write_text("0    running  kernel\n");
-    write_text("k1   ready    worker-a\n");
-    write_text("k2   ready    worker-b\n");
+    const uint64_t current_pid = system_call(MYOS_SYS_GETPID, 0U, 0U, 0U);
+
+    write_text("PID  STATE     KIND    RUNS  COMMAND\n");
+    for (uint64_t task_id = 0U; task_id < MYOS_TASK_SLOT_COUNT; task_id++) {
+        struct myos_task_info info;
+
+        if (system_call(MYOS_SYS_TASK_INFO, task_id, (uint64_t)(uintptr_t)&info, sizeof(info))
+            == UINT64_MAX || info.state == MYOS_TASK_STATE_UNUSED) {
+            continue;
+        }
+        write_number(info.id);
+        write_text("    ");
+        write_text(task_state_name(info.state));
+        write_text("    ");
+        write_text(task_kind_name(info.kind));
+        write_text("    ");
+        write_number(info.run_count);
+        write_text("     ");
+        write_text(info.name);
+        if (info.id == current_pid) {
+            write_text(" [current]");
+        }
+        write_char('\n');
+    }
 }
 
 static void command_meminfo(void) {
@@ -161,14 +195,29 @@ static void command_meminfo(void) {
 
 static void command_run(const char *argument) {
     const uint64_t length = text_length(argument);
-    const uint64_t result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)argument, length);
+    uint64_t result;
+    uint64_t status;
 
+    if (length == 0U) {
+        write_text("Usage: run <program>\n");
+        return;
+    }
+    result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)argument, length);
     if (result == UINT64_MAX) {
         write_text("Unable to start program.\n");
         return;
     }
     write_text("Started process ");
     write_number(result);
+    write_text("; waiting for exit...\n");
+    do {
+        status = system_call(MYOS_SYS_WAIT, result, 0U, 0U);
+        __asm__ volatile ("pause");
+    } while (status == UINT64_MAX);
+    write_text("Process ");
+    write_number(result);
+    write_text(" exited with status ");
+    write_number(status);
     write_char('\n');
 }
 

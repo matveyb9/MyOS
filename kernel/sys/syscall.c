@@ -93,6 +93,30 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         (void)scheduler_activate_current_task();
         return task_id < 0 ? UINT64_MAX : (uint64_t)task_id;
     }
+    if (number == MYOS_SYS_WAIT) {
+        uint64_t status;
+
+        if (buffer != 0U || length != 0U || scheduler_wait_child(descriptor, &status) != 0) {
+            return UINT64_MAX;
+        }
+        return status;
+    }
+    if (number == MYOS_SYS_GETPID) {
+        if (descriptor != 0U || buffer != 0U || length != 0U) {
+            return UINT64_MAX;
+        }
+        return scheduler_current_task_id();
+    }
+    if (number == MYOS_SYS_TASK_INFO) {
+        struct myos_task_info info;
+
+        if (length != sizeof(info) || user_buffer_is_valid(buffer, sizeof(info)) == 0
+            || scheduler_task_info(descriptor, &info) != 0) {
+            return UINT64_MAX;
+        }
+        *((struct myos_task_info *)(uintptr_t)buffer) = info;
+        return 0U;
+    }
     if (number == MYOS_SYS_EXIT) {
         uint64_t *next_context = scheduler_exit_current(descriptor);
 

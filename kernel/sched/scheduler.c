@@ -13,7 +13,7 @@ struct task {
     uint64_t id;
     enum task_state state;
     enum task_kind kind;
-    const char *name;
+    char name[MYOS_TASK_NAME_MAX];
     kernel_thread_entry_t kernel_entry;
     void *argument;
     uint64_t user_entry;
@@ -31,6 +31,16 @@ static struct task tasks[SCHEDULER_MAX_TASKS];
 static uint64_t current_task_index;
 static uint64_t context_switches;
 static int scheduler_ready;
+
+static void task_set_name(struct task *task, const char *name) {
+    uint64_t index = 0U;
+
+    while (index + 1U < MYOS_TASK_NAME_MAX && name[index] != '\0') {
+        task->name[index] = name[index];
+        index++;
+    }
+    task->name[index] = '\0';
+}
 
 static uint64_t task_kernel_stack_top(const struct task *task) {
     if (task->id == 0U) {
@@ -111,7 +121,7 @@ static void clear_task(struct task *task, uint64_t id) {
     task->id = id;
     task->state = TASK_STATE_UNUSED;
     task->kind = TASK_KIND_KERNEL;
-    task->name = "unused";
+    task_set_name(task, "unused");
     task->kernel_entry = (kernel_thread_entry_t)0;
     task->argument = (void *)0;
     task->user_entry = 0U;
@@ -130,7 +140,7 @@ void scheduler_init(void) {
 
     tasks[0].state = TASK_STATE_RUNNING;
     tasks[0].kind = TASK_KIND_KERNEL;
-    tasks[0].name = "kernel";
+    task_set_name(&tasks[0], "kernel");
     tasks[0].run_count = 1U;
     current_task_index = 0U;
     context_switches = 0U;
@@ -150,7 +160,7 @@ int scheduler_create_kernel_thread(const char *name, kernel_thread_entry_t entry
             continue;
         }
         task->kind = TASK_KIND_KERNEL;
-        task->name = name;
+        task_set_name(task, name);
         task->kernel_entry = entry;
         task->argument = argument;
         task->saved_context = initial_kernel_context(task);
@@ -178,7 +188,7 @@ int scheduler_create_user_task(const char *name, const struct paging_space *addr
             continue;
         }
         task->kind = TASK_KIND_USER;
-        task->name = name;
+        task_set_name(task, name);
         task->user_entry = entry;
         task->user_stack_top = user_stack_top;
         task->address_space = *address_space;
@@ -237,6 +247,57 @@ uint64_t scheduler_runnable_task_count(void) {
         }
     }
     return count;
+}
+
+uint64_t scheduler_task_count(void) {
+    uint64_t count = 0U;
+
+    for (uint64_t index = 0U; index < SCHEDULER_MAX_TASKS; index++) {
+        if (tasks[index].state != TASK_STATE_UNUSED) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int scheduler_wait_child(uint64_t task_id, uint64_t *status) {
+    struct task *task;
+
+    if (scheduler_ready == 0 || status == (uint64_t *)0 || task_id == 0U
+        || task_id >= SCHEDULER_MAX_TASKS || task_id == current_task_index) {
+        return -1;
+    }
+    task = &tasks[task_id];
+    if (task->kind != TASK_KIND_USER || task->state != TASK_STATE_ZOMBIE) {
+        return -1;
+    }
+    *status = task->exit_status;
+    clear_task(task, task_id);
+    return 0;
+}
+
+int scheduler_task_info(uint64_t task_id, struct myos_task_info *info) {
+    const struct task *task;
+    uint64_t index = 0U;
+
+    if (scheduler_ready == 0 || info == (struct myos_task_info *)0 || task_id >= SCHEDULER_MAX_TASKS) {
+        return -1;
+    }
+    task = &tasks[task_id];
+    info->id = task->id;
+    info->state = (uint64_t)task->state;
+    info->kind = (uint64_t)task->kind;
+    info->run_count = task->run_count;
+    info->exit_status = task->exit_status;
+    while (index + 1U < MYOS_TASK_NAME_MAX && task->name[index] != '\0') {
+        info->name[index] = task->name[index];
+        index++;
+    }
+    info->name[index] = '\0';
+    while (++index < MYOS_TASK_NAME_MAX) {
+        info->name[index] = '\0';
+    }
+    return 0;
 }
 
 enum task_state scheduler_task_state(uint64_t task_id) {
