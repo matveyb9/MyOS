@@ -351,6 +351,35 @@ int scheduler_wait_child(uint64_t task_id, uint64_t *status) {
     return 0;
 }
 
+int scheduler_kill_child(uint64_t task_id, uint64_t status) {
+    struct task *current;
+    struct task *child;
+
+    if (scheduler_ready == 0 || current_task_index == 0U || task_id == 0U
+        || task_id >= SCHEDULER_MAX_TASKS || task_id == current_task_index) {
+        return -1;
+    }
+    current = &tasks[current_task_index];
+    child = &tasks[task_id];
+    if (current->kind != TASK_KIND_USER || current->state != TASK_STATE_RUNNING
+        || child->kind != TASK_KIND_USER || child->parent_task_id != current_task_index
+        || child->state == TASK_STATE_UNUSED || child->state == TASK_STATE_ZOMBIE) {
+        return -1;
+    }
+    detach_children(task_id);
+    child->state = TASK_STATE_ZOMBIE;
+    child->exit_status = status;
+    (void)paging_activate_kernel_space();
+    if (paging_space_destroy_user(&child->address_space) == 0) {
+        child->state = TASK_STATE_READY;
+        child->exit_status = 0U;
+        (void)scheduler_activate_current_task();
+        return -1;
+    }
+    (void)scheduler_activate_current_task();
+    return 0;
+}
+
 int scheduler_task_info(uint64_t task_id, struct myos_task_info *info) {
     const struct task *task;
     uint64_t index = 0U;

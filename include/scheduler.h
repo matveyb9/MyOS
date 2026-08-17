@@ -41,6 +41,7 @@ uint64_t scheduler_switch_count(void);
 uint64_t scheduler_runnable_task_count(void);
 uint64_t scheduler_task_count(void);
 int scheduler_wait_child(uint64_t task_id, uint64_t *status);
+int scheduler_kill_child(uint64_t task_id, uint64_t status);
 int scheduler_task_info(uint64_t task_id, struct myos_task_info *info);
 enum task_state scheduler_task_state(uint64_t task_id);
 enum task_kind scheduler_task_kind(uint64_t task_id);

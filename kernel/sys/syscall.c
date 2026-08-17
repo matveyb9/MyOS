@@ -131,6 +131,12 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         (void)scheduler_activate_current_task();
         return task_id < 0 ? UINT64_MAX : (uint64_t)task_id;
     }
+    if (number == MYOS_SYS_KILL) {
+        if (buffer != 0U || length != 0U) {
+            return UINT64_MAX;
+        }
+        return scheduler_kill_child(descriptor, MYOS_EXIT_STATUS_KILLED) == 0 ? 0U : UINT64_MAX;
+    }
     if (number == MYOS_SYS_WAIT) {
         uint64_t status;
         uint64_t *next_context;

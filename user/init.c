@@ -133,7 +133,7 @@ static uint64_t parse_decimal(const char *text) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo date uptime ls cat sleep run spawn wait stress reboot poweroff dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo date uptime ls cat sleep run spawn wait kill stress reboot poweroff dmesg clear exit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -353,6 +353,22 @@ static void command_wait(const char *argument) {
     write_char('\n');
 }
 
+static void command_kill(const char *argument) {
+    const uint64_t task_id = parse_decimal(argument);
+
+    if (argument[0] == '\0') {
+        write_text("Usage: kill <pid>\n");
+        return;
+    }
+    if (system_call(MYOS_SYS_KILL, task_id, 0U, 0U) == UINT64_MAX) {
+        write_text("Kill failed.\n");
+        return;
+    }
+    write_text("Process ");
+    write_number(task_id);
+    write_text(" terminated; use wait to reap it.\n");
+}
+
 static void command_run(const char *argument) {
     const uint64_t length = text_length(argument);
     uint64_t result;
@@ -448,6 +464,8 @@ static void execute_command(char *line) {
         command_spawn(argument);
     } else if (text_equal(line, "wait")) {
         command_wait(argument);
+    } else if (text_equal(line, "kill")) {
+        command_kill(argument);
     } else if (text_equal(line, "stress")) {
         command_stress();
     } else if (text_equal(line, "sleep")) {
