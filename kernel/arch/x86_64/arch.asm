@@ -141,15 +141,38 @@ global syscall_entry
 syscall_entry:
     mov [rel syscall_user_rsp], rsp
     mov rsp, [rel syscall_kernel_rsp]
-    push rcx
-    push r11
+    sub rsp, 176
+    mov [rsp + 64], r8
+    lea r8, [rsp + 8]
+    mov [r8 + 0], r15
+    mov [r8 + 8], r14
+    mov [r8 + 16], r13
+    mov [r8 + 24], r12
+    mov [r8 + 32], r11
+    mov [r8 + 40], r10
+    mov [r8 + 48], r9
+    mov [r8 + 64], rdi
+    mov [r8 + 72], rsi
+    mov [r8 + 80], rbp
+    mov [r8 + 88], rbx
+    mov [r8 + 96], rdx
+    mov [r8 + 104], rcx
+    mov [r8 + 112], rax
+    mov qword [r8 + 120], 0
+    mov [r8 + 128], rcx
+    mov qword [r8 + 136], 0x2b
+    mov [r8 + 144], r11
+    mov r10, [rel syscall_user_rsp]
+    mov [r8 + 152], r10
+    mov qword [r8 + 160], 0x23
     mov rcx, rdx
     mov rdx, rsi
     mov rsi, rdi
     mov rdi, rax
     call syscall_dispatch
-    pop r11
-    pop rcx
+    mov rcx, [rsp + 136]
+    mov r11, [rsp + 152]
+    add rsp, 176
     mov rsp, [rel syscall_user_rsp]
     o64 sysret
 

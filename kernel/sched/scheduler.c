@@ -3,6 +3,7 @@
 #include <arch.h>
 #include <gdt.h>
 #include <paging.h>
+#include <pit.h>
 #include <scheduler.h>
 
 #define SCHEDULER_STACK_SIZE (64U * 1024U)
@@ -22,6 +23,7 @@ struct task {
     uint64_t *saved_context;
     uint64_t run_count;
     uint64_t exit_status;
+    uint64_t wake_tick;
     uint8_t stack[SCHEDULER_STACK_SIZE] __attribute__((aligned(16)));
 };
 
@@ -131,6 +133,7 @@ static void clear_task(struct task *task, uint64_t id) {
     task->saved_context = (uint64_t *)0;
     task->run_count = 0U;
     task->exit_status = 0U;
+    task->wake_tick = 0U;
 }
 
 void scheduler_init(void) {
@@ -166,6 +169,7 @@ int scheduler_create_kernel_thread(const char *name, kernel_thread_entry_t entry
         task->saved_context = initial_kernel_context(task);
         task->run_count = 0U;
         task->exit_status = 0U;
+        task->wake_tick = 0U;
         task->state = TASK_STATE_READY;
         return (int)index;
     }
@@ -195,6 +199,7 @@ int scheduler_create_user_task(const char *name, const struct paging_space *addr
         task->saved_context = initial_user_context(task);
         task->run_count = 0U;
         task->exit_status = 0U;
+        task->wake_tick = 0U;
         task->state = TASK_STATE_READY;
         return (int)index;
     }
@@ -204,9 +209,17 @@ int scheduler_create_user_task(const char *name, const struct paging_space *addr
 uint64_t *scheduler_on_timer(uint64_t *interrupted_context) {
     struct task *current;
     uint64_t next_index;
+    const uint64_t now = pit_ticks();
 
     if (scheduler_ready == 0 || interrupted_context == (uint64_t *)0) {
         return interrupted_context;
+    }
+
+    for (uint64_t index = 0U; index < SCHEDULER_MAX_TASKS; index++) {
+        if (tasks[index].state == TASK_STATE_SLEEPING && now >= tasks[index].wake_tick) {
+            tasks[index].state = TASK_STATE_READY;
+            tasks[index].wake_tick = 0U;
+        }
     }
 
     current = &tasks[current_task_index];
@@ -329,6 +342,35 @@ int scheduler_activate_current_task(void) {
     }
     activate_task_context(&tasks[current_task_index]);
     return 1;
+}
+
+uint64_t *scheduler_sleep_current(uint64_t ticks, uint64_t *user_context) {
+    struct task *current;
+    uint64_t next_index;
+    const uint64_t now = pit_ticks();
+
+    if (scheduler_ready == 0 || ticks == 0U || user_context == (uint64_t *)0 || current_task_index == 0U) {
+        return (uint64_t *)0;
+    }
+    current = &tasks[current_task_index];
+    if (current->kind != TASK_KIND_USER || current->state != TASK_STATE_RUNNING) {
+        return (uint64_t *)0;
+    }
+    current->saved_context = user_context;
+    current->wake_tick = ticks > UINT64_MAX - now ? UINT64_MAX : now + ticks;
+    current->state = TASK_STATE_SLEEPING;
+
+    if (next_ready_task(&next_index) == 0) {
+        current->state = TASK_STATE_RUNNING;
+        current->wake_tick = 0U;
+        return (uint64_t *)0;
+    }
+    current_task_index = next_index;
+    tasks[current_task_index].state = TASK_STATE_RUNNING;
+    tasks[current_task_index].run_count++;
+    context_switches++;
+    activate_task_context(&tasks[current_task_index]);
+    return tasks[current_task_index].saved_context;
 }
 
 uint64_t *scheduler_exit_current(uint64_t status) {

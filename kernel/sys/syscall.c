@@ -43,7 +43,8 @@ void syscall_init(void) {
     arch_write_msr(IA32_FMASK, SYSCALL_MASK_FLAGS);
 }
 
-uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer, uint64_t length) {
+uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer, uint64_t length,
+                          uint64_t *user_context) {
     total_syscalls++;
     if (number == MYOS_SYS_WRITE) {
         if (descriptor != 1U || user_buffer_is_valid(buffer, length) == 0) {
@@ -116,6 +117,22 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         }
         *((struct myos_task_info *)(uintptr_t)buffer) = info;
         return 0U;
+    }
+    if (number == MYOS_SYS_SLEEP) {
+        uint64_t *next_context;
+
+        if (buffer != 0U || length != 0U) {
+            return UINT64_MAX;
+        }
+        if (descriptor == 0U) {
+            return 0U;
+        }
+        next_context = scheduler_sleep_current(descriptor, user_context);
+        if (next_context == (uint64_t *)0) {
+            return UINT64_MAX;
+        }
+        user_context[14] = 0U;
+        arch_resume_context(next_context);
     }
     if (number == MYOS_SYS_EXIT) {
         uint64_t *next_context = scheduler_exit_current(descriptor);

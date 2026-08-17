@@ -28,6 +28,7 @@ int scheduler_create_kernel_thread(const char *name, kernel_thread_entry_t entry
 int scheduler_create_user_task(const char *name, const struct paging_space *address_space,
                                uint64_t entry, uint64_t user_stack_top);
 uint64_t *scheduler_exit_current(uint64_t status);
+uint64_t *scheduler_sleep_current(uint64_t ticks, uint64_t *user_context);
 int scheduler_activate_current_task(void);
 uint64_t *scheduler_on_timer(uint64_t *interrupted_context);
 uint64_t scheduler_current_task_id(void);

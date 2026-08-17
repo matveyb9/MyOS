@@ -50,6 +50,9 @@ static const char *task_state_name(enum task_state state) {
     if (state == TASK_STATE_RUNNING) {
         return "running";
     }
+    if (state == TASK_STATE_SLEEPING) {
+        return "sleeping";
+    }
     if (state == TASK_STATE_ZOMBIE) {
         return "zombie";
     }

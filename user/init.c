@@ -223,11 +223,15 @@ static void command_run(const char *argument) {
 
 static void command_sleep(const char *argument) {
     const uint64_t seconds = parse_decimal(argument);
-    const uint64_t start = system_call(MYOS_SYS_TICKS, 0U, 0U, 0U);
-    const uint64_t duration = seconds * PIT_HZ;
+    uint64_t result;
 
-    while (system_call(MYOS_SYS_TICKS, 0U, 0U, 0U) - start < duration) {
-        __asm__ volatile ("pause");
+    if (seconds > UINT64_MAX / PIT_HZ) {
+        write_text("Sleep duration is too large.\n");
+        return;
+    }
+    result = system_call(MYOS_SYS_SLEEP, seconds * PIT_HZ, 0U, 0U);
+    if (result == UINT64_MAX) {
+        write_text("Sleep failed.\n");
     }
 }
 
