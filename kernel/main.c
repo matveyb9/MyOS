@@ -18,6 +18,7 @@
 #include <pic.h>
 #include <pit.h>
 #include <pmm.h>
+#include <pci.h>
 #include <pipe.h>
 #include <rtc.h>
 #include <scheduler.h>
@@ -233,6 +234,8 @@ void kmain(void) {
     const int heap_guard_ready = paging_map_guard(PAGING_KERNEL_HEAP_GUARD_ADDRESS);
     heap_init();
     pipe_init();
+    struct pci_device ahci_device = { 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U };
+    const int ahci_ready = pci_find_class(UINT8_C(0x01), UINT8_C(0x06), UINT8_C(0x01), &ahci_device);
     (void)lapic_init();
     pic_init();
     irq_register_handler(0U, pit_on_irq);
@@ -271,6 +274,16 @@ void kmain(void) {
     serial_write_hex64(PAGING_KERNEL_HEAP_START);
     serial_write("; guard pages: ");
     serial_write(stack_guard_ready != 0 && heap_guard_ready != 0 ? "active\n" : "degraded\n");
+    serial_write("[ok] Q35 AHCI PCI controller: ");
+    serial_write(ahci_ready != 0 ? "detected at 00:" : "unavailable\n");
+    if (ahci_ready != 0) {
+        serial_write_hex64(ahci_device.device);
+        serial_write(".");
+        serial_write_hex64(ahci_device.function);
+        serial_write(" BAR5=");
+        serial_write_hex64(ahci_device.bar5 & UINT32_C(0xFFFFFFF0));
+        serial_write("\n");
+    }
     serial_write("[ok] Scheduler: ");
     serial_write(worker_a_task >= 0 && worker_b_task >= 0 ? "two kernel workers ready\n" : "worker creation degraded\n");
     serial_write("[ok] Local APIC virtual wire: ");

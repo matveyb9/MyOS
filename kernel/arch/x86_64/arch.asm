@@ -60,11 +60,24 @@ arch_out16:
     out dx, ax
     ret
 
+global arch_out32
+arch_out32:
+    mov dx, di
+    mov eax, esi
+    out dx, eax
+    ret
+
 global arch_in8
 arch_in8:
     mov dx, di
     xor eax, eax
     in al, dx
+    ret
+
+global arch_in32
+arch_in32:
+    mov dx, di
+    in eax, dx
     ret
 
 global arch_enable_interrupts
