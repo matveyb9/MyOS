@@ -27,6 +27,7 @@ struct tss64 {
 
 extern void arch_load_gdt(const struct gdt_descriptor *descriptor);
 extern void arch_load_tss(uint16_t selector);
+extern void arch_set_syscall_stack(uint64_t stack_top);
 extern uint8_t __kernel_stack_top[];
 
 static uint64_t gdt_entries[8] __attribute__((aligned(16)));
@@ -61,8 +62,10 @@ void gdt_init(void) {
     set_tss_descriptor();
     arch_load_gdt(&descriptor);
     arch_load_tss(GDT_TSS_SELECTOR);
+    arch_set_syscall_stack(kernel_tss.rsp0);
 }
 
 void gdt_set_kernel_stack(uint64_t stack_top) {
     kernel_tss.rsp0 = stack_top;
+    arch_set_syscall_stack(stack_top);
 }

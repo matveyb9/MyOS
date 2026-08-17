@@ -41,6 +41,11 @@ arch_enable_interrupts:
     sti
     ret
 
+global arch_disable_interrupts
+arch_disable_interrupts:
+    cli
+    ret
+
 global arch_wait_for_interrupt
 arch_wait_for_interrupt:
     hlt
@@ -127,10 +132,15 @@ arch_load_tss:
     ltr ax
     ret
 
+global arch_set_syscall_stack
+arch_set_syscall_stack:
+    mov [rel syscall_kernel_rsp], rdi
+    ret
+
 global syscall_entry
 syscall_entry:
     mov [rel syscall_user_rsp], rsp
-    lea rsp, [rel __kernel_stack_top]
+    mov rsp, [rel syscall_kernel_rsp]
     push rcx
     push r11
     mov rcx, rdx
@@ -272,5 +282,6 @@ IRQ 15
 SECTION .bss
 align 8
 syscall_user_rsp: resq 1
+syscall_kernel_rsp: resq 1
 
 SECTION .note.GNU-stack noalloc noexec nowrite progbits

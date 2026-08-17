@@ -7,6 +7,7 @@
 #include <limine.h>
 #include <paging.h>
 #include <pmm.h>
+#include <scheduler.h>
 
 #define CPIO_HEADER_SIZE 110U
 #define ELF64_HEADER_SIZE 64U
@@ -60,6 +61,8 @@ static int init_available;
 static int init_started;
 static struct loaded_page loaded_pages[INIT_MAX_PAGES];
 static uint64_t loaded_page_count;
+static struct paging_space init_address_space;
+static uint64_t init_stack_frame;
 
 static uint64_t align_up4(uint64_t value) {
     return (value + 3U) & ~UINT64_C(3);
@@ -173,6 +176,10 @@ static void unload_pages(void) {
     loaded_page_count = 0U;
     (void)paging_unmap_page(INIT_STACK_PAGE);
     (void)paging_unmap_page(INIT_STACK_GUARD);
+    if (init_stack_frame != PMM_INVALID_ADDRESS) {
+        (void)pmm_free_frame(init_stack_frame);
+        init_stack_frame = PMM_INVALID_ADDRESS;
+    }
 }
 
 static int load_page(uint64_t virtual_address, uint64_t flags) {
@@ -268,6 +275,9 @@ int initramfs_init(const struct limine_module_response *modules) {
     init_available = 0;
     init_started = 0;
     loaded_page_count = 0U;
+    init_address_space.root_physical = 0U;
+    init_address_space.mapping_count = 0U;
+    init_stack_frame = PMM_INVALID_ADDRESS;
     if (modules == (const struct limine_module_response *)0) {
         return 0;
     }
@@ -312,21 +322,38 @@ int initramfs_start_init(void) {
     const uint8_t *image;
     uint64_t image_size;
     uint64_t entry;
-    uint64_t stack_frame;
+    int task_id;
 
-    if (init_available == 0 || init_started != 0 || cpio_find("init", &image, &image_size) == 0
+    if (init_available == 0 || init_started != 0 || cpio_find("init", &image, &image_size) == 0) {
+        return 0;
+    }
+    arch_disable_interrupts();
+    if (paging_space_create_user(&init_address_space) == 0
+        || paging_space_activate(&init_address_space) == 0
         || load_elf_init(image, image_size, &entry) == 0) {
-        return 0;
+        goto cleanup;
     }
-    stack_frame = pmm_allocate_user_frame();
-    if (stack_frame == PMM_INVALID_ADDRESS || paging_map_guard(INIT_STACK_GUARD) == 0
-        || paging_map_page(INIT_STACK_PAGE, stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0) {
-        if (stack_frame != PMM_INVALID_ADDRESS) {
-            (void)pmm_free_frame(stack_frame);
-        }
-        unload_pages();
-        return 0;
+    init_stack_frame = pmm_allocate_user_frame();
+    if (init_stack_frame == PMM_INVALID_ADDRESS
+        || paging_space_map_guard(&init_address_space, INIT_STACK_GUARD) == 0
+        || paging_map_page(INIT_STACK_PAGE, init_stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0) {
+        goto cleanup;
     }
+    task_id = scheduler_create_user_task("init", &init_address_space, entry, INIT_STACK_TOP);
+    if (task_id < 0) {
+        goto cleanup;
+    }
+    (void)paging_activate_kernel_space();
     init_started = 1;
-    arch_enter_user_mode(entry, INIT_STACK_TOP);
+    arch_enable_interrupts();
+    return 1;
+
+cleanup:
+    unload_pages();
+    (void)paging_activate_kernel_space();
+    if (init_address_space.root_physical != 0U) {
+        (void)paging_space_destroy_user(&init_address_space);
+    }
+    arch_enable_interrupts();
+    return 0;
 }

@@ -314,8 +314,12 @@ static void execute_command(const char *line, const struct shell_context *contex
     if (text_equal(line, "init")) {
         if (initramfs_start_init() == 0) {
             serial_write("Unable to load /init from initramfs.\n");
+            return;
         }
-        return;
+        serial_write("/init scheduled; kernel console input is now owned by user space.\n");
+        for (;;) {
+            arch_wait_for_interrupt();
+        }
     }
 
     if (text_equal(line, "heap")) {

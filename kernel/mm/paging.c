@@ -91,8 +91,7 @@ static int table_is_empty(const uint64_t *table) {
 }
 
 static uint64_t *active_pml4(void) {
-    const uint64_t root = active_root != 0U ? active_root : (read_cr3() & PAGE_ADDRESS_MASK);
-    return physical_to_virtual(root);
+    return physical_to_virtual(read_cr3() & PAGE_ADDRESS_MASK);
 }
 
 static int page_address_is_valid(uint64_t virtual_address) {
@@ -325,7 +324,7 @@ int paging_map_mmio_page(uint64_t virtual_address, uint64_t physical_address) {
 }
 
 uint64_t paging_active_root_physical(void) {
-    return active_root != 0U ? active_root : (read_cr3() & PAGE_ADDRESS_MASK);
+    return read_cr3() & PAGE_ADDRESS_MASK;
 }
 
 uint64_t paging_mapping_count(void) {
