@@ -26,6 +26,7 @@
 #define AHCI_TFD_DRQ UINT32_C(0x00000008)
 #define AHCI_INTERRUPT_TFES UINT32_C(0x40000000)
 #define AHCI_READ_DMA_EXT UINT8_C(0x25)
+#define AHCI_WRITE_DMA_EXT UINT8_C(0x35)
 #define AHCI_POLL_LIMIT UINT64_C(100000)
 
 static uint64_t active_port_base;
@@ -86,6 +87,10 @@ static void zero_frame(uint64_t physical) {
     }
 }
 
+int ahci_data_lba_valid(uint64_t lba) {
+    return lba >= AHCI_DATA_LBA_START && lba <= AHCI_DATA_LBA_END;
+}
+
 int ahci_read_sector(uint64_t lba, uint8_t *output) {
     uint64_t command_list = PMM_INVALID_ADDRESS;
     uint64_t received_fis = PMM_INVALID_ADDRESS;
@@ -144,6 +149,66 @@ int ahci_read_sector(uint64_t lba, uint8_t *output) {
             }
             return 1;
         }
+    }
+    return 0;
+}
+
+int ahci_write_data_sector(uint64_t lba, const uint8_t *input) {
+    uint64_t command_list = PMM_INVALID_ADDRESS;
+    uint64_t received_fis = PMM_INVALID_ADDRESS;
+    uint64_t command_table = PMM_INVALID_ADDRESS;
+    uint64_t data_frame = PMM_INVALID_ADDRESS;
+    uint8_t *list;
+    uint8_t *table;
+    uint8_t *data;
+
+    if (input == (const uint8_t *)0 || ahci_data_lba_valid(lba) == 0 || active_port_base == 0U) {
+        return 0;
+    }
+    command_list = pmm_allocate_frame();
+    received_fis = pmm_allocate_frame();
+    command_table = pmm_allocate_frame();
+    data_frame = pmm_allocate_frame();
+    if (command_list == PMM_INVALID_ADDRESS || received_fis == PMM_INVALID_ADDRESS
+        || command_table == PMM_INVALID_ADDRESS || data_frame == PMM_INVALID_ADDRESS) {
+        return 0;
+    }
+    zero_frame(command_list); zero_frame(received_fis); zero_frame(command_table); zero_frame(data_frame);
+    list = (uint8_t *)paging_physical_to_hhdm(command_list);
+    table = (uint8_t *)paging_physical_to_hhdm(command_table);
+    data = (uint8_t *)paging_physical_to_hhdm(data_frame);
+    if (list == (uint8_t *)0 || table == (uint8_t *)0 || data == (uint8_t *)0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < AHCI_SECTOR_SIZE; index++) {
+        data[index] = input[index];
+    }
+    mmio_write32(active_port_base + AHCI_PORT_CMD_OFFSET,
+                 mmio_read32(active_port_base + AHCI_PORT_CMD_OFFSET) & ~(AHCI_PORT_CMD_ST | AHCI_PORT_CMD_FRE));
+    for (uint64_t wait = 0U; wait < AHCI_POLL_LIMIT && (mmio_read32(active_port_base + AHCI_PORT_CMD_OFFSET) & UINT32_C(0xC000)) != 0U; wait++) { }
+    mmio_write32(active_port_base + AHCI_PORT_CLB_OFFSET, (uint32_t)command_list);
+    mmio_write32(active_port_base + AHCI_PORT_CLB_OFFSET + 4U, 0U);
+    mmio_write32(active_port_base + AHCI_PORT_FB_OFFSET, (uint32_t)received_fis);
+    mmio_write32(active_port_base + AHCI_PORT_FB_OFFSET + 4U, 0U);
+    mmio_write32(active_port_base + AHCI_PORT_CMD_OFFSET,
+                 mmio_read32(active_port_base + AHCI_PORT_CMD_OFFSET) | AHCI_PORT_CMD_FRE | AHCI_PORT_CMD_ST);
+    list[0] = UINT8_C(0x45);
+    list[2] = 1U;
+    list[8] = (uint8_t)command_table; list[9] = (uint8_t)(command_table >> 8U);
+    list[10] = (uint8_t)(command_table >> 16U); list[11] = (uint8_t)(command_table >> 24U);
+    table[0] = UINT8_C(0x27); table[1] = UINT8_C(0x80); table[2] = AHCI_WRITE_DMA_EXT;
+    table[4] = (uint8_t)lba; table[5] = (uint8_t)(lba >> 8U); table[6] = (uint8_t)(lba >> 16U);
+    table[7] = UINT8_C(0x40); table[8] = (uint8_t)(lba >> 24U); table[9] = (uint8_t)(lba >> 32U);
+    table[10] = (uint8_t)(lba >> 40U); table[12] = 1U;
+    table[128] = (uint8_t)data_frame; table[129] = (uint8_t)(data_frame >> 8U);
+    table[130] = (uint8_t)(data_frame >> 16U); table[131] = (uint8_t)(data_frame >> 24U);
+    table[140] = UINT8_C(0xFF); table[141] = 1U;
+    mmio_write32(active_port_base + AHCI_PORT_IS_OFFSET, UINT32_MAX);
+    for (uint64_t wait = 0U; wait < AHCI_POLL_LIMIT && (mmio_read32(active_port_base + AHCI_PORT_TFD_OFFSET) & (AHCI_TFD_BSY | AHCI_TFD_DRQ)) != 0U; wait++) { }
+    mmio_write32(active_port_base + AHCI_PORT_CI_OFFSET, 1U);
+    for (uint64_t wait = 0U; wait < AHCI_POLL_LIMIT; wait++) {
+        if ((mmio_read32(active_port_base + AHCI_PORT_IS_OFFSET) & AHCI_INTERRUPT_TFES) != 0U) { return 0; }
+        if ((mmio_read32(active_port_base + AHCI_PORT_CI_OFFSET) & 1U) == 0U) { return 1; }
     }
     return 0;
 }

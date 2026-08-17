@@ -240,7 +240,33 @@ void kmain(void) {
     const int ahci_ready = pci_find_class(UINT8_C(0x01), UINT8_C(0x06), UINT8_C(0x01), &ahci_device);
     const int ahci_probe_ready = ahci_ready != 0 ? ahci_probe_controller(&ahci_device, &ahci_probe) : 0;
     uint16_t ahci_boot_signature = 0U;
+    uint8_t ahci_data_expected[AHCI_SECTOR_SIZE];
+    uint8_t ahci_data_before[AHCI_SECTOR_SIZE];
+    uint8_t ahci_data_after[AHCI_SECTOR_SIZE];
+    int ahci_data_existing_pattern = 0;
+    int ahci_data_write_readback = 0;
+    int ahci_data_bounds_guard = 0;
     const int ahci_read_ready = ahci_probe_ready != 0 ? ahci_read_boot_signature(&ahci_boot_signature) : 0;
+    for (uint64_t index = 0U; index < AHCI_SECTOR_SIZE; index++) {
+        ahci_data_expected[index] = (uint8_t)(index ^ UINT64_C(0xA5));
+    }
+    if (ahci_probe_ready != 0) {
+        ahci_data_bounds_guard = ahci_write_data_sector(AHCI_DATA_LBA_START - 1U, ahci_data_expected) == 0
+            && ahci_write_data_sector(AHCI_DATA_LBA_END + 1U, ahci_data_expected) == 0;
+        if (ahci_read_sector(AHCI_DATA_TEST_LBA, ahci_data_before) != 0) {
+            ahci_data_existing_pattern = 1;
+            for (uint64_t index = 0U; index < AHCI_SECTOR_SIZE; index++) {
+                if (ahci_data_before[index] != ahci_data_expected[index]) { ahci_data_existing_pattern = 0; }
+            }
+        }
+        if (ahci_write_data_sector(AHCI_DATA_TEST_LBA, ahci_data_expected) != 0
+            && ahci_read_sector(AHCI_DATA_TEST_LBA, ahci_data_after) != 0) {
+            ahci_data_write_readback = 1;
+            for (uint64_t index = 0U; index < AHCI_SECTOR_SIZE; index++) {
+                if (ahci_data_after[index] != ahci_data_expected[index]) { ahci_data_write_readback = 0; }
+            }
+        }
+    }
     (void)lapic_init();
     pic_init();
     irq_register_handler(0U, pit_on_irq);
@@ -300,6 +326,13 @@ void kmain(void) {
             if (ahci_read_ready != 0) {
                 serial_write_hex64(ahci_boot_signature);
                 serial_write("\n");
+            }
+            serial_write("[ok] AHCI data range guard: ");
+            serial_write(ahci_data_bounds_guard != 0 ? "active\n" : "failed\n");
+            serial_write("[ok] AHCI data sector write-readback: ");
+            serial_write(ahci_data_write_readback != 0 ? "passed; prior persistent pattern: " : "failed\n");
+            if (ahci_data_write_readback != 0) {
+                serial_write(ahci_data_existing_pattern != 0 ? "present\n" : "absent\n");
             }
         }
     }
