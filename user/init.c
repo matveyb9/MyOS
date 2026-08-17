@@ -7,6 +7,7 @@
 #define SHELL_ENV_MAX 8U
 #define SHELL_ENV_NAME_MAX 16U
 #define SHELL_ENV_VALUE_MAX 64U
+#define SHELL_HISTORY_MAX 8U
 
 struct shell_environment_entry {
     int used;
@@ -15,6 +16,8 @@ struct shell_environment_entry {
 };
 
 static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
+static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
+static uint64_t shell_history_count;
 
 static uint64_t system_call(uint64_t number, uint64_t argument1, uint64_t argument2, uint64_t argument3) {
     register uint64_t rax __asm__("rax") = number;
@@ -86,31 +89,96 @@ static void write_number(uint64_t value) {
     }
 }
 
+static int read_input_character(char *character) {
+    for (;;) {
+        const uint64_t result = system_call(MYOS_SYS_READ, 0U, (uint64_t)(uintptr_t)character, 1U);
+        if (result != 0U && result != UINT64_MAX) {
+            return 1;
+        }
+    }
+}
+
+static void history_store(const char *line) {
+    uint64_t index;
+
+    if (line[0] == '\0' || (shell_history_count != 0U && text_equal(line, shell_history[shell_history_count - 1U]) != 0)) {
+        return;
+    }
+    if (shell_history_count == SHELL_HISTORY_MAX) {
+        for (index = 1U; index < SHELL_HISTORY_MAX; index++) {
+            for (uint64_t character = 0U; character < USER_LINE_CAPACITY; character++) {
+                shell_history[index - 1U][character] = shell_history[index][character];
+            }
+        }
+        shell_history_count--;
+    }
+    for (index = 0U; index < USER_LINE_CAPACITY; index++) {
+        shell_history[shell_history_count][index] = line[index];
+        if (line[index] == '\0') {
+            break;
+        }
+    }
+    shell_history_count++;
+}
+
+static void history_replace_line(char *line, uint64_t capacity, uint64_t *length, const char *replacement) {
+    uint64_t replacement_length = text_length(replacement);
+
+    if (replacement_length + 1U > capacity) {
+        return;
+    }
+    while (*length != 0U) {
+        write_text("\b \b");
+        (*length)--;
+    }
+    for (uint64_t index = 0U; index < replacement_length; index++) {
+        line[index] = replacement[index];
+    }
+    line[replacement_length] = '\0';
+    *length = replacement_length;
+    write_text(replacement);
+}
+
 static uint64_t read_line(char *line, uint64_t capacity) {
     uint64_t length = 0U;
+    uint64_t history_position = shell_history_count;
 
-    while (length + 1U < capacity) {
+    for (;;) {
         char character;
-        uint64_t result;
 
-        result = system_call(MYOS_SYS_READ, 0U, (uint64_t)(uintptr_t)&character, 1U);
-        if (result == 0U || result == UINT64_MAX) {
-            continue;
-        }
+        (void)read_input_character(&character);
         if (character == '\r' || character == '\n') {
             write_char('\n');
             break;
         }
+        if (character == '\x1B') {
+            char bracket;
+            char direction;
+
+            (void)read_input_character(&bracket);
+            (void)read_input_character(&direction);
+            if (bracket == '[' && direction == 'A' && history_position != 0U) {
+                history_position--;
+                history_replace_line(line, capacity, &length, shell_history[history_position]);
+            } else if (bracket == '[' && direction == 'B' && history_position < shell_history_count) {
+                history_position++;
+                history_replace_line(line, capacity, &length,
+                                     history_position == shell_history_count ? "" : shell_history[history_position]);
+            }
+            continue;
+        }
         if (character == '\b' || character == 0x7FU) {
             if (length != 0U) {
                 length--;
+                line[length] = '\0';
                 write_text("\b \b");
             }
             continue;
         }
-        if (character >= ' ' && character <= '~') {
+        if (character >= ' ' && character <= '~' && length + 1U < capacity) {
             line[length] = character;
             length++;
+            line[length] = '\0';
             write_char(character);
         }
     }
@@ -830,6 +898,7 @@ void _start(void) {
     for (;;) {
         write_text("myos$ ");
         (void)read_line(line, USER_LINE_CAPACITY);
+        history_store(line);
         execute_command(line);
     }
 }
