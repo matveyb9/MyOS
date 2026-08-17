@@ -133,7 +133,7 @@ static uint64_t parse_decimal(const char *text) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo sleep run spawn wait dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo sleep run spawn wait stress dmesg clear exit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -212,6 +212,24 @@ static void command_spawn(const char *argument) {
     write_text("Started background process ");
     write_number(result);
     write_char('\n');
+}
+
+static void command_stress(void) {
+    static const char sleeper_name[] = "sleeper";
+    uint64_t launched = 0U;
+
+    while (launched < MYOS_TASK_SLOT_COUNT) {
+        const uint64_t result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)sleeper_name,
+                                            sizeof(sleeper_name) - 1U);
+
+        if (result == UINT64_MAX) {
+            break;
+        }
+        launched++;
+    }
+    write_text("Stress started ");
+    write_number(launched);
+    write_text(" sleeper task(s).\n");
 }
 
 static void command_wait(const char *argument) {
@@ -301,6 +319,8 @@ static void execute_command(char *line) {
         command_spawn(argument);
     } else if (text_equal(line, "wait")) {
         command_wait(argument);
+    } else if (text_equal(line, "stress")) {
+        command_stress();
     } else if (text_equal(line, "sleep")) {
         command_sleep(argument);
     } else if (text_equal(line, "dmesg")) {
