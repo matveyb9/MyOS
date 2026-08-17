@@ -371,3 +371,256 @@ int paging_translate(uint64_t virtual_address, uint64_t *physical_address) {
     *physical_address = (entry & PAGE_ADDRESS_MASK) | (virtual_address & (PAGING_PAGE_SIZE - 1U));
     return 1;
 }
+
+static uint64_t *space_pml4(const struct paging_space *space) {
+    return physical_to_virtual(space->root_physical);
+}
+
+static int space_is_user_valid(const struct paging_space *space, uint64_t virtual_address) {
+    return space != (const struct paging_space *)0 && space->root_physical != 0U
+        && virtual_address >= PAGING_USER_SPACE_START && virtual_address <= PAGING_USER_SPACE_END
+        && page_address_is_valid(virtual_address) != 0;
+}
+
+static int space_map_page(struct paging_space *space, uint64_t virtual_address, uint64_t physical_address,
+                          uint64_t flags) {
+    uint64_t *pml4;
+    uint64_t *pdpt;
+    uint64_t *page_directory;
+    uint64_t *page_table;
+    uint64_t existing;
+    uint16_t pml4_index;
+    uint16_t pdpt_index;
+    uint16_t pd_index;
+    uint16_t pt_index;
+
+    if (space_is_user_valid(space, virtual_address) == 0
+        || (physical_address & (PAGING_PAGE_SIZE - 1U)) != 0U
+        || (flags & PAGING_FLAG_USER) == 0U) {
+        return 0;
+    }
+    page_indices(virtual_address, &pml4_index, &pdpt_index, &pd_index, &pt_index);
+    pml4 = space_pml4(space);
+    pdpt = next_table(pml4, pml4_index, flags);
+    if (pdpt == (uint64_t *)0) {
+        return 0;
+    }
+    page_directory = next_table(pdpt, pdpt_index, flags);
+    if (page_directory == (uint64_t *)0) {
+        return 0;
+    }
+    page_table = next_table(page_directory, pd_index, flags);
+    if (page_table == (uint64_t *)0) {
+        return 0;
+    }
+    existing = page_table[pt_index];
+    page_table[pt_index] = (physical_address & PAGE_ADDRESS_MASK) | PAGE_PRESENT | PAGE_MANAGED
+                           | (flags & PAGE_LEAF_FLAGS);
+    if ((existing & PAGE_PRESENT) == 0U) {
+        space->mapping_count++;
+    }
+    if ((read_cr3() & PAGE_ADDRESS_MASK) == space->root_physical) {
+        invalidate_page(virtual_address);
+    }
+    return 1;
+}
+
+static int space_unmap_page(struct paging_space *space, uint64_t virtual_address) {
+    uint64_t *pml4;
+    uint64_t *pdpt;
+    uint64_t *page_directory;
+    uint64_t *page_table;
+    uint64_t entry;
+    uint16_t pml4_index;
+    uint16_t pdpt_index;
+    uint16_t pd_index;
+    uint16_t pt_index;
+
+    if (space_is_user_valid(space, virtual_address) == 0) {
+        return 0;
+    }
+    page_indices(virtual_address, &pml4_index, &pdpt_index, &pd_index, &pt_index);
+    pml4 = space_pml4(space);
+    pdpt = existing_table(pml4, pml4_index);
+    if (pdpt == (uint64_t *)0) {
+        return 0;
+    }
+    page_directory = existing_table(pdpt, pdpt_index);
+    if (page_directory == (uint64_t *)0) {
+        return 0;
+    }
+    page_table = existing_table(page_directory, pd_index);
+    if (page_table == (uint64_t *)0) {
+        return 0;
+    }
+    entry = page_table[pt_index];
+    if ((entry & PAGE_MANAGED) == 0U) {
+        return 0;
+    }
+    page_table[pt_index] = 0U;
+    if ((entry & PAGE_PRESENT) != 0U && space->mapping_count != 0U) {
+        space->mapping_count--;
+    }
+    if ((read_cr3() & PAGE_ADDRESS_MASK) == space->root_physical) {
+        invalidate_page(virtual_address);
+    }
+    return 1;
+}
+
+static void destroy_user_table_tree(uint64_t physical_address, uint64_t level) {
+    uint64_t *table = physical_to_virtual(physical_address);
+
+    if (level > 1U) {
+        for (uint64_t index = 0U; index < PAGE_TABLE_ENTRIES; index++) {
+            const uint64_t entry = table[index];
+
+            if ((entry & PAGE_PRESENT) != 0U && (entry & PAGE_HUGE) == 0U) {
+                destroy_user_table_tree(entry & PAGE_ADDRESS_MASK, level - 1U);
+            }
+        }
+    }
+    (void)pmm_free_frame(physical_address);
+}
+
+int paging_space_create_user(struct paging_space *space) {
+    uint64_t *kernel_root;
+    uint64_t *user_root;
+    uint64_t root_frame;
+
+    if (space == (struct paging_space *)0 || active_root == 0U) {
+        return 0;
+    }
+    root_frame = pmm_allocate_frame();
+    if (root_frame == PMM_INVALID_ADDRESS) {
+        return 0;
+    }
+    kernel_root = physical_to_virtual(active_root);
+    user_root = physical_to_virtual(root_frame);
+    zero_page(root_frame);
+    for (uint64_t index = PAGE_TABLE_ENTRIES / 2U; index < PAGE_TABLE_ENTRIES; index++) {
+        user_root[index] = kernel_root[index];
+    }
+    space->root_physical = root_frame;
+    space->mapping_count = 0U;
+    return 1;
+}
+
+int paging_space_destroy_user(struct paging_space *space) {
+    uint64_t *root;
+
+    if (space == (struct paging_space *)0 || space->root_physical == 0U
+        || (read_cr3() & PAGE_ADDRESS_MASK) == space->root_physical) {
+        return 0;
+    }
+    root = space_pml4(space);
+    for (uint64_t index = 0U; index < PAGE_TABLE_ENTRIES / 2U; index++) {
+        const uint64_t entry = root[index];
+
+        if ((entry & PAGE_PRESENT) != 0U && (entry & PAGE_HUGE) == 0U) {
+            destroy_user_table_tree(entry & PAGE_ADDRESS_MASK, 3U);
+        }
+    }
+    (void)pmm_free_frame(space->root_physical);
+    space->root_physical = 0U;
+    space->mapping_count = 0U;
+    return 1;
+}
+
+int paging_space_map_page(struct paging_space *space, uint64_t virtual_address, uint64_t physical_address,
+                          uint64_t flags) {
+    return space_map_page(space, virtual_address, physical_address, flags);
+}
+
+int paging_space_unmap_page(struct paging_space *space, uint64_t virtual_address) {
+    return space_unmap_page(space, virtual_address);
+}
+
+int paging_space_activate(const struct paging_space *space) {
+    if (space == (const struct paging_space *)0 || space->root_physical == 0U) {
+        return 0;
+    }
+    write_cr3(space->root_physical);
+    return 1;
+}
+
+uint64_t paging_kernel_root_physical(void) {
+    return active_root;
+}
+
+int paging_space_map_guard(struct paging_space *space, uint64_t virtual_address) {
+    uint64_t *pml4;
+    uint64_t *pdpt;
+    uint64_t *page_directory;
+    uint64_t *page_table;
+    uint16_t pml4_index;
+    uint16_t pdpt_index;
+    uint16_t pd_index;
+    uint16_t pt_index;
+
+    if (space_is_user_valid(space, virtual_address) == 0) {
+        return 0;
+    }
+    page_indices(virtual_address, &pml4_index, &pdpt_index, &pd_index, &pt_index);
+    pml4 = space_pml4(space);
+    pdpt = next_table(pml4, pml4_index, PAGING_FLAG_USER);
+    if (pdpt == (uint64_t *)0) {
+        return 0;
+    }
+    page_directory = next_table(pdpt, pdpt_index, PAGING_FLAG_USER);
+    if (page_directory == (uint64_t *)0) {
+        return 0;
+    }
+    page_table = next_table(page_directory, pd_index, PAGING_FLAG_USER);
+    if (page_table == (uint64_t *)0) {
+        return 0;
+    }
+    if ((page_table[pt_index] & PAGE_PRESENT) != 0U) {
+        return 0;
+    }
+    page_table[pt_index] = PAGE_MANAGED | PAGE_GUARD;
+    if ((read_cr3() & PAGE_ADDRESS_MASK) == space->root_physical) {
+        invalidate_page(virtual_address);
+    }
+    return 1;
+}
+
+int paging_activate_kernel_space(void) {
+    if (active_root == 0U) {
+        return 0;
+    }
+    write_cr3(active_root);
+    return 1;
+}
+
+int paging_space_self_test(void) {
+    const uint64_t test_address = UINT64_C(0x0000000000500000);
+    const uint64_t guard_address = test_address - PAGING_PAGE_SIZE;
+    struct paging_space space = { 0U, 0U };
+    uint64_t frame = PMM_INVALID_ADDRESS;
+    volatile uint64_t *test_word = (volatile uint64_t *)(uintptr_t)test_address;
+    int passed = 0;
+
+    if (paging_space_create_user(&space) == 0
+        || paging_space_map_guard(&space, guard_address) == 0) {
+        goto cleanup;
+    }
+    frame = pmm_allocate_user_frame();
+    if (frame == PMM_INVALID_ADDRESS
+        || paging_space_map_page(&space, test_address, frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0
+        || paging_space_activate(&space) == 0) {
+        goto cleanup;
+    }
+    *test_word = UINT64_C(0x4D594F532D415350);
+    passed = *test_word == UINT64_C(0x4D594F532D415350);
+
+cleanup:
+    (void)paging_activate_kernel_space();
+    if (frame != PMM_INVALID_ADDRESS) {
+        (void)paging_space_unmap_page(&space, test_address);
+        (void)pmm_free_frame(frame);
+    }
+    if (space.root_physical != 0U) {
+        (void)paging_space_destroy_user(&space);
+    }
+    return passed;
+}

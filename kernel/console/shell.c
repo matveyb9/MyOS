@@ -76,6 +76,7 @@ static void print_help(void) {
     serial_write("  keyboard          Show PS/2 keyboard buffer diagnostics.\n");
     serial_write("  paging            Show active PML4 and MyOS mapping counters.\n");
     serial_write("  pagingtest        Verify map, translate, unmap and guard-page policy.\n");
+    serial_write("  aspacetest        Verify isolated user PML4, CR3 switch and cleanup.\n");
     serial_write("  tasks             Show round-robin kernel-thread scheduler state.\n");
     serial_write("  syscalls          Show fast-syscall counters.\n");
     serial_write("  userdemo          Enter the first ring-3 sys_write demo.\n");
@@ -246,6 +247,13 @@ static void execute_command(const char *line, const struct shell_context *contex
         }
         serial_write(passed != 0 ? "Paging map/unmap/guard test passed.\n"
                                  : "Paging map/unmap/guard test failed.\n");
+        return;
+    }
+
+    if (text_equal(line, "aspacetest")) {
+        serial_write(paging_space_self_test() != 0
+                         ? "Isolated user address-space test passed.\n"
+                         : "Isolated user address-space test failed.\n");
         return;
     }
 
