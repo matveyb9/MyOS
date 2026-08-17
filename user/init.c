@@ -260,6 +260,7 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
 
 static void command_help(void) {
     write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm set get env sleep run spawn pipe wait kill stress reboot poweroff dmesg clear exit\n");
+    write_text("Programs: hello sleeper orphaner safety argshow calc pipewrite piperead wc grep edit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
