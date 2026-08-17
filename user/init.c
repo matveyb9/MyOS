@@ -133,7 +133,7 @@ static uint64_t parse_decimal(const char *text) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo date uptime ls cat sleep run spawn wait kill stress reboot poweroff dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm sleep run spawn wait kill stress reboot poweroff dmesg clear exit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -285,6 +285,98 @@ static void command_cat(const char *argument) {
         }
         request.offset += count;
     }
+}
+
+static int make_tmpfs_path_request(struct myos_tmpfs_path_request *request, const char *argument) {
+    uint64_t length = 0U;
+
+    if (request == (struct myos_tmpfs_path_request *)0 || argument == (const char *)0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) {
+        request->path[index] = '\0';
+    }
+    while (argument[length] != '\0' && length + 1U < MYOS_VFS_NAME_MAX) {
+        request->path[length] = argument[length];
+        length++;
+    }
+    return length != 0U && argument[length] == '\0';
+}
+
+static void command_touch(const char *argument) {
+    struct myos_tmpfs_path_request request;
+
+    if (make_tmpfs_path_request(&request, argument) == 0) {
+        write_text("Usage: touch tmp/<name>\n");
+        return;
+    }
+    if (system_call(MYOS_SYS_TMPFS_CREATE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
+        == UINT64_MAX) {
+        write_text("Unable to create file.\n");
+        return;
+    }
+    write_text("Created ");
+    write_text(request.path);
+    write_char('\n');
+}
+
+static void command_write(char *argument) {
+    struct myos_tmpfs_path_request path_request;
+    struct myos_tmpfs_write_request request;
+    char *text = first_argument(argument);
+    uint64_t text_length_value;
+
+    if (make_tmpfs_path_request(&path_request, argument) == 0 || text[0] == '\0') {
+        write_text("Usage: write tmp/<name> <text>\n");
+        return;
+    }
+    text_length_value = text_length(text);
+    if (text_length_value > MYOS_TMPFS_WRITE_CHUNK) {
+        write_text("Text is too long.\n");
+        return;
+    }
+    for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) {
+        request.path[index] = path_request.path[index];
+    }
+    for (uint64_t index = 0U; index < MYOS_TMPFS_WRITE_CHUNK; index++) {
+        request.data[index] = 0U;
+    }
+    for (uint64_t index = 0U; index < text_length_value; index++) {
+        request.data[index] = (uint8_t)text[index];
+    }
+    request.offset = 0U;
+    request.length = text_length_value;
+    (void)system_call(MYOS_SYS_TMPFS_REMOVE, 0U, (uint64_t)(uintptr_t)&path_request,
+                      sizeof(path_request));
+    if (system_call(MYOS_SYS_TMPFS_CREATE, 0U, (uint64_t)(uintptr_t)&path_request,
+                    sizeof(path_request)) == UINT64_MAX
+        || system_call(MYOS_SYS_TMPFS_WRITE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
+               == UINT64_MAX) {
+        write_text("Unable to write file.\n");
+        return;
+    }
+    write_text("Wrote ");
+    write_number(text_length_value);
+    write_text(" byte(s) to ");
+    write_text(request.path);
+    write_char('\n');
+}
+
+static void command_rm(const char *argument) {
+    struct myos_tmpfs_path_request request;
+
+    if (make_tmpfs_path_request(&request, argument) == 0) {
+        write_text("Usage: rm tmp/<name>\n");
+        return;
+    }
+    if (system_call(MYOS_SYS_TMPFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
+        == UINT64_MAX) {
+        write_text("Unable to remove file.\n");
+        return;
+    }
+    write_text("Removed ");
+    write_text(request.path);
+    write_char('\n');
 }
 
 static void command_meminfo(void) {
@@ -458,6 +550,12 @@ static void execute_command(char *line) {
         command_ls();
     } else if (text_equal(line, "cat")) {
         command_cat(argument);
+    } else if (text_equal(line, "touch")) {
+        command_touch(argument);
+    } else if (text_equal(line, "write")) {
+        command_write(argument);
+    } else if (text_equal(line, "rm")) {
+        command_rm(argument);
     } else if (text_equal(line, "run")) {
         command_run(argument);
     } else if (text_equal(line, "spawn")) {

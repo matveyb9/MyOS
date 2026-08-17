@@ -20,6 +20,9 @@
 #define MYOS_SYS_UPTIME UINT64_C(15)
 #define MYOS_SYS_RTC_TIME UINT64_C(16)
 #define MYOS_SYS_KILL UINT64_C(17)
+#define MYOS_SYS_TMPFS_CREATE UINT64_C(18)
+#define MYOS_SYS_TMPFS_WRITE UINT64_C(19)
+#define MYOS_SYS_TMPFS_REMOVE UINT64_C(20)
 
 #define MYOS_EXIT_STATUS_KILLED UINT64_C(137)
 
@@ -27,6 +30,7 @@
 #define MYOS_TASK_NAME_MAX UINT64_C(16)
 #define MYOS_VFS_NAME_MAX UINT64_C(64)
 #define MYOS_VFS_READ_CHUNK UINT64_C(128)
+#define MYOS_TMPFS_WRITE_CHUNK UINT64_C(128)
 
 #define MYOS_TASK_STATE_UNUSED UINT64_C(0)
 #define MYOS_TASK_STATE_READY UINT64_C(1)
@@ -66,6 +70,17 @@ struct myos_vfs_read_request {
     uint64_t offset;
     char path[MYOS_VFS_NAME_MAX];
     uint8_t data[MYOS_VFS_READ_CHUNK];
+};
+
+struct myos_tmpfs_path_request {
+    char path[MYOS_VFS_NAME_MAX];
+};
+
+struct myos_tmpfs_write_request {
+    uint64_t offset;
+    uint64_t length;
+    char path[MYOS_VFS_NAME_MAX];
+    uint8_t data[MYOS_TMPFS_WRITE_CHUNK];
 };
 
 void syscall_init(void);

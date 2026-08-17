@@ -61,6 +61,18 @@ static int copy_to_user(uint64_t destination_address, const void *source, uint64
     return 1;
 }
 
+static int request_path_is_terminated(const char *path) {
+    if (path == (const char *)0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) {
+        if (path[index] == '\0') {
+            return index != 0U;
+        }
+    }
+    return 0;
+}
+
 void syscall_init(void) {
     const uint64_t star = ((uint64_t)GDT_KERNEL_CODE_SELECTOR << 32U)
                           | ((uint64_t)GDT_USER_COMPAT_CODE_SELECTOR << 48U);
@@ -227,6 +239,31 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
             return UINT64_MAX;
         }
         return copy_length;
+    }
+    if (number == MYOS_SYS_TMPFS_CREATE || number == MYOS_SYS_TMPFS_REMOVE) {
+        struct myos_tmpfs_path_request request;
+        int result;
+
+        if (descriptor != 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_path_is_terminated(request.path) == 0) {
+            return UINT64_MAX;
+        }
+        result = number == MYOS_SYS_TMPFS_CREATE ? vfs_tmpfs_create(request.path)
+                                                  : vfs_tmpfs_remove(request.path);
+        return result != 0 ? 0U : UINT64_MAX;
+    }
+    if (number == MYOS_SYS_TMPFS_WRITE) {
+        struct myos_tmpfs_write_request request;
+
+        if (descriptor != 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_path_is_terminated(request.path) == 0
+            || request.length > MYOS_TMPFS_WRITE_CHUNK
+            || vfs_tmpfs_write(request.path, request.offset, request.data, request.length) == 0) {
+            return UINT64_MAX;
+        }
+        return request.length;
     }
     if (number == MYOS_SYS_SLEEP) {
         uint64_t *next_context;
