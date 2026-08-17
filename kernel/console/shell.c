@@ -5,6 +5,7 @@
 #include <arch.h>
 #include <framebuffer.h>
 #include <heap.h>
+#include <initramfs.h>
 #include <irq.h>
 #include <keyboard.h>
 #include <pic.h>
@@ -78,6 +79,8 @@ static void print_help(void) {
     serial_write("  tasks             Show round-robin kernel-thread scheduler state.\n");
     serial_write("  syscalls          Show fast-syscall counters.\n");
     serial_write("  userdemo          Enter the first ring-3 sys_write demo.\n");
+    serial_write("  initramfs         Show initramfs module diagnostics.\n");
+    serial_write("  init              Load and enter /init ELF from initramfs.\n");
     serial_write("  heap              Show kernel heap statistics.\n");
     serial_write("  heaptest          Verify multi-page heap allocation, free and reuse.\n");
     serial_write("  pagefault         Trigger the controlled heap guard-page fault.\n");
@@ -288,6 +291,23 @@ static void execute_command(const char *line, const struct shell_context *contex
         serial_write_hex64(user_demo_stack_top());
         serial_write(".\n");
         user_demo_enter();
+    }
+
+    if (text_equal(line, "initramfs")) {
+        serial_write("Initramfs bytes: ");
+        serial_write_hex64(initramfs_size());
+        serial_write("; files: ");
+        serial_write_hex64(initramfs_file_count());
+        serial_write("; /init: ");
+        serial_write(initramfs_has_init() != 0 ? "available\n" : "missing\n");
+        return;
+    }
+
+    if (text_equal(line, "init")) {
+        if (initramfs_start_init() == 0) {
+            serial_write("Unable to load /init from initramfs.\n");
+        }
+        return;
     }
 
     if (text_equal(line, "heap")) {

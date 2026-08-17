@@ -9,6 +9,7 @@
 #include <gdt.h>
 #include <heap.h>
 #include <idt.h>
+#include <initramfs.h>
 #include <irq.h>
 #include <keyboard.h>
 #include <lapic.h>
@@ -52,6 +53,12 @@ static volatile struct limine_hhdm_request hhdm_request = {
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_executable_address_request executable_address_request = {
     .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID,
+    .revision = 0
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST_ID,
     .revision = 0
 };
 
@@ -210,6 +217,7 @@ void kmain(void) {
     const int kernel_image_reserved = reserve_kernel_image();
     paging_init(hhdm_request.response == NULL ? 0U : hhdm_request.response->offset);
     const int paging_ready = paging_take_control();
+    const int initramfs_ready = initramfs_init(module_request.response);
     const int stack_guard_ready = paging_map_guard((uint64_t)(uintptr_t)__kernel_stack_guard);
     const int heap_guard_ready = paging_map_guard(PAGING_KERNEL_HEAP_GUARD_ADDRESS);
     heap_init();
@@ -233,6 +241,8 @@ void kmain(void) {
 
     serial_write("[ok] GDT, TSS and exception IDT installed.\n");
     serial_write("[ok] SYSCALL/SYSRET boundary enabled.\n");
+    serial_write("[ok] Initramfs /init: ");
+    serial_write(initramfs_ready != 0 ? "available\n" : "unavailable\n");
     serial_write("[ok] PMM free frames: ");
     serial_write_hex64(pmm_free_frame_count());
     serial_write("; kernel image reservation: ");

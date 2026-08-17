@@ -3,6 +3,9 @@
 PROJECT        := myos
 BUILD_DIR      := build
 KERNEL         := $(BUILD_DIR)/kernel.elf
+USER_BUILD_DIR := $(BUILD_DIR)/user
+USER_INIT      := $(USER_BUILD_DIR)/init
+INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
 LIMINE_DIR     := third_party/limine-binary
 LIMINE_URL     := https://github.com/Limine-Bootloader/Limine/releases/latest/download/limine-binary.tar.gz
@@ -29,10 +32,11 @@ ASM_SOURCES    := $(shell find kernel -name '*.asm' | sort)
 OBJECTS        := $(patsubst %.c,$(BUILD_DIR)/obj/%.c.o,$(C_SOURCES)) \
                   $(patsubst %.asm,$(BUILD_DIR)/obj/%.asm.o,$(ASM_SOURCES))
 
-.PHONY: all kernel iso hdd run run-graphic run-uefi run-uefi-graphic debug clean distclean inspect help
+.PHONY: all kernel initramfs iso hdd run run-graphic run-uefi run-uefi-graphic debug clean distclean inspect help
 
 all: iso
 kernel: $(KERNEL)
+initramfs: $(INITRAMFS)
 iso: $(PROJECT).iso
 hdd: $(PROJECT).hdd
 
@@ -48,16 +52,25 @@ $(KERNEL): $(OBJECTS) boot/linker.ld
 	@mkdir -p $(dir $@)
 	$(LD) $(LDFLAGS) $(OBJECTS) -o $@
 
+$(USER_INIT): user/init.asm user/linker.ld
+	@mkdir -p $(USER_BUILD_DIR)
+	$(NASM) $(NASMFLAGS) $< -o $(USER_BUILD_DIR)/init.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/init.o -o $@
+
+$(INITRAMFS): $(USER_INIT) tools/mkcpio.py
+	python3 tools/mkcpio.py $@ init $(USER_INIT)
+
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)
 	@mkdir -p third_party
 	curl -L --fail --retry 3 $(LIMINE_URL) | tar -xz -C third_party
 	$(MAKE) -C $(LIMINE_DIR)
 
-$(PROJECT).iso: $(KERNEL) $(LIMINE_DIR)/limine boot/limine.conf
+$(PROJECT).iso: $(KERNEL) $(INITRAMFS) $(LIMINE_DIR)/limine boot/limine.conf
 	@rm -rf $(ISO_ROOT)
 	@mkdir -p $(ISO_ROOT)/boot/limine $(ISO_ROOT)/EFI/BOOT
 	cp $(KERNEL) $(ISO_ROOT)/boot/kernel.elf
+	cp $(INITRAMFS) $(ISO_ROOT)/boot/initramfs.cpio
 	cp boot/limine.conf $(ISO_ROOT)/boot/limine.conf
 	cp $(LIMINE_DIR)/limine-bios.sys $(LIMINE_DIR)/limine-bios-cd.bin $(LIMINE_DIR)/limine-uefi-cd.bin $(ISO_ROOT)/boot/limine/
 	cp $(LIMINE_DIR)/BOOTX64.EFI $(ISO_ROOT)/EFI/BOOT/
@@ -68,7 +81,7 @@ $(PROJECT).iso: $(KERNEL) $(LIMINE_DIR)/limine boot/limine.conf
 		$(ISO_ROOT) -o $@
 	$(LIMINE_DIR)/limine bios-install $@
 
-$(PROJECT).hdd: $(KERNEL) $(LIMINE_DIR)/limine boot/limine.conf
+$(PROJECT).hdd: $(KERNEL) $(INITRAMFS) $(LIMINE_DIR)/limine boot/limine.conf
 	@rm -f $@
 	dd if=/dev/zero of=$@ bs=1M count=64 status=none
 	PATH=$$PATH:/usr/sbin:/sbin sgdisk $@ -n 1:2048 -t 1:ef00 -m 1
@@ -76,6 +89,7 @@ $(PROJECT).hdd: $(KERNEL) $(LIMINE_DIR)/limine boot/limine.conf
 	mformat -i $(PROJECT).hdd@@1M
 	mmd -i $(PROJECT).hdd@@1M ::/EFI ::/EFI/BOOT ::/boot ::/boot/limine
 	mcopy -i $(PROJECT).hdd@@1M $(KERNEL) ::/boot/kernel.elf
+	mcopy -i $(PROJECT).hdd@@1M $(INITRAMFS) ::/boot/initramfs.cpio
 	mcopy -i $(PROJECT).hdd@@1M boot/limine.conf ::/boot/limine.conf
 	mcopy -i $(PROJECT).hdd@@1M $(LIMINE_DIR)/limine-bios.sys ::/boot/limine/limine-bios.sys
 	mcopy -i $(PROJECT).hdd@@1M $(LIMINE_DIR)/BOOTX64.EFI ::/EFI/BOOT/BOOTX64.EFI
