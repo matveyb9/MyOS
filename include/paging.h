@@ -42,6 +42,7 @@ uint64_t paging_kernel_root_physical(void);
 uint64_t paging_active_root_physical(void);
 uint64_t paging_mapping_count(void);
 int paging_translate(uint64_t virtual_address, uint64_t *physical_address);
+void *paging_physical_to_hhdm(uint64_t physical_address);
 int paging_user_range_is_mapped(uint64_t address, uint64_t length, int writable);
 
 #endif

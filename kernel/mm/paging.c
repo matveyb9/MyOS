@@ -323,6 +323,13 @@ int paging_map_mmio_page(uint64_t virtual_address, uint64_t physical_address) {
     return paging_map_page(virtual_address, physical_address, PAGE_MMIO_FLAGS);
 }
 
+void *paging_physical_to_hhdm(uint64_t physical_address) {
+    if (direct_map_offset == 0U || physical_address > UINT64_MAX - direct_map_offset) {
+        return (void *)0;
+    }
+    return (void *)(uintptr_t)(direct_map_offset + physical_address);
+}
+
 uint64_t paging_active_root_physical(void) {
     return read_cr3() & PAGE_ADDRESS_MASK;
 }
