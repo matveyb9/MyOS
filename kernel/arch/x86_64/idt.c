@@ -98,6 +98,8 @@ void idt_install_irq_gates(void) {
 
 void idt_handle_exception(unsigned long vector, unsigned long error_code,
                           unsigned long instruction_pointer) {
+    const uint64_t fault_address = vector == 14UL ? arch_read_cr2() : 0U;
+
     serial_write("\n\n*** KERNEL EXCEPTION ***\n");
     serial_write("Vector: ");
     serial_write_hex64((uint64_t)vector);
@@ -110,6 +112,22 @@ void idt_handle_exception(unsigned long vector, unsigned long error_code,
     serial_write_hex64((uint64_t)error_code);
     serial_write("\nInstruction pointer: ");
     serial_write_hex64((uint64_t)instruction_pointer);
+    if (vector == 14UL) {
+        serial_write("\nFault address (CR2): ");
+        serial_write_hex64(fault_address);
+        serial_write("\nPage fault cause: ");
+        serial_write((error_code & 0x1UL) != 0UL ? "protection violation" : "non-present page");
+        serial_write("; access: ");
+        serial_write((error_code & 0x2UL) != 0UL ? "write" : "read");
+        serial_write("; privilege: ");
+        serial_write((error_code & 0x4UL) != 0UL ? "user" : "supervisor");
+        if ((error_code & 0x8UL) != 0UL) {
+            serial_write("; reserved-bit violation");
+        }
+        if ((error_code & 0x10UL) != 0UL) {
+            serial_write("; instruction fetch");
+        }
+    }
     serial_write("\nSystem halted to preserve diagnostic state.\n");
     arch_halt();
 }

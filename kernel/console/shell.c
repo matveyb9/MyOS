@@ -49,13 +49,15 @@ static void print_help(void) {
     serial_write("  firmware          Show the current firmware environment.\n");
     serial_write("  pmm               Show physical page-manager statistics.\n");
     serial_write("  alloc             Allocate and report one 4 KiB physical frame.\n");
+    serial_write("  pmmtest           Verify PMM allocate, reserve and free semantics.\n");
     serial_write("  ticks             Show elapsed PIT timer ticks.\n");
     serial_write("  irqs              Show enabled IRQ counters and PIC mask.\n");
     serial_write("  flags             Show RFLAGS and the interrupt-enable flag.\n");
     serial_write("  keyboard          Show PS/2 keyboard buffer diagnostics.\n");
     serial_write("  paging            Show active PML4 and MyOS mapping counters.\n");
     serial_write("  heap              Show kernel heap statistics.\n");
-    serial_write("  heaptest          Allocate and verify a multi-page heap block.\n");
+    serial_write("  heaptest          Verify multi-page heap allocation, free and reuse.\n");
+    serial_write("  pagefault         Trigger a controlled unmapped heap page fault.\n");
     serial_write("  echo <text>       Print text.\n");
     serial_write("  clear             Clear the serial terminal.\n");
     serial_write("  crash             Trigger a divide error to test the IDT.\n");
@@ -73,7 +75,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "version")) {
-        serial_write("MyOS 0.5.0-dev (x86_64, freestanding C11 + NASM)\n");
+        serial_write("MyOS 0.6.0-dev (x86_64, freestanding C11 + NASM)\n");
         return;
     }
 
@@ -111,6 +113,20 @@ static void execute_command(const char *line, const struct shell_context *contex
             serial_write_hex64(frame);
             serial_write("\n");
         }
+        return;
+    }
+
+    if (text_equal(line, "pmmtest")) {
+        const uint64_t before = pmm_free_frame_count();
+        const uint64_t frame = pmm_allocate_frame();
+        int passed = 0;
+
+        if (frame != PMM_INVALID_ADDRESS && pmm_frame_is_free(frame) == 0
+            && pmm_free_frame(frame) != 0 && pmm_reserve_frame(frame) != 0
+            && pmm_free_frame(frame) != 0 && pmm_free_frame_count() == before) {
+            passed = 1;
+        }
+        serial_write(passed != 0 ? "PMM reserve/free test passed.\n" : "PMM reserve/free test failed.\n");
         return;
     }
 
@@ -175,8 +191,12 @@ static void execute_command(const char *line, const struct shell_context *contex
         serial_write_hex64(heap_capacity_bytes());
         serial_write(" bytes; mapped pages: ");
         serial_write_hex64(heap_mapped_page_count());
-        serial_write("; allocations: ");
+        serial_write("; active allocations: ");
         serial_write_hex64(heap_allocation_count());
+        serial_write("; free blocks: ");
+        serial_write_hex64(heap_free_block_count());
+        serial_write("; reuses: ");
+        serial_write_hex64(heap_reuse_count());
         serial_write("\n");
         return;
     }
@@ -184,20 +204,33 @@ static void execute_command(const char *line, const struct shell_context *contex
     if (text_equal(line, "heaptest")) {
         uint8_t *first = kmalloc(64U);
         uint8_t *second = kmalloc((size_t)PAGING_PAGE_SIZE + 64U);
-        if (first == (uint8_t *)0 || second == (uint8_t *)0) {
-            serial_write("Heap allocation failed.\n");
-            return;
+        uint8_t *reused;
+        int passed = 0;
+
+        if (first != (uint8_t *)0 && second != (uint8_t *)0) {
+            first[0] = 0xA5U;
+            first[63] = 0x5AU;
+            second[0] = 0x3CU;
+            second[PAGING_PAGE_SIZE] = 0xC3U;
+            if (first[0] == 0xA5U && first[63] == 0x5AU && second[0] == 0x3CU
+                && second[PAGING_PAGE_SIZE] == 0xC3U && kfree(first) != 0
+                && kfree(second) != 0) {
+                reused = kmalloc(64U);
+                if (reused == first && kfree(reused) != 0) {
+                    passed = 1;
+                }
+            }
         }
-        first[0] = 0xA5U;
-        first[63] = 0x5AU;
-        second[0] = 0x3CU;
-        second[PAGING_PAGE_SIZE] = 0xC3U;
-        if (first[0] == 0xA5U && first[63] == 0x5AU && second[0] == 0x3CU
-            && second[PAGING_PAGE_SIZE] == 0xC3U) {
-            serial_write("Heap multi-page write/read test passed.\n");
-        } else {
-            serial_write("Heap multi-page write/read test failed.\n");
-        }
+        serial_write(passed != 0 ? "Heap allocate/free/reuse test passed.\n"
+                                 : "Heap allocate/free/reuse test failed.\n");
+        return;
+    }
+
+    if (text_equal(line, "pagefault")) {
+        volatile uint8_t *const fault_address =
+            (volatile uint8_t *)(uintptr_t)(PAGING_KERNEL_HEAP_START + PAGING_KERNEL_HEAP_SIZE);
+        serial_write("Triggering controlled unmapped heap page fault.\n");
+        (void)*fault_address;
         return;
     }
 

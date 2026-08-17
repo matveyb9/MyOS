@@ -10,5 +10,6 @@ void arch_trigger_divide_by_zero(void) __attribute__((noreturn));
 void arch_enable_interrupts(void);
 void arch_wait_for_interrupt(void);
 uint64_t arch_read_rflags(void);
+uint64_t arch_read_cr2(void);
 
 #endif

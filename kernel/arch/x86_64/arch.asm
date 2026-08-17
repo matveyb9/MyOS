@@ -40,6 +40,11 @@ arch_read_rflags:
     pop rax
     ret
 
+global arch_read_cr2
+arch_read_cr2:
+    mov rax, cr2
+    ret
+
 global arch_trigger_divide_by_zero
 arch_trigger_divide_by_zero:
     mov rax, 1
