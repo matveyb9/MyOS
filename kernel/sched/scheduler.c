@@ -157,6 +157,33 @@ static void clear_task(struct task *task, uint64_t id) {
     task->wait_task_id = SCHEDULER_MAX_TASKS;
 }
 
+static int task_has_live_user_parent(const struct task *task) {
+    const struct task *parent;
+
+    if (task->parent_task_id >= SCHEDULER_MAX_TASKS) {
+        return 0;
+    }
+    parent = &tasks[task->parent_task_id];
+    return parent->kind == TASK_KIND_USER && parent->state != TASK_STATE_UNUSED
+           && parent->state != TASK_STATE_ZOMBIE;
+}
+
+static void detach_children(uint64_t parent_task_id) {
+    for (uint64_t index = 1U; index < SCHEDULER_MAX_TASKS; index++) {
+        struct task *child = &tasks[index];
+
+        if (child->state == TASK_STATE_UNUSED || child->parent_task_id != parent_task_id) {
+            continue;
+        }
+        if (child->state == TASK_STATE_ZOMBIE) {
+            detach_children(index);
+            clear_task(child, index);
+        } else {
+            child->parent_task_id = SCHEDULER_MAX_TASKS;
+        }
+    }
+}
+
 void scheduler_init(void) {
     for (uint64_t index = 0U; index < SCHEDULER_MAX_TASKS; index++) {
         clear_task(&tasks[index], index);
@@ -223,7 +250,10 @@ int scheduler_create_user_task(const char *name, const struct paging_space *addr
         task->run_count = 0U;
         task->exit_status = 0U;
         task->wake_tick = 0U;
-        task->parent_task_id = current_task_index;
+        task->parent_task_id = tasks[current_task_index].kind == TASK_KIND_USER
+                                   && tasks[current_task_index].state != TASK_STATE_ZOMBIE
+                                   ? current_task_index
+                                   : SCHEDULER_MAX_TASKS;
         task->wait_task_id = SCHEDULER_MAX_TASKS;
         task->state = TASK_STATE_READY;
         return (int)index;
@@ -311,6 +341,7 @@ int scheduler_wait_child(uint64_t task_id, uint64_t *status) {
         return -1;
     }
     *status = task->exit_status;
+    detach_children(task_id);
     clear_task(task, task_id);
     return 0;
 }
@@ -443,11 +474,13 @@ uint64_t *scheduler_exit_current(uint64_t status) {
     if (current->kind != TASK_KIND_USER || current->state != TASK_STATE_RUNNING) {
         return (uint64_t *)0;
     }
+    detach_children(current_task_index);
     current->state = TASK_STATE_ZOMBIE;
     current->exit_status = status;
     (void)paging_activate_kernel_space();
     (void)paging_space_destroy_user(&current->address_space);
-    if (wake_waiting_parent(current) != 0) {
+    if (wake_waiting_parent(current) != 0 || task_has_live_user_parent(current) == 0) {
+        detach_children(current_task_index);
         clear_task(current, current_task_index);
     }
 
