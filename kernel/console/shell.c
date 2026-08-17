@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include <arch.h>
+#include <framebuffer.h>
 #include <heap.h>
 #include <irq.h>
 #include <keyboard.h>
@@ -58,8 +59,10 @@ static void print_help(void) {
     serial_write("  heap              Show kernel heap statistics.\n");
     serial_write("  heaptest          Verify multi-page heap allocation, free and reuse.\n");
     serial_write("  pagefault         Trigger a controlled unmapped heap page fault.\n");
+    serial_write("  fbinfo            Show framebuffer console geometry and scroll counter.\n");
+    serial_write("  fbdemo            Print enough lines to exercise framebuffer scrolling.\n");
     serial_write("  echo <text>       Print text.\n");
-    serial_write("  clear             Clear the serial terminal.\n");
+    serial_write("  clear             Clear serial and framebuffer terminals.\n");
     serial_write("  crash             Trigger a divide error to test the IDT.\n");
     serial_write("  halt              Stop the processor safely.\n");
 }
@@ -75,7 +78,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "version")) {
-        serial_write("MyOS 0.6.0-dev (x86_64, freestanding C11 + NASM)\n");
+        serial_write("MyOS 0.7.0-dev (x86_64, freestanding C11 + NASM)\n");
         return;
     }
 
@@ -234,6 +237,35 @@ static void execute_command(const char *line, const struct shell_context *contex
         return;
     }
 
+    if (text_equal(line, "fbinfo")) {
+        if (framebuffer_console_available() == 0) {
+            serial_write("Framebuffer console unavailable.\n");
+        } else {
+            serial_write("Framebuffer console: ");
+            serial_write_hex64(framebuffer_console_columns());
+            serial_write(" x ");
+            serial_write_hex64(framebuffer_console_rows());
+            serial_write(" cells; scrolls: ");
+            serial_write_hex64(framebuffer_console_scroll_count());
+            serial_write("\n");
+        }
+        return;
+    }
+
+    if (text_equal(line, "fbdemo")) {
+        if (framebuffer_console_available() == 0) {
+            serial_write("Framebuffer console unavailable.\n");
+            return;
+        }
+        serial_write("Framebuffer scrolling demonstration begins.\n");
+        for (uint64_t row = 0U; row < framebuffer_console_rows() + 4U; row++) {
+            serial_write("FB DEMO ROW ");
+            serial_write_hex64(row);
+            serial_write(" — THE QUICK BROWN FOX JUMPS OVER 0123456789.\n");
+        }
+        return;
+    }
+
     if (text_starts_with(line, "echo ")) {
         serial_write(line + 5);
         serial_write("\n");
@@ -241,6 +273,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "clear")) {
+        framebuffer_console_clear();
         serial_write("\x1b[2J\x1b[H");
         return;
     }

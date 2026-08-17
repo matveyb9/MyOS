@@ -1,61 +1,63 @@
-# Архитектура MyOS 0.6.0-dev
+# Архитектура MyOS 0.7.0-dev
 
 ## Назначение
 
-MyOS — учебно-практическое ядро собственной разработки для **x86_64**. Единый гибридный ISO-образ запускается через BIOS и UEFI в QEMU, а после стабилизации может тестироваться с выделенного USB-носителя. Проект последовательно строит путь от наблюдаемого консольного ядра к пользовательским процессам, файловой системе и графической среде.
+MyOS — учебно-практическое ядро собственной разработки для **x86_64**. Гибридный ISO-образ запускается через BIOS и UEFI в QEMU. Проект развивает сначала наблюдаемое ring 0-ядро, затем подготовит изолированные процессы, файловую систему и графическую среду. Версия 0.7.0-dev впервые показывает интерактивный текст не только через COM1, но и на framebuffer.
 
-> Limine подготавливает режим запуска и передаёт управление `kmain`, но не является частью MyOS. Менеджеры памяти, таблицы прерываний, драйверы, консоль и будущие пользовательские подсистемы принадлежат ядру. [1]
+> Limine подготавливает окружение запуска и публикует boot responses, однако консоль, память, IDT, драйверы и будущие пользовательские подсистемы принадлежат MyOS. [1]
 
 ## Слои системы
 
-| Слой | Каталог | Ответственность в 0.6.0-dev | Следующая граница |
+| Слой | Каталог | Ответственность в 0.7.0-dev | Следующая граница |
 |---|---|---|---|
-| Загрузка | `boot/` | Higher-half ELF, заявки Limine, BIOS/UEFI меню. | Единый `boot_info` и явный список зарезервированных областей. |
-| Архитектура | `kernel/arch/x86_64/` | GDT, IDT, exception/IRQ stub, CR2 helper, Local APIC virtual-wire. | Page-fault recovery policy, APIC timer, IOAPIC и SMP. |
-| IRQ и драйверы | `kernel/irq/`, `kernel/drivers/` | PIC 8259A, PIT, PS/2 Set 1 и буфер клавиатуры. | USB HID, расширенные клавиши и очереди устройств. |
-| Физическая память | `kernel/mm/pmm.c` | Bitmap пригодных кадров до 4 GiB, allocate/reserve/free с проверками. | Ownership tags, память выше 4 GiB, NUMA. |
-| Виртуальная память | `kernel/mm/paging.c` | Собственный PML4, CR3 switch, 4 KiB mapper, Local APIC MMIO. | Unmap, user mappings, NX и защита секций. |
-| Heap | `kernel/mm/heap.c` | Free list, split/coalesce, `kmalloc`/`kfree`, повторное использование. | Locks, guard zones, освобождение пустых heap-страниц. |
-| Консоль | `kernel/console/` | COM1 + PS/2 shell, memory self-tests, diagnostic page fault. | Шрифт и framebuffer text console. |
+| Загрузка | `boot/` | Higher-half ELF, Limine requests, BIOS/UEFI menu. | `boot_info` и явный ownership boot-областей. |
+| Архитектура | `kernel/arch/x86_64/` | GDT, IDT, CR2, Local APIC virtual-wire, ASM stubs. | Guard policy, APIC timer, IOAPIC и SMP. |
+| IRQ и ввод | `kernel/irq/`, `kernel/drivers/` | PIC 8259A, PIT 100 Hz, PS/2 Set 1 и keyboard ring buffer. | USB HID, extended keyboard layout, device queues. |
+| Физическая память | `kernel/mm/pmm.c` | Bitmap usable frames и checked allocate/reserve/free. | Ownership tags, >4 GiB и NUMA. |
+| Виртуальная память | `kernel/mm/paging.c` | Собственный PML4, CR3 switch, 4 KiB mapping, APIC MMIO. | `unmap`, NX, supervisor/user mappings. |
+| Heap | `kernel/mm/heap.c` | Free list, split/coalesce, `kmalloc` и `kfree`. | Locks, guard zones и page reclamation. |
+| Serial console | `kernel/console/serial.c` | COM1 output/input, headless journal. | Panic-safe minimal fallback. |
+| Framebuffer console | `kernel/console/framebuffer.c` | 8×8 raster, cell buffer, cursor, scroll и COM1 mirroring. | Unicode, optimized scroll, double buffering и UI primitives. |
+| Shell | `kernel/console/shell.c` | Один input path для COM1 и PS/2; команды observability. | History, completion, user processes. |
 
-## Memory ownership
+## Output model
 
-В PMM две bitmap-структуры разделяют вопросы «пригоден ли кадр» и «свободен ли кадр». Только страницы, объявленные Limine как `USABLE`, становятся пригодными; frame 0 не выдаётся. `pmm_allocate_frame()` переводит свободный пригодный кадр в занятый, `pmm_reserve_frame()` запрещает его повторную выдачу, а `pmm_free_frame()` принимает только выровненный занятый пригодный адрес. Это ограничивает опасные операции и не позволяет двойному освобождению искусственно увеличить счётчик свободных кадров.
+Serial остаётся первой точкой загрузочного журнала. После принятия 32-bit RGB Limine framebuffer `framebuffer_console_init()` создаёт символьную сетку, чистит background и включает second sink. Каждый последующий `serial_write_char()` отправляет байт в COM1, затем — в `framebuffer_console_putc()`. Это deliberately keeps headless logging even if graphical mode unavailable.
 
-| Область | Назначение | Политика |
+| Input/character | Serial | Framebuffer |
 |---|---|---|
-| Higher-half kernel | Код, данные и ранний стек. | Bootstrap entries Limine копируются в собственный PML4. |
-| HHDM | Доступ к физическим frame и page tables. | Используется до появления полного самостоятельного boot-info. |
-| `0xFFFFFFFFC0000000` | Local APIC MMIO. | 4 KiB, supervisor RW, PWT+PCD. |
-| `0xFFFF900000000000` | Kernel heap, максимум 1 GiB. | Страницы отображаются лениво; блоки освобождаются во free list. |
-| Низкая половина | Будущий user space. | MyOS пока не создаёт U/S mappings. |
+| Printable ASCII | COM1 transmit. | Glyph на текущей cell. |
+| `\n` | Добавляет `\r` перед LF. | Переход на строку и scroll при нижней границе. |
+| Backspace | Печатает `\b`, space, `\b`. | Очищает предыдущую cell. |
+| ANSI clear | Передаётся terminal. | Escape sequence не рисуется; shell вызывает явный clear. |
+| Неподдерживаемый UTF-8 byte | Передаётся как raw COM1 output. | Игнорируется до появления Unicode. |
 
-## Heap
+## Framebuffer implementation
 
-`kmalloc()` ищет подходящий свободный блок, при необходимости разделяет его, либо расширяет virtual frontier через PMM и paging. `kfree()` проверяет границы heap, magic, state и размер блока, затем вставляет блок в адресно-упорядоченный free list. Соседние блоки объединяются, поэтому серия выделений и освобождений может вернуть один повторно используемый диапазон. Страницы физически не удаляются из mapper на этом этапе: это осознанная граница перед будущим `unmap` и page ownership.
+MyOS принимает только Limine RGB framebuffer с `bpp == 32`, проверенным memory model и pitch, достаточным для ширины. Пиксель адресуется через `pixels[y * pixels_per_row + x]`, где `pixels_per_row = pitch / 4`. Это учитывает possible padding между строками framebuffer. [2]
 
-## Page fault policy
-
-Для vector 14 MyOS считывает CR2 до serial output, поскольку следующий fault может перезаписать faulting linear address. Затем error code декодируется в non-present/protection violation, read/write, supervisor/user, reserved-bit и instruction-fetch признаки. [2] Текущая политика намеренно fail-stop: demand paging и recovery ещё не реализованы, поэтому ядро фиксирует полную причину и останавливает CPU.
-
-> Page fault является потенциально восстановимой **fault**, но MyOS не продолжает работу после неё без проверенной политики отображения и процессов. [3]
-
-## Диагностика shell
-
-| Команда | Проверяемый контракт |
+| Свойство | Текущая политика |
 |---|---|
-| `pmmtest` | Allocate → free → reserve → free возвращает исходный счётчик кадров. |
-| `heaptest` | Многостраничный блок читается/записывается, освобождается и первый адрес повторно используется. |
-| `heap` | Показывает active allocations, free blocks и reuse counter. |
-| `pagefault` | Читает заведомо unmapped край heap и формирует CR2 plus decoded error code. |
-| `paging`, `ticks`, `irqs` | Подтверждают PML4, Local APIC и жизнеспособность IRQ после изменений памяти. |
+| Цвета | Dark navy background, off-white text, cyan cursor/accent. |
+| Шрифт | Встроенный 5×7 bitmap, расположен в 8×8 cell. |
+| Размер | До 160 columns × 100 rows; QEMU 1280×800 использует максимум 160×100. |
+| Скролл | Сдвиг cell buffer на строку и complete repaint. |
+| Cursor | Accent underline в текущей cell. |
+| Очистка | Полная очистка cells и pixels; top accent line сохраняется. |
+
+## Memory and fault policy
+
+PMM поддерживает пригодные и свободные bitmap, heap повторно использует blocks, а vector 14 сохраняет CR2 до вывода и делает fail-stop. Эти гарантии остались необходимыми после добавления framebuffer: rendering не требует динамических allocation и не зависит от файловой системы, поэтому уже доступно в раннем bootstrap после paging.
+
+## Visual verification
+
+BIOS и UEFI QEMU проверялись через QMP `screendump` после ввода `fbdemo`/`fbinfo` виртуальной PS/2-клавиатурой. Снимки показывают readable glyphs, latest demo rows, cursor и ненулевой scroll counter. Serial logs independently reproduce the same shell commands and values.
 
 ## Следующая техническая итерация
 
-Приоритет следующего этапа — явно резервировать physical regions kernel/boot modules, добавить `unmap` и защитные страницы, затем перейти к текстовой console на framebuffer. Это заменит serial-first взаимодействие нормальным экранным интерфейсом, не меняя базовую архитектуру памяти.
+Далее MyOS должен явным образом резервировать kernel and boot physical pages, добавить `unmap` и guard ranges для виртуальной памяти. После укрепления address ownership framebuffer-console может получить небольшой line editor, history и контрастный status bar, не меняя базовый serial fallback.
 
 ## References
 
-[1]: https://github.com/limine-bootloader/limine-protocol "Limine Boot Protocol — official protocol"
-[2]: https://xem.github.io/minix86/manual/intel-x86-and-64-manual-vol3/o_fe12b1e2a880e0ce-227.html "Intel SDM Vol. 3A — Page-Fault Error Code and CR2"
-[3]: https://wiki.osdev.org/Exceptions "OSDev Wiki — Exception vector 14"
+[1]: https://github.com/limine-bootloader/limine-protocol "Limine Boot Protocol"
+[2]: https://wiki.osdev.org/Drawing_In_a_Linear_Framebuffer "OSDev Wiki — Drawing in a Linear Framebuffer"

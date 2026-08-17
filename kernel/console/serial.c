@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include <arch.h>
+#include <framebuffer.h>
 #include <serial.h>
 
 #define COM1 0x3F8U
@@ -31,6 +32,7 @@ void serial_write_char(char character) {
     while (serial_transmitter_empty() == 0) {
     }
     arch_out8(COM1, (uint8_t)character);
+    framebuffer_console_putc(character);
 }
 
 void serial_write(const char *text) {

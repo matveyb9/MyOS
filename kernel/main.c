@@ -5,6 +5,7 @@
 #include <limine.h>
 
 #include <arch.h>
+#include <framebuffer.h>
 #include <gdt.h>
 #include <heap.h>
 #include <idt.h>
@@ -68,44 +69,6 @@ static volatile struct limine_stack_size_request stack_size_request = {
 __attribute__((used, section(".limine_requests_end")))
 static volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static uint32_t framebuffer_colour(const struct limine_framebuffer *framebuffer,
-                                   uint8_t red, uint8_t green, uint8_t blue) {
-    const uint64_t red_mask = (UINT64_C(1) << framebuffer->red_mask_size) - UINT64_C(1);
-    const uint64_t green_mask = (UINT64_C(1) << framebuffer->green_mask_size) - UINT64_C(1);
-    const uint64_t blue_mask = (UINT64_C(1) << framebuffer->blue_mask_size) - UINT64_C(1);
-
-    return (uint32_t)((((uint64_t)red & red_mask) << framebuffer->red_mask_shift)
-        | (((uint64_t)green & green_mask) << framebuffer->green_mask_shift)
-        | (((uint64_t)blue & blue_mask) << framebuffer->blue_mask_shift));
-}
-
-static void framebuffer_fill(const struct limine_framebuffer *framebuffer, uint32_t colour) {
-    const uint64_t pixels_per_row = framebuffer->pitch / sizeof(uint32_t);
-    volatile uint32_t *pixels = (volatile uint32_t *)framebuffer->address;
-
-    for (uint64_t y = 0; y < framebuffer->height; y++) {
-        for (uint64_t x = 0; x < framebuffer->width; x++) {
-            pixels[(y * pixels_per_row) + x] = colour;
-        }
-    }
-}
-
-static void framebuffer_rect(const struct limine_framebuffer *framebuffer,
-                             uint64_t left, uint64_t top,
-                             uint64_t width, uint64_t height,
-                             uint32_t colour) {
-    const uint64_t pixels_per_row = framebuffer->pitch / sizeof(uint32_t);
-    volatile uint32_t *pixels = (volatile uint32_t *)framebuffer->address;
-    const uint64_t right = left + width;
-    const uint64_t bottom = top + height;
-
-    for (uint64_t y = top; y < bottom && y < framebuffer->height; y++) {
-        for (uint64_t x = left; x < right && x < framebuffer->width; x++) {
-            pixels[(y * pixels_per_row) + x] = colour;
-        }
-    }
-}
-
 static void initialise_framebuffer(void) {
     struct limine_framebuffer_response *response = framebuffer_request.response;
     if (response == NULL || response->framebuffer_count == 0U) {
@@ -114,24 +77,17 @@ static void initialise_framebuffer(void) {
     }
 
     struct limine_framebuffer *framebuffer = response->framebuffers[0];
-    if (framebuffer->memory_model != LIMINE_FRAMEBUFFER_RGB || framebuffer->bpp != 32U) {
-        serial_write("[warn] Framebuffer format is not 32-bit RGB.\n");
+    if (framebuffer_console_init(framebuffer) == 0) {
+        serial_write("[warn] Framebuffer console requires a supported 32-bit RGB mode.\n");
         return;
     }
 
-    const uint32_t background = framebuffer_colour(framebuffer, 13U, 20U, 34U);
-    const uint32_t accent = framebuffer_colour(framebuffer, 36U, 170U, 224U);
-    const uint32_t panel = framebuffer_colour(framebuffer, 24U, 39U, 62U);
-
-    framebuffer_fill(framebuffer, background);
-    framebuffer_rect(framebuffer, 0U, 0U, framebuffer->width, 6U, accent);
-    framebuffer_rect(framebuffer, 48U, 48U, framebuffer->width - 96U, 84U, panel);
-
-    serial_write("[ok] Framebuffer initialised: ");
-    serial_write_hex64(framebuffer->width);
+    serial_write("MYOS FRAMEBUFFER CONSOLE\n");
+    serial_write("[ok] Framebuffer console: ");
+    serial_write_hex64(framebuffer_console_columns());
     serial_write(" x ");
-    serial_write_hex64(framebuffer->height);
-    serial_write(" pixels\n");
+    serial_write_hex64(framebuffer_console_rows());
+    serial_write(" text cells\n");
 }
 
 static const char *firmware_name(void) {
@@ -214,7 +170,7 @@ void kmain(void) {
     }
     arch_enable_interrupts();
 
-    serial_write("\nMyOS 0.6.0-dev — x86_64 kernel\n");
+    serial_write("\nMyOS 0.7.0-dev — x86_64 kernel\n");
     serial_write("--------------------------------\n");
 
     report_boot_environment();
@@ -243,7 +199,8 @@ void kmain(void) {
     serial_write("[ok] PS/2 keyboard IRQ: ");
     serial_write(keyboard_ready != 0 ? "enabled\n" : "unavailable; serial input remains active\n");
     serial_write("[ok] Bootstrap complete. IRQ0 timer is enabled.\n");
-    serial_write("[next] framebuffer text console and richer keyboard layouts.\n");
+    serial_write("[ok] Framebuffer text console is active; COM1 remains mirrored.\n");
+    serial_write("[next] framebuffer cursor polish and richer keyboard layouts.\n");
 
     const struct shell_context shell_context = {
         .usable_memory_bytes = usable_memory_bytes(),

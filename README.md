@@ -6,9 +6,9 @@
 
 ## Текущий контрольный результат
 
-Ядро запрашивает у загрузчика framebuffer, карту физической памяти, сведения о прошивке и загрузчике. После настройки GDT, IDT и PMM MyOS переключается на собственную PML4 и создаёт новые 4 KiB отображения через PML4/PDPT/PD/PT walker. PMM различает пригодные, свободные и занятые кадры и предоставляет проверяемые операции reserve/free. Kernel heap использует free-list, повторно применяет освобождённые блоки и отвергает двойное освобождение. Page fault vector 14 захватывает CR2 первым действием, декодирует P/W/U/RSVD/I-D биты error code и останавливает ядро с подробной диагностикой. PIC, Local APIC, PIT и PS/2-клавиатура продолжают работать после всех изменений памяти. В shell доступны `pmmtest`, `heaptest` и `pagefault` для контролируемой проверки. Это всё ещё ring 0-прототип: нет demand paging, user space, USB HID, IOAPIC или framebuffer-терминала.
+Ядро запрашивает у загрузчика framebuffer, карту физической памяти, сведения о прошивке и загрузчике. После настройки GDT, IDT, PMM и собственного PML4 MyOS создаёт новые 4 KiB отображения через PML4/PDPT/PD/PT walker. PMM предоставляет проверяемые reserve/free операции, free-list heap повторно использует освобождённые блоки, а page fault vector 14 сохраняет CR2 и декодирует error code. Новая framebuffer-консоль принимает тот же output, что и COM1: встроенный 8×8 ASCII raster, символьная сетка, прокрутка, курсор и безопасная обработка текущего 32-bit RGB формата Limine. Shell доступна одновременно через COM1 и PS/2-клавиатуру; команды `fbinfo`, `fbdemo` и `clear` проверяют геометрию, прокрутку и очистку экранной консоли. Это всё ещё ring 0-прототип: нет Unicode, demand paging, user space, USB HID, IOAPIC или оконной системы.
 
-| Компонент | Решение в версии 0.6.0-dev | Причина |
+| Компонент | Решение в версии 0.7.0-dev | Причина |
 |---|---|---|
 | Архитектура | x86_64, System V ABI, higher-half ELF-ядро. | Современная базовая платформа для QEMU, UEFI-прошивок и будущего GUI. |
 | Защита CPU | Собственные GDT и IDT; диагностические обработчики 32 CPU-исключений. | Ранние ошибки теперь останавливают ядро с номером вектора, кодом и RIP. |
@@ -20,7 +20,8 @@
 | Таймер и ввод | PIT IRQ0 100 Гц; PS/2 Set 1 IRQ1, US QWERTY и буфер 255 символов. | Shell пробуждается аппаратным событием, а не только serial polling. [3] [5] |
 | Языки | C11 в freestanding-режиме; NASM для портов ввода-вывода и остановки CPU. | Код ядра остаётся близким к аппаратуре, но не становится полностью ассемблерным. |
 | Загрузка | Limine и его native boot protocol. | Один образ поддерживает запуск в BIOS и UEFI, не добавляя на раннем этапе собственный сложный загрузчик. [1] |
-| Диагностика | COM1 (0x3F8) и 32-битный RGB framebuffer. | Последовательный журнал виден без графического окна QEMU; framebuffer является фундаментом для будущего GUI. |
+| Экранная консоль | 8×8 raster, 160×100 text cells при QEMU 1280×800, scroll, cursor и parallel COM1 output. | Пользователь видит shell на обычном экране, не теряя headless-диагностику. [2] [9] |
+| Диагностика | COM1 (0x3F8), framebuffer screenshots через QMP и shell-команды `fbinfo`/`fbdemo`. | Визуальный результат проверяется независимо от serial-журнала. |
 | Тестирование | QEMU Q35, затем выделенный USB-накопитель. | Ошибки ядра сначала изолируются в эмуляторе. |
 
 ## Быстрый запуск
@@ -33,7 +34,7 @@ make
 make run
 ```
 
-Команда `make run` стартует QEMU в BIOS-режиме без графического окна и выводит COM1 в текущий терминал. Ожидаемый результат содержит строку `MyOS 0.6.0-dev — x86_64 kernel`, несколько сообщений `[ok]` и приглашение `myos>`. Наберите `help`, чтобы увидеть доступные встроенные команды.
+Команда `make run` стартует QEMU в BIOS-режиме без графического окна и выводит COM1 в текущий терминал. Ожидаемый результат содержит строку `MyOS 0.7.0-dev — x86_64 kernel`, несколько сообщений `[ok]` и приглашение `myos>`. Наберите `help`, чтобы увидеть доступные встроенные команды.
 
 Для проверки UEFI необходим пакет OVMF. После его установки запуск выполняется так:
 
@@ -46,8 +47,10 @@ make run-uefi
 | Команда | Назначение |
 |---|---|
 | `make` или `make iso` | Собрать гибридный BIOS/UEFI ISO-образ `myos.iso`. |
-| `make run` | Собрать и запустить ISO в QEMU с BIOS. |
-| `make run-uefi` | Собрать и запустить ISO в QEMU с UEFI/OVMF. |
+| `make run` | Собрать и запустить ISO в QEMU с BIOS в headless serial-режиме. |
+| `make run-graphic` | Запустить BIOS QEMU с графическим окном framebuffer и COM1 в терминале. |
+| `make run-uefi` | Собрать и запустить ISO в QEMU с UEFI/OVMF в headless serial-режиме. |
+| `make run-uefi-graphic` | Запустить UEFI/OVMF QEMU с графическим окном framebuffer и COM1 в терминале. |
 | `make hdd` | Сформировать сырой образ `myos.hdd` для выделенного тестового носителя. |
 | `make debug` | Запустить QEMU остановленным и открыть GDB-сервер на TCP-порту 1234. |
 | `make inspect` | Показать ELF-заголовки, program headers и секции ядра. |
@@ -74,11 +77,11 @@ gdb build/kernel.elf
 | `0.4.0-dev` | PIC/APIC virtual-wire, PIT/таймер, IRQ-диспетчер, точечный MMIO paging и PS/2 Set 1. | В QEMU BIOS и UEFI растут IRQ0 ticks, а `sendkey` доставляет команды через IRQ1. |
 | `0.5.0-dev` | Собственный PML4, CR3 switch, 4 KiB mapper, MMIO policy и kernel heap. | BIOS и UEFI QEMU выполняют `heaptest`; `paging` показывает управляемый PML4 и Local APIC mapping. |
 | `0.6.0-dev` | PMM reserve/free, free-list heap и page-fault diagnostics. | BIOS и UEFI QEMU проходят `pmmtest` и `heaptest`; `pagefault` печатает CR2 plus decoded cause. |
-| `0.7.0-dev` | Резервирование страниц ядра, guard policy и user-space address-region plan. | Ядро сможет безопасно отличать системные и будущие пользовательские отображения. |
-| `0.8.0-dev` | Текстовая консоль поверх framebuffer, шрифт, строковый редактор и расширенная PS/2-клавиатура. | Пользователь видит и вводит команды на обычном экране без serial-консоли. |
+| `0.7.0-dev` | 8×8 framebuffer-консоль, scroll, cursor, `fbinfo` и `fbdemo`. | BIOS и UEFI QEMU screendump показывает читаемый shell и подтверждённую прокрутку. |
+| `0.8.0-dev` | Резервирование страниц ядра, guard policy и user-space address-region plan. | Ядро сможет безопасно отличать системные и будущие пользовательские отображения. |
 | `0.9.0-dev` | Планировщик, ring 3, системные вызовы, ELF и initramfs. | Минимальная пользовательская программа выполняется из initramfs. |
 | `1.0.0` | VFS и простая постоянная файловая система. | Система монтирует файлы и запускает программу по имени. |
-| `1.1.0` | 2D-драйвер framebuffer, шрифты, мышь, окна и композитор. | Демонстрационная графическая оболочка запускается поверх стабильного ядра. |
+| `1.1.0` | 2D-драйвер framebuffer, мышь, окна и композитор. | Демонстрационная графическая оболочка запускается поверх стабильного ядра. |
 
 ## Безопасное тестирование на реальном ПК
 
@@ -98,3 +101,4 @@ gdb build/kernel.elf
 [6]: https://wiki.osdev.org/X86_Paging "OSDev Wiki — X86 Paging"
 [7]: https://docs.kernel.org/mm/page_tables.html "Linux kernel documentation — Page Tables"
 [8]: https://xem.github.io/minix86/manual/intel-x86-and-64-manual-vol3/o_fe12b1e2a880e0ce-227.html "Intel SDM Vol. 3A — Page-Fault Error Code and CR2"
+[9]: https://wiki.osdev.org/Drawing_In_a_Linear_Framebuffer "OSDev Wiki — Drawing in a Linear Framebuffer"

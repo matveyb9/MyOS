@@ -29,7 +29,7 @@ ASM_SOURCES    := $(shell find kernel -name '*.asm' | sort)
 OBJECTS        := $(patsubst %.c,$(BUILD_DIR)/obj/%.c.o,$(C_SOURCES)) \
                   $(patsubst %.asm,$(BUILD_DIR)/obj/%.asm.o,$(ASM_SOURCES))
 
-.PHONY: all kernel iso hdd run run-uefi debug clean distclean inspect help
+.PHONY: all kernel iso hdd run run-graphic run-uefi run-uefi-graphic debug clean distclean inspect help
 
 all: iso
 kernel: $(KERNEL)
@@ -84,6 +84,10 @@ run: $(PROJECT).iso
 	qemu-system-x86_64 -machine q35 -m 256M -cdrom $(PROJECT).iso -boot d \
 		-serial stdio -display none -no-reboot -no-shutdown
 
+run-graphic: $(PROJECT).iso
+	qemu-system-x86_64 -machine q35 -m 256M -cdrom $(PROJECT).iso -boot d \
+		-serial stdio -no-reboot -no-shutdown
+
 $(BUILD_DIR)/OVMF_VARS.fd:
 	@mkdir -p $(BUILD_DIR)
 	cp $(OVMF_VARS) $@
@@ -93,6 +97,12 @@ run-uefi: $(PROJECT).iso $(BUILD_DIR)/OVMF_VARS.fd
 		-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) \
 		-drive if=pflash,format=raw,file=$(BUILD_DIR)/OVMF_VARS.fd \
 		-cdrom $(PROJECT).iso -boot d -serial stdio -display none -no-reboot -no-shutdown
+
+run-uefi-graphic: $(PROJECT).iso $(BUILD_DIR)/OVMF_VARS.fd
+	qemu-system-x86_64 -machine q35 -m 256M \
+		-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) \
+		-drive if=pflash,format=raw,file=$(BUILD_DIR)/OVMF_VARS.fd \
+		-cdrom $(PROJECT).iso -boot d -serial stdio -no-reboot -no-shutdown
 
 debug: $(PROJECT).iso
 	qemu-system-x86_64 -machine q35 -m 256M -cdrom $(PROJECT).iso -boot d \
@@ -109,10 +119,12 @@ distclean: clean
 
 help:
 	@printf '%s\n' \
-		'make          Build a hybrid BIOS/UEFI ISO image.' \
-		'make run      Start the ISO through QEMU BIOS and show COM1 output.' \
-		'make run-uefi Start the ISO through QEMU UEFI and show COM1 output.' \
-		'make hdd      Build a raw hybrid HDD/USB image. Flash only to a dedicated test device.' \
-		'make debug    Start QEMU paused with a GDB server on TCP port 1234.'
+		'make                Build a hybrid BIOS/UEFI ISO image.' \
+		'make run            Start BIOS QEMU headlessly and show COM1 output.' \
+		'make run-graphic    Start BIOS QEMU with framebuffer window and COM1 output.' \
+		'make run-uefi       Start UEFI QEMU headlessly and show COM1 output.' \
+		'make run-uefi-graphic Start UEFI QEMU with framebuffer window and COM1 output.' \
+		'make hdd            Build a raw hybrid HDD/USB image. Flash only to a dedicated test device.' \
+		'make debug          Start QEMU paused with a GDB server on TCP port 1234.'
 
 -include $(OBJECTS:.o=.d)
