@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdint.h>
 
 #include <acpi.h>
@@ -27,11 +28,37 @@ extern void syscall_entry(void);
 static volatile uint64_t total_syscalls;
 static volatile uint64_t write_syscalls;
 
-static int user_buffer_is_valid(uint64_t address, uint64_t length) {
-    if (address < PAGING_USER_SPACE_START || address > PAGING_USER_SPACE_END || length > SYSCALL_WRITE_LIMIT) {
+static int user_buffer_is_valid(uint64_t address, uint64_t length, int writable) {
+    if (length == 0U || length > SYSCALL_WRITE_LIMIT) {
         return 0;
     }
-    return length <= PAGING_USER_SPACE_END - address + 1U;
+    return paging_user_range_is_mapped(address, length, writable);
+}
+
+static int copy_from_user(void *destination, uint64_t source_address, uint64_t length) {
+    uint8_t *destination_bytes = (uint8_t *)destination;
+    const uint8_t *source_bytes = (const uint8_t *)(uintptr_t)source_address;
+
+    if (destination == (void *)0 || user_buffer_is_valid(source_address, length, 0) == 0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < length; index++) {
+        destination_bytes[index] = source_bytes[index];
+    }
+    return 1;
+}
+
+static int copy_to_user(uint64_t destination_address, const void *source, uint64_t length) {
+    uint8_t *destination_bytes = (uint8_t *)(uintptr_t)destination_address;
+    const uint8_t *source_bytes = (const uint8_t *)source;
+
+    if (source == (const void *)0 || user_buffer_is_valid(destination_address, length, 1) == 0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < length; index++) {
+        destination_bytes[index] = source_bytes[index];
+    }
+    return 1;
 }
 
 void syscall_init(void) {
@@ -50,11 +77,13 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
                           uint64_t *user_context) {
     total_syscalls++;
     if (number == MYOS_SYS_WRITE) {
-        if (descriptor != 1U || user_buffer_is_valid(buffer, length) == 0) {
+        char text[SYSCALL_WRITE_LIMIT];
+
+        if (descriptor != 1U || copy_from_user(text, buffer, length) == 0) {
             return UINT64_MAX;
         }
         for (uint64_t index = 0U; index < length; index++) {
-            serial_write_char(((const char *)(uintptr_t)buffer)[index]);
+            serial_write_char(text[index]);
         }
         write_syscalls++;
         return length;
@@ -63,7 +92,7 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         char character;
         uint64_t *next_context;
 
-        if (descriptor != 0U || length == 0U || user_buffer_is_valid(buffer, 1U) == 0) {
+        if (descriptor != 0U || length == 0U || user_buffer_is_valid(buffer, 1U, 1) == 0) {
             return UINT64_MAX;
         }
         if (serial_input_available() != 0) {
@@ -78,7 +107,9 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
             user_context[14] = 0U;
             arch_resume_context(next_context);
         }
-        ((char *)(uintptr_t)buffer)[0] = character;
+        if (copy_to_user(buffer, &character, 1U) == 0) {
+            return UINT64_MAX;
+        }
         return 1U;
     }
     if (number == MYOS_SYS_TICKS) {
@@ -92,11 +123,8 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         int task_id;
 
         if (descriptor != 0U || length == 0U || length >= sizeof(path)
-            || user_buffer_is_valid(buffer, length) == 0) {
+            || copy_from_user(path, buffer, length) == 0) {
             return UINT64_MAX;
-        }
-        for (uint64_t index = 0U; index < length; index++) {
-            path[index] = ((const char *)(uintptr_t)buffer)[index];
         }
         path[length] = '\0';
         task_id = initramfs_spawn(path);
@@ -128,11 +156,10 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     if (number == MYOS_SYS_TASK_INFO) {
         struct myos_task_info info;
 
-        if (length != sizeof(info) || user_buffer_is_valid(buffer, sizeof(info)) == 0
-            || scheduler_task_info(descriptor, &info) != 0) {
+        if (length != sizeof(info) || scheduler_task_info(descriptor, &info) != 0
+            || copy_to_user(buffer, &info, sizeof(info)) == 0) {
             return UINT64_MAX;
         }
-        *((struct myos_task_info *)(uintptr_t)buffer) = info;
         return 0U;
     }
     if (number == MYOS_SYS_UPTIME) {
@@ -145,8 +172,7 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         struct rtc_time time;
         struct myos_rtc_time result;
 
-        if (descriptor != 0U || length != sizeof(result) || user_buffer_is_valid(buffer, sizeof(result)) == 0
-            || rtc_read_time(&time) == 0) {
+        if (descriptor != 0U || length != sizeof(result) || rtc_read_time(&time) == 0) {
             return UINT64_MAX;
         }
         result.year = time.year;
@@ -155,45 +181,44 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         result.hour = time.hour;
         result.minute = time.minute;
         result.second = time.second;
-        *((struct myos_rtc_time *)(uintptr_t)buffer) = result;
-        return 0U;
+        return copy_to_user(buffer, &result, sizeof(result)) != 0 ? 0U : UINT64_MAX;
     }
     if (number == MYOS_SYS_VFS_ENTRY) {
         struct myos_vfs_entry entry;
 
-        if (buffer == 0U || length != sizeof(entry) || user_buffer_is_valid(buffer, sizeof(entry)) == 0
-            || vfs_get_entry(descriptor, entry.name, sizeof(entry.name), &entry.size) == 0) {
+        if (buffer == 0U || length != sizeof(entry)
+            || vfs_get_entry(descriptor, entry.name, sizeof(entry.name), &entry.size) == 0
+            || copy_to_user(buffer, &entry, sizeof(entry)) == 0) {
             return UINT64_MAX;
         }
-        *((struct myos_vfs_entry *)(uintptr_t)buffer) = entry;
         return 0U;
     }
     if (number == MYOS_SYS_VFS_READ) {
-        struct myos_vfs_read_request *request;
+        struct myos_vfs_read_request request;
         struct vfs_file file;
         uint64_t name_length = 0U;
         uint64_t remaining;
         uint64_t copy_length;
+        uint64_t data_address;
 
-        if (descriptor != 0U || buffer == 0U || length != sizeof(*request)
-            || user_buffer_is_valid(buffer, sizeof(*request)) == 0) {
+        if (descriptor != 0U || buffer == 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0) {
             return UINT64_MAX;
         }
-        request = (struct myos_vfs_read_request *)(uintptr_t)buffer;
-        while (name_length < MYOS_VFS_NAME_MAX && request->path[name_length] != '\0') {
+        while (name_length < MYOS_VFS_NAME_MAX && request.path[name_length] != '\0') {
             name_length++;
         }
-        if (name_length == 0U || name_length == MYOS_VFS_NAME_MAX
-            || vfs_open(request->path, &file) == 0) {
+        if (name_length == 0U || name_length == MYOS_VFS_NAME_MAX || vfs_open(request.path, &file) == 0) {
             return UINT64_MAX;
         }
-        if (request->offset >= file.size) {
+        if (request.offset >= file.size) {
             return 0U;
         }
-        remaining = file.size - request->offset;
+        remaining = file.size - request.offset;
         copy_length = remaining < MYOS_VFS_READ_CHUNK ? remaining : MYOS_VFS_READ_CHUNK;
-        for (uint64_t index = 0U; index < copy_length; index++) {
-            request->data[index] = file.data[request->offset + index];
+        data_address = buffer + offsetof(struct myos_vfs_read_request, data);
+        if (copy_to_user(data_address, file.data + request.offset, copy_length) == 0) {
+            return UINT64_MAX;
         }
         return copy_length;
     }

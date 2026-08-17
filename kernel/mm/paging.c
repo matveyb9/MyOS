@@ -331,6 +331,59 @@ uint64_t paging_mapping_count(void) {
     return mapped_page_count;
 }
 
+int paging_user_range_is_mapped(uint64_t address, uint64_t length, int writable) {
+    uint64_t end_address;
+    uint64_t page_address;
+
+    if (length == 0U || address < PAGING_USER_SPACE_START || address > PAGING_USER_SPACE_END
+        || length - 1U > PAGING_USER_SPACE_END - address) {
+        return 0;
+    }
+    end_address = address + length - 1U;
+    page_address = address & ~(PAGING_PAGE_SIZE - 1U);
+    for (;;) {
+        uint64_t *pml4;
+        uint64_t *pdpt;
+        uint64_t *page_directory;
+        uint64_t *page_table;
+        uint64_t entry;
+        uint16_t pml4_index;
+        uint16_t pdpt_index;
+        uint16_t pd_index;
+        uint16_t pt_index;
+
+        page_indices(page_address, &pml4_index, &pdpt_index, &pd_index, &pt_index);
+        pml4 = active_pml4();
+        entry = pml4[pml4_index];
+        if ((entry & (PAGE_PRESENT | PAGING_FLAG_USER)) != (PAGE_PRESENT | PAGING_FLAG_USER)
+            || (entry & PAGE_HUGE) != 0U) {
+            return 0;
+        }
+        pdpt = physical_to_virtual(entry & PAGE_ADDRESS_MASK);
+        entry = pdpt[pdpt_index];
+        if ((entry & (PAGE_PRESENT | PAGING_FLAG_USER)) != (PAGE_PRESENT | PAGING_FLAG_USER)
+            || (entry & PAGE_HUGE) != 0U) {
+            return 0;
+        }
+        page_directory = physical_to_virtual(entry & PAGE_ADDRESS_MASK);
+        entry = page_directory[pd_index];
+        if ((entry & (PAGE_PRESENT | PAGING_FLAG_USER)) != (PAGE_PRESENT | PAGING_FLAG_USER)
+            || (entry & PAGE_HUGE) != 0U) {
+            return 0;
+        }
+        page_table = physical_to_virtual(entry & PAGE_ADDRESS_MASK);
+        entry = page_table[pt_index];
+        if ((entry & (PAGE_PRESENT | PAGING_FLAG_USER)) != (PAGE_PRESENT | PAGING_FLAG_USER)
+            || (writable != 0 && (entry & PAGING_FLAG_WRITABLE) == 0U)) {
+            return 0;
+        }
+        if (page_address >= (end_address & ~(PAGING_PAGE_SIZE - 1U))) {
+            return 1;
+        }
+        page_address += PAGING_PAGE_SIZE;
+    }
+}
+
 int paging_translate(uint64_t virtual_address, uint64_t *physical_address) {
     uint64_t *pml4;
     uint64_t *pdpt;
