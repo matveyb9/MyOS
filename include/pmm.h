@@ -18,6 +18,7 @@ enum frame_owner {
 
 void pmm_init(const struct limine_memmap_response *memory_map);
 uint64_t pmm_allocate_frame(void);
+uint64_t pmm_allocate_user_frame(void);
 int pmm_reserve_frame(uint64_t physical_address);
 int pmm_reserve_kernel_range(uint64_t physical_start, uint64_t physical_end);
 int pmm_free_frame(uint64_t physical_address);

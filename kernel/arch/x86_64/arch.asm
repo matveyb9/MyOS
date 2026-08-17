@@ -5,6 +5,7 @@ SECTION .text
 
 extern __kernel_stack_top
 extern kmain
+extern syscall_dispatch
 
 global kernel_entry
 kernel_entry:
@@ -56,6 +57,41 @@ arch_read_cr2:
     mov rax, cr2
     ret
 
+global arch_read_msr
+arch_read_msr:
+    mov ecx, edi
+    rdmsr
+    shl rdx, 32
+    or rax, rdx
+    ret
+
+global arch_write_msr
+arch_write_msr:
+    mov ecx, edi
+    mov eax, esi
+    mov rdx, rsi
+    shr rdx, 32
+    wrmsr
+    ret
+
+global arch_enter_user_mode
+arch_enter_user_mode:
+    cli
+    mov ax, 0x23
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    push qword 0x23
+    push rsi
+    pushfq
+    pop rax
+    or rax, 0x200
+    push rax
+    push qword 0x2b
+    push rdi
+    iretq
+
 global arch_trigger_divide_by_zero
 arch_trigger_divide_by_zero:
     mov rax, 1
@@ -84,6 +120,28 @@ global arch_load_idt
 arch_load_idt:
     lidt [rdi]
     ret
+
+global arch_load_tss
+arch_load_tss:
+    mov ax, di
+    ltr ax
+    ret
+
+global syscall_entry
+syscall_entry:
+    mov [rel syscall_user_rsp], rsp
+    lea rsp, [rel __kernel_stack_top]
+    push rcx
+    push r11
+    mov rcx, rdx
+    mov rdx, rsi
+    mov rsi, rdi
+    mov rdi, rax
+    call syscall_dispatch
+    pop r11
+    pop rcx
+    mov rsp, [rel syscall_user_rsp]
+    sysret
 
 extern idt_handle_exception
 extern irq_dispatch
@@ -210,5 +268,9 @@ IRQ 12
 IRQ 13
 IRQ 14
 IRQ 15
+
+SECTION .bss
+align 8
+syscall_user_rsp: resq 1
 
 SECTION .note.GNU-stack noalloc noexec nowrite progbits

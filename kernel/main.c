@@ -19,6 +19,7 @@
 #include <serial.h>
 #include <scheduler.h>
 #include <shell.h>
+#include <syscall.h>
 
 /*
  * Limine performs the firmware-specific setup. Everything after kmain() is
@@ -196,6 +197,7 @@ void kmain(void) {
 
     serial_init();
     gdt_init();
+    syscall_init();
     idt_init();
     idt_install_irq_gates();
     irq_init();
@@ -223,13 +225,14 @@ void kmain(void) {
     }
     arch_enable_interrupts();
 
-    serial_write("\nMyOS 0.9.0-dev — x86_64 kernel\n");
+    serial_write("\nMyOS 0.10.0-dev — x86_64 kernel\n");
     serial_write("--------------------------------\n");
 
     report_boot_environment();
     initialise_framebuffer();
 
-    serial_write("[ok] GDT and exception IDT installed.\n");
+    serial_write("[ok] GDT, TSS and exception IDT installed.\n");
+    serial_write("[ok] SYSCALL/SYSRET boundary enabled.\n");
     serial_write("[ok] PMM free frames: ");
     serial_write_hex64(pmm_free_frame_count());
     serial_write("; kernel image reservation: ");

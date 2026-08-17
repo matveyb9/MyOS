@@ -1,0 +1,66 @@
+#include <stdint.h>
+
+#include <arch.h>
+#include <gdt.h>
+#include <paging.h>
+#include <serial.h>
+#include <syscall.h>
+
+#define IA32_EFER UINT32_C(0xC0000080)
+#define IA32_STAR UINT32_C(0xC0000081)
+#define IA32_LSTAR UINT32_C(0xC0000082)
+#define IA32_FMASK UINT32_C(0xC0000084)
+#define EFER_SYSCALL_ENABLE UINT64_C(0x0000000000000001)
+#define SYSCALL_MASK_FLAGS UINT64_C(0x0000000000000700)
+#define SYSCALL_WRITE_LIMIT UINT64_C(256)
+
+extern void syscall_entry(void);
+
+static volatile uint64_t total_syscalls;
+static volatile uint64_t write_syscalls;
+
+static int user_buffer_is_valid(uint64_t address, uint64_t length) {
+    if (address < PAGING_USER_SPACE_START || address > PAGING_USER_SPACE_END || length > SYSCALL_WRITE_LIMIT) {
+        return 0;
+    }
+    return length <= PAGING_USER_SPACE_END - address + 1U;
+}
+
+void syscall_init(void) {
+    const uint64_t star = ((uint64_t)GDT_KERNEL_CODE_SELECTOR << 32U)
+                          | ((uint64_t)GDT_USER_COMPAT_CODE_SELECTOR << 48U);
+
+    total_syscalls = 0U;
+    write_syscalls = 0U;
+    arch_write_msr(IA32_EFER, arch_read_msr(IA32_EFER) | EFER_SYSCALL_ENABLE);
+    arch_write_msr(IA32_STAR, star);
+    arch_write_msr(IA32_LSTAR, (uint64_t)(uintptr_t)syscall_entry);
+    arch_write_msr(IA32_FMASK, SYSCALL_MASK_FLAGS);
+}
+
+uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer, uint64_t length) {
+    total_syscalls++;
+    if (number == MYOS_SYS_WRITE) {
+        if (descriptor != 1U || user_buffer_is_valid(buffer, length) == 0) {
+            return UINT64_MAX;
+        }
+        for (uint64_t index = 0U; index < length; index++) {
+            serial_write_char(((const char *)(uintptr_t)buffer)[index]);
+        }
+        write_syscalls++;
+        return length;
+    }
+    if (number == MYOS_SYS_EXIT) {
+        serial_write("[user] exit requested; system halted.\n");
+        arch_halt();
+    }
+    return UINT64_MAX;
+}
+
+uint64_t syscall_count(void) {
+    return total_syscalls;
+}
+
+uint64_t syscall_write_count(void) {
+    return write_syscalls;
+}

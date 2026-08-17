@@ -164,16 +164,24 @@ void pmm_init(const struct limine_memmap_response *memory_map) {
     }
 }
 
-uint64_t pmm_allocate_frame(void) {
+static uint64_t allocate_frame_for_owner(enum frame_owner owner) {
     for (uint64_t frame = 1U; frame < tracked_frames; frame++) {
         if (frame_is_usable(frame) != 0 && frame_is_free_index(frame) != 0
             && frame_owners[frame] == FRAME_OWNER_FREE) {
             mark_frame_used(frame);
-            set_frame_owner(frame, FRAME_OWNER_KERNEL);
+            set_frame_owner(frame, owner);
             return frame * PMM_PAGE_SIZE;
         }
     }
     return PMM_INVALID_ADDRESS;
+}
+
+uint64_t pmm_allocate_frame(void) {
+    return allocate_frame_for_owner(FRAME_OWNER_KERNEL);
+}
+
+uint64_t pmm_allocate_user_frame(void) {
+    return allocate_frame_for_owner(FRAME_OWNER_USER);
 }
 
 int pmm_reserve_frame(uint64_t physical_address) {

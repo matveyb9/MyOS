@@ -11,5 +11,8 @@ void arch_enable_interrupts(void);
 void arch_wait_for_interrupt(void);
 uint64_t arch_read_rflags(void);
 uint64_t arch_read_cr2(void);
+uint64_t arch_read_msr(uint32_t msr);
+void arch_write_msr(uint32_t msr, uint64_t value);
+void arch_enter_user_mode(uint64_t entry, uint64_t stack_top) __attribute__((noreturn));
 
 #endif

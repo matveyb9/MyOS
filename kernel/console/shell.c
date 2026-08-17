@@ -14,6 +14,8 @@
 #include <serial.h>
 #include <scheduler.h>
 #include <shell.h>
+#include <syscall.h>
+#include <user.h>
 
 #define SHELL_LINE_CAPACITY 128U
 #define SHELL_PAGING_TEST_ADDRESS UINT64_C(0xFFFFA00000000000)
@@ -74,6 +76,8 @@ static void print_help(void) {
     serial_write("  paging            Show active PML4 and MyOS mapping counters.\n");
     serial_write("  pagingtest        Verify map, translate, unmap and guard-page policy.\n");
     serial_write("  tasks             Show round-robin kernel-thread scheduler state.\n");
+    serial_write("  syscalls          Show fast-syscall counters.\n");
+    serial_write("  userdemo          Enter the first ring-3 sys_write demo.\n");
     serial_write("  heap              Show kernel heap statistics.\n");
     serial_write("  heaptest          Verify multi-page heap allocation, free and reuse.\n");
     serial_write("  pagefault         Trigger the controlled heap guard-page fault.\n");
@@ -96,7 +100,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "version")) {
-        serial_write("MyOS 0.9.0-dev (x86_64, freestanding C11 + NASM)\n");
+        serial_write("MyOS 0.10.0-dev (x86_64, freestanding C11 + NASM)\n");
         return;
     }
 
@@ -262,6 +266,28 @@ static void execute_command(const char *line, const struct shell_context *contex
             serial_write("\n");
         }
         return;
+    }
+
+    if (text_equal(line, "syscalls")) {
+        serial_write("Syscalls: ");
+        serial_write_hex64(syscall_count());
+        serial_write("; sys_write: ");
+        serial_write_hex64(syscall_write_count());
+        serial_write("\n");
+        return;
+    }
+
+    if (text_equal(line, "userdemo")) {
+        if (user_demo_prepare() == 0) {
+            serial_write("Unable to prepare ring-3 demo pages.\n");
+            return;
+        }
+        serial_write("Entering ring-3 demo at ");
+        serial_write_hex64(user_demo_code_address());
+        serial_write(" with user stack top ");
+        serial_write_hex64(user_demo_stack_top());
+        serial_write(".\n");
+        user_demo_enter();
     }
 
     if (text_equal(line, "heap")) {
