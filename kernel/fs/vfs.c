@@ -137,6 +137,37 @@ int vfs_open(const char *path, struct vfs_file *file) {
     return 0;
 }
 
+int vfs_get_entry(uint64_t index, char *name, uint64_t name_capacity, uint64_t *size) {
+    uint64_t offset = 0U;
+    uint64_t current = 0U;
+    const uint8_t *entry_name;
+    const uint8_t *data;
+    uint64_t entry_name_size;
+    uint64_t data_size;
+
+    if (mounted_archive == (const uint8_t *)0 || name == (char *)0 || name_capacity == 0U
+        || size == (uint64_t *)0) {
+        return 0;
+    }
+    while (next_entry(&offset, &entry_name, &entry_name_size, &data, &data_size) != 0) {
+        if (name_equal(entry_name, entry_name_size, "TRAILER!!!") != 0) {
+            return 0;
+        }
+        if (current == index) {
+            if (entry_name_size > name_capacity) {
+                return 0;
+            }
+            for (uint64_t character = 0U; character < entry_name_size; character++) {
+                name[character] = (char)entry_name[character];
+            }
+            *size = data_size;
+            return 1;
+        }
+        current++;
+    }
+    return 0;
+}
+
 uint64_t vfs_file_count(void) {
     return mounted_files;
 }

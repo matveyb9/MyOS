@@ -133,7 +133,7 @@ static uint64_t parse_decimal(const char *text) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo sleep run spawn wait stress dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo ls cat sleep run spawn wait stress dmesg clear exit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -186,6 +186,55 @@ static void command_ps(void) {
             write_text(" [current]");
         }
         write_char('\n');
+    }
+}
+
+static void command_ls(void) {
+    for (uint64_t index = 0U; index < UINT64_C(64); index++) {
+        struct myos_vfs_entry entry;
+
+        if (system_call(MYOS_SYS_VFS_ENTRY, index, (uint64_t)(uintptr_t)&entry, sizeof(entry))
+            == UINT64_MAX) {
+            return;
+        }
+        write_text(entry.name);
+        write_text("  ");
+        write_number(entry.size);
+        write_char('\n');
+    }
+}
+
+static void command_cat(const char *argument) {
+    struct myos_vfs_read_request request;
+    uint64_t path_length = 0U;
+
+    while (argument[path_length] != '\0' && path_length + 1U < MYOS_VFS_NAME_MAX) {
+        request.path[path_length] = argument[path_length];
+        path_length++;
+    }
+    if (path_length == 0U || argument[path_length] != '\0') {
+        write_text("Usage: cat <file>\n");
+        return;
+    }
+    request.path[path_length] = '\0';
+    request.offset = 0U;
+    for (;;) {
+        const uint64_t count = system_call(MYOS_SYS_VFS_READ, 0U, (uint64_t)(uintptr_t)&request,
+                                           sizeof(request));
+
+        if (count == UINT64_MAX) {
+            write_text("Unable to read file.\n");
+            return;
+        }
+        if (count == 0U) {
+            return;
+        }
+        write_bytes((const char *)request.data, count);
+        if (request.offset > UINT64_MAX - count) {
+            write_text("File is too large.\n");
+            return;
+        }
+        request.offset += count;
     }
 }
 
@@ -316,6 +365,10 @@ static void execute_command(char *line) {
         command_ps();
     } else if (text_equal(line, "meminfo")) {
         command_meminfo();
+    } else if (text_equal(line, "ls")) {
+        command_ls();
+    } else if (text_equal(line, "cat")) {
+        command_cat(argument);
     } else if (text_equal(line, "run")) {
         command_run(argument);
     } else if (text_equal(line, "spawn")) {

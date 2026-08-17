@@ -1,0 +1,3 @@
+Welcome to MyOS.
+The initramfs VFS is mounted read-only.
+Use ls to inspect bundled files and cat <file> to read text files.

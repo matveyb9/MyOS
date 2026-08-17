@@ -10,6 +10,7 @@
 #include <serial.h>
 #include <scheduler.h>
 #include <syscall.h>
+#include <vfs.h>
 
 #define IA32_EFER UINT32_C(0xC0000080)
 #define IA32_STAR UINT32_C(0xC0000081)
@@ -131,6 +132,45 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         }
         *((struct myos_task_info *)(uintptr_t)buffer) = info;
         return 0U;
+    }
+    if (number == MYOS_SYS_VFS_ENTRY) {
+        struct myos_vfs_entry entry;
+
+        if (buffer == 0U || length != sizeof(entry) || user_buffer_is_valid(buffer, sizeof(entry)) == 0
+            || vfs_get_entry(descriptor, entry.name, sizeof(entry.name), &entry.size) == 0) {
+            return UINT64_MAX;
+        }
+        *((struct myos_vfs_entry *)(uintptr_t)buffer) = entry;
+        return 0U;
+    }
+    if (number == MYOS_SYS_VFS_READ) {
+        struct myos_vfs_read_request *request;
+        struct vfs_file file;
+        uint64_t name_length = 0U;
+        uint64_t remaining;
+        uint64_t copy_length;
+
+        if (descriptor != 0U || buffer == 0U || length != sizeof(*request)
+            || user_buffer_is_valid(buffer, sizeof(*request)) == 0) {
+            return UINT64_MAX;
+        }
+        request = (struct myos_vfs_read_request *)(uintptr_t)buffer;
+        while (name_length < MYOS_VFS_NAME_MAX && request->path[name_length] != '\0') {
+            name_length++;
+        }
+        if (name_length == 0U || name_length == MYOS_VFS_NAME_MAX
+            || vfs_open(request->path, &file) == 0) {
+            return UINT64_MAX;
+        }
+        if (request->offset >= file.size) {
+            return 0U;
+        }
+        remaining = file.size - request->offset;
+        copy_length = remaining < MYOS_VFS_READ_CHUNK ? remaining : MYOS_VFS_READ_CHUNK;
+        for (uint64_t index = 0U; index < copy_length; index++) {
+            request->data[index] = file.data[request->offset + index];
+        }
+        return copy_length;
     }
     if (number == MYOS_SYS_SLEEP) {
         uint64_t *next_context;

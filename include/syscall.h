@@ -13,9 +13,13 @@
 #define MYOS_SYS_GETPID UINT64_C(8)
 #define MYOS_SYS_SLEEP UINT64_C(9)
 #define MYOS_SYS_TASK_INFO UINT64_C(10)
+#define MYOS_SYS_VFS_ENTRY UINT64_C(11)
+#define MYOS_SYS_VFS_READ UINT64_C(12)
 
 #define MYOS_TASK_SLOT_COUNT UINT64_C(8)
 #define MYOS_TASK_NAME_MAX UINT64_C(16)
+#define MYOS_VFS_NAME_MAX UINT64_C(64)
+#define MYOS_VFS_READ_CHUNK UINT64_C(128)
 
 #define MYOS_TASK_STATE_UNUSED UINT64_C(0)
 #define MYOS_TASK_STATE_READY UINT64_C(1)
@@ -35,6 +39,17 @@ struct myos_task_info {
     uint64_t run_count;
     uint64_t exit_status;
     char name[MYOS_TASK_NAME_MAX];
+};
+
+struct myos_vfs_entry {
+    uint64_t size;
+    char name[MYOS_VFS_NAME_MAX];
+};
+
+struct myos_vfs_read_request {
+    uint64_t offset;
+    char path[MYOS_VFS_NAME_MAX];
+    uint8_t data[MYOS_VFS_READ_CHUNK];
 };
 
 void syscall_init(void);

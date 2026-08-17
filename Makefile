@@ -8,6 +8,7 @@ USER_INIT      := $(USER_BUILD_DIR)/init
 USER_HELLO     := $(USER_BUILD_DIR)/hello
 USER_SLEEPER   := $(USER_BUILD_DIR)/sleeper
 USER_ORPHANER  := $(USER_BUILD_DIR)/orphaner
+USER_MOTD      := user/motd.txt
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
 LIMINE_DIR     := third_party/limine-binary
@@ -75,8 +76,8 @@ $(USER_ORPHANER): user/orphaner.c user/linker.ld
 	$(CC) $(USER_CFLAGS) -c user/orphaner.c -o $(USER_BUILD_DIR)/orphaner.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/orphaner.o -o $@
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) tools/mkcpio.py
-	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER)
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_MOTD) tools/mkcpio.py
+	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) motd.txt $(USER_MOTD)
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)
