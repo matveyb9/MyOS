@@ -22,6 +22,30 @@ arch_halt:
     hlt
     jmp .hang
 
+global arch_reboot
+arch_reboot:
+    cli
+    mov dx, 0x64
+    mov ecx, 0x10000
+.wait_input_empty:
+    in al, dx
+    test al, 0x02
+    jz .send_reset
+    loop .wait_input_empty
+.send_reset:
+    mov al, 0xfe
+    out dx, al
+    mov dx, 0xcf9
+    mov al, 0x02
+    out dx, al
+    mov al, 0x06
+    out dx, al
+    lidt [rel reboot_empty_idtr]
+    int3
+.hang:
+    hlt
+    jmp .hang
+
 global arch_out8
 arch_out8:
     mov dx, di
@@ -322,6 +346,12 @@ IRQ 12
 IRQ 13
 IRQ 14
 IRQ 15
+
+SECTION .rodata
+align 8
+reboot_empty_idtr:
+    dw 0
+    dq 0
 
 SECTION .bss
 align 8
