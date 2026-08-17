@@ -5,6 +5,7 @@
 #define MYOS_SYS_READ UINT64_C(3)
 #define MYOS_SYS_TICKS UINT64_C(4)
 #define MYOS_SYS_FREE_FRAMES UINT64_C(5)
+#define MYOS_SYS_SPAWN UINT64_C(6)
 #define USER_WRITE_LIMIT UINT64_C(256)
 #define USER_LINE_CAPACITY 128U
 #define PIT_HZ UINT64_C(100)
@@ -137,7 +138,7 @@ static uint64_t parse_decimal(const char *text) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo sleep dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo sleep run dmesg clear exit\n");
 }
 
 static void command_ps(void) {
@@ -156,6 +157,19 @@ static void command_meminfo(void) {
     write_text(" (bytes: ");
     write_number(frames * UINT64_C(4096));
     write_text(")\n");
+}
+
+static void command_run(const char *argument) {
+    const uint64_t length = text_length(argument);
+    const uint64_t result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)argument, length);
+
+    if (result == UINT64_MAX) {
+        write_text("Unable to start program.\n");
+        return;
+    }
+    write_text("Started process ");
+    write_number(result);
+    write_char('\n');
 }
 
 static void command_sleep(const char *argument) {
@@ -186,6 +200,8 @@ static void execute_command(char *line) {
         command_ps();
     } else if (text_equal(line, "meminfo")) {
         command_meminfo();
+    } else if (text_equal(line, "run")) {
+        command_run(argument);
     } else if (text_equal(line, "sleep")) {
         command_sleep(argument);
     } else if (text_equal(line, "dmesg")) {

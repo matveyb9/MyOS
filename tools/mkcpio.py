@@ -35,16 +35,18 @@ def write_entry(stream, name, data, mode, inode):
 
 
 def main():
-    if len(sys.argv) != 4:
-        raise SystemExit("usage: mkcpio.py OUTPUT NAME INPUT")
+    arguments = sys.argv[2:]
+    if len(arguments) < 2 or len(arguments) % 2 != 0:
+        raise SystemExit("usage: mkcpio.py OUTPUT NAME INPUT [NAME INPUT ...]")
 
     output = pathlib.Path(sys.argv[1])
-    name = sys.argv[2].lstrip("/")
-    data = pathlib.Path(sys.argv[3]).read_bytes()
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("wb") as stream:
-        write_entry(stream, name, data, 0o100755, 1)
-        write_entry(stream, "TRAILER!!!", b"", 0, 2)
+        for inode, index in enumerate(range(0, len(arguments), 2), start=1):
+            name = arguments[index].lstrip("/")
+            data = pathlib.Path(arguments[index + 1]).read_bytes()
+            write_entry(stream, name, data, 0o100755, inode)
+        write_entry(stream, "TRAILER!!!", b"", 0, len(arguments) // 2 + 1)
 
 
 if __name__ == "__main__":

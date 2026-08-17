@@ -357,3 +357,54 @@ cleanup:
     arch_enable_interrupts();
     return 0;
 }
+
+int initramfs_spawn(const char *path) {
+    const uint8_t *image;
+    uint64_t image_size;
+    uint64_t entry;
+    uint64_t stack_frame = PMM_INVALID_ADDRESS;
+    struct paging_space address_space = { 0U, 0U };
+    int task_id;
+
+    if (path == (const char *)0 || init_available == 0 || cpio_find(path, &image, &image_size) == 0) {
+        return -1;
+    }
+    arch_disable_interrupts();
+    /* The running init task owns the previous pages; new pages are tracked only for this spawn attempt. */
+    loaded_page_count = 0U;
+    init_stack_frame = PMM_INVALID_ADDRESS;
+    if (paging_space_create_user(&address_space) == 0
+        || paging_space_activate(&address_space) == 0
+        || load_elf_init(image, image_size, &entry) == 0) {
+        goto cleanup;
+    }
+    stack_frame = pmm_allocate_user_frame();
+    if (stack_frame == PMM_INVALID_ADDRESS
+        || paging_space_map_guard(&address_space, INIT_STACK_GUARD) == 0
+        || paging_map_page(INIT_STACK_PAGE, stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0) {
+        goto cleanup;
+    }
+    task_id = scheduler_create_user_task(path, &address_space, entry, INIT_STACK_TOP);
+    if (task_id < 0) {
+        goto cleanup;
+    }
+    (void)paging_activate_kernel_space();
+    arch_enable_interrupts();
+    return task_id;
+
+cleanup:
+    for (uint64_t index = 0U; index < loaded_page_count; index++) {
+        (void)paging_unmap_page(loaded_pages[index].virtual_address);
+        (void)pmm_free_frame(loaded_pages[index].physical_address);
+    }
+    if (stack_frame != PMM_INVALID_ADDRESS) {
+        (void)paging_unmap_page(INIT_STACK_PAGE);
+        (void)pmm_free_frame(stack_frame);
+    }
+    (void)paging_activate_kernel_space();
+    if (address_space.root_physical != 0U) {
+        (void)paging_space_destroy_user(&address_space);
+    }
+    arch_enable_interrupts();
+    return -1;
+}

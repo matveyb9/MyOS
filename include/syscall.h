@@ -8,6 +8,7 @@
 #define MYOS_SYS_READ UINT64_C(3)
 #define MYOS_SYS_TICKS UINT64_C(4)
 #define MYOS_SYS_FREE_FRAMES UINT64_C(5)
+#define MYOS_SYS_SPAWN UINT64_C(6)
 
 void syscall_init(void);
 uint64_t syscall_count(void);

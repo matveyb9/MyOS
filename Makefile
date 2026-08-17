@@ -5,6 +5,7 @@ BUILD_DIR      := build
 KERNEL         := $(BUILD_DIR)/kernel.elf
 USER_BUILD_DIR := $(BUILD_DIR)/user
 USER_INIT      := $(USER_BUILD_DIR)/init
+USER_HELLO     := $(USER_BUILD_DIR)/hello
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
 LIMINE_DIR     := third_party/limine-binary
@@ -57,8 +58,13 @@ $(USER_INIT): user/init.c user/linker.ld
 	$(CC) $(USER_CFLAGS) -c user/init.c -o $(USER_BUILD_DIR)/init.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/init.o -o $@
 
-$(INITRAMFS): $(USER_INIT) tools/mkcpio.py
-	python3 tools/mkcpio.py $@ init $(USER_INIT)
+$(USER_HELLO): user/hello.c user/linker.ld
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/hello.c -o $(USER_BUILD_DIR)/hello.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/hello.o -o $@
+
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) tools/mkcpio.py
+	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO)
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)

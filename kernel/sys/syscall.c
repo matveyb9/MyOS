@@ -2,11 +2,13 @@
 
 #include <arch.h>
 #include <gdt.h>
+#include <initramfs.h>
 #include <keyboard.h>
 #include <paging.h>
 #include <pit.h>
 #include <pmm.h>
 #include <serial.h>
+#include <scheduler.h>
 #include <syscall.h>
 
 #define IA32_EFER UINT32_C(0xC0000080)
@@ -74,6 +76,22 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     }
     if (number == MYOS_SYS_FREE_FRAMES) {
         return pmm_free_frame_count();
+    }
+    if (number == MYOS_SYS_SPAWN) {
+        char path[16];
+        int task_id;
+
+        if (descriptor != 0U || length == 0U || length >= sizeof(path)
+            || user_buffer_is_valid(buffer, length) == 0) {
+            return UINT64_MAX;
+        }
+        for (uint64_t index = 0U; index < length; index++) {
+            path[index] = ((const char *)(uintptr_t)buffer)[index];
+        }
+        path[length] = '\0';
+        task_id = initramfs_spawn(path);
+        (void)scheduler_activate_current_task();
+        return task_id < 0 ? UINT64_MAX : (uint64_t)task_id;
     }
     if (number == MYOS_SYS_EXIT) {
         serial_write("[user] exit requested; system halted.\n");

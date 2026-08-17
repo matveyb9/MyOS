@@ -257,3 +257,11 @@ uint64_t scheduler_task_address_space(uint64_t task_id) {
     }
     return tasks[task_id].address_space.root_physical;
 }
+
+int scheduler_activate_current_task(void) {
+    if (scheduler_ready == 0 || current_task_index >= SCHEDULER_MAX_TASKS) {
+        return 0;
+    }
+    activate_task_context(&tasks[current_task_index]);
+    return 1;
+}
