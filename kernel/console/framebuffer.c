@@ -25,6 +25,13 @@ typedef struct framebuffer_console {
     uint32_t foreground;
     uint32_t accent;
     uint8_t ansi_state;
+    uint8_t red_mask_size;
+    uint8_t red_mask_shift;
+    uint8_t green_mask_size;
+    uint8_t green_mask_shift;
+    uint8_t blue_mask_size;
+    uint8_t blue_mask_shift;
+    int gui_active;
     int active;
 } framebuffer_console_t;
 
@@ -145,6 +152,38 @@ static void put_pixel(uint64_t x, uint64_t y, uint32_t colour) {
     }
 }
 
+static uint32_t console_rgb(uint8_t red, uint8_t green, uint8_t blue) {
+    return pack_component(red, console.red_mask_size, console.red_mask_shift)
+        | pack_component(green, console.green_mask_size, console.green_mask_shift)
+        | pack_component(blue, console.blue_mask_size, console.blue_mask_shift);
+}
+
+static void fill_rect(uint64_t x, uint64_t y, uint64_t width, uint64_t height, uint32_t colour) {
+    const uint64_t end_x = x + width > console.width ? console.width : x + width;
+    const uint64_t end_y = y + height > console.height ? console.height : y + height;
+
+    for (uint64_t row = y; row < end_y; row++) {
+        for (uint64_t column = x; column < end_x; column++) {
+            put_pixel(column, row, colour);
+        }
+    }
+}
+
+static void draw_gui_text(uint64_t x, uint64_t y, const char *text, uint32_t colour) {
+    while (*text != '\0') {
+        for (uint64_t row = 0U; row < 7U; row++) {
+            const uint8_t bits = glyph_row(*text, (uint8_t)row);
+            for (uint64_t column = 0U; column < 5U; column++) {
+                if ((bits & (uint8_t)(UINT8_C(1) << (4U - column))) != 0U) {
+                    put_pixel(x + column, y + row, colour);
+                }
+            }
+        }
+        x += 7U;
+        text++;
+    }
+}
+
 static void draw_cell(uint64_t column, uint64_t row) {
     const char character = cells[row * console.columns + column];
     const uint64_t origin_x = column * CELL_WIDTH;
@@ -219,6 +258,13 @@ int framebuffer_console_init(const struct limine_framebuffer *framebuffer) {
     console.cursor_row = 0U;
     console.scroll_count = 0U;
     console.ansi_state = 0U;
+    console.red_mask_size = framebuffer->red_mask_size;
+    console.red_mask_shift = framebuffer->red_mask_shift;
+    console.green_mask_size = framebuffer->green_mask_size;
+    console.green_mask_shift = framebuffer->green_mask_shift;
+    console.blue_mask_size = framebuffer->blue_mask_size;
+    console.blue_mask_shift = framebuffer->blue_mask_shift;
+    console.gui_active = 0;
     console.background = rgb(framebuffer, 13U, 20U, 34U);
     console.foreground = rgb(framebuffer, 229U, 235U, 243U);
     console.accent = rgb(framebuffer, 36U, 170U, 224U);
@@ -254,7 +300,7 @@ void framebuffer_console_clear(void) {
 }
 
 void framebuffer_console_putc(char character) {
-    if (console.active == 0) {
+    if (console.active == 0 || console.gui_active != 0) {
         return;
     }
     if (console.ansi_state != 0U) {
@@ -299,6 +345,60 @@ void framebuffer_console_putc(char character) {
         advance_line();
     }
     draw_cursor();
+}
+
+int framebuffer_gui_begin(void) {
+    const uint32_t desktop = console_rgb(18U, 31U, 56U);
+    const uint32_t top_bar = console_rgb(25U, 54U, 92U);
+    const uint32_t window = console_rgb(229U, 235U, 243U);
+    const uint32_t header = console_rgb(36U, 170U, 224U);
+    const uint32_t text = console_rgb(13U, 20U, 34U);
+    const uint64_t window_x = console.width / 10U;
+    const uint64_t window_y = console.height / 5U;
+    const uint64_t window_width = console.width - (window_x * 2U);
+    const uint64_t window_height = console.height - window_y - (console.height / 8U);
+
+    if (console.active == 0 || console.gui_active != 0 || console.width < 160U || console.height < 120U) {
+        return 0;
+    }
+    console.gui_active = 1;
+    fill_rect(0U, 0U, console.width, console.height, desktop);
+    fill_rect(0U, 0U, console.width, 32U, top_bar);
+    draw_gui_text(16U, 12U, "MYOS DESKTOP", window);
+    fill_rect(window_x, window_y, window_width, window_height, window);
+    fill_rect(window_x, window_y, window_width, 24U, header);
+    draw_gui_text(window_x + 12U, window_y + 9U, "WELCOME", window);
+    draw_gui_text(window_x + 20U, window_y + 48U, "MYOS GUI BRINGUP", text);
+    draw_gui_text(window_x + 20U, window_y + 72U, "FRAMEBUFFER DESKTOP ACTIVE", text);
+    draw_gui_text(window_x + 20U, window_y + 104U, "ESC OR Q RETURNS TO SHELL", text);
+    fill_rect(20U, console.height - 36U, console.width - 40U, 20U, top_bar);
+    draw_gui_text(30U, console.height - 29U, "STARTGUI  CONSOLE SESSION", window);
+    return 1;
+}
+
+void framebuffer_gui_end(void) {
+    if (console.gui_active == 0) {
+        return;
+    }
+    console.gui_active = 0;
+    framebuffer_console_clear();
+}
+
+int framebuffer_gui_active(void) {
+    return console.gui_active;
+}
+
+void framebuffer_gui_handle_input(char character) {
+    const uint32_t accent = console_rgb(36U, 170U, 224U);
+    const uint64_t marker_x = console.width > 24U ? console.width - 24U : 0U;
+    const uint64_t marker_y = console.height > 24U ? console.height - 24U : 0U;
+
+    if (console.gui_active == 0) {
+        return;
+    }
+    if (character >= ' ' && character <= '~') {
+        fill_rect(marker_x, marker_y, 8U, 8U, accent);
+    }
 }
 
 uint64_t framebuffer_console_columns(void) {

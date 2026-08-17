@@ -13,4 +13,9 @@ uint64_t framebuffer_console_columns(void);
 uint64_t framebuffer_console_rows(void);
 uint64_t framebuffer_console_scroll_count(void);
 
+int framebuffer_gui_begin(void);
+void framebuffer_gui_end(void);
+int framebuffer_gui_active(void);
+void framebuffer_gui_handle_input(char character);
+
 #endif

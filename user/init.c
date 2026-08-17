@@ -394,7 +394,7 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm set get env sleep run spawn pipe wait kill stress reboot poweroff dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm set get env sleep run spawn pipe wait kill stress startgui reboot poweroff dmesg clear exit\n");
     write_text("Files: tmp/<name> is temporary; disk/<name> persists across reboots.\n");
     write_text("Programs: hello sleeper orphaner safety argshow calc pipewrite piperead wc grep edit\n");
 }
@@ -847,6 +847,12 @@ static void command_run(char *argument) {
     write_char('\n');
 }
 
+static void command_startgui(void) {
+    char program[] = "startgui";
+
+    command_run(program);
+}
+
 static void command_poweroff(void) {
     uint64_t result;
 
@@ -936,6 +942,8 @@ static void execute_command(char *line) {
         command_stress();
     } else if (text_equal(line, "sleep")) {
         command_sleep(argument);
+    } else if (text_equal(line, "startgui")) {
+        command_startgui();
     } else if (text_equal(line, "reboot")) {
         command_reboot();
     } else if (text_equal(line, "poweroff")) {

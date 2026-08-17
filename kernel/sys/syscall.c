@@ -4,6 +4,7 @@
 #include <acpi.h>
 #include <arch.h>
 #include <gdt.h>
+#include <framebuffer.h>
 #include <initramfs.h>
 #include <keyboard.h>
 #include <paging.h>
@@ -28,6 +29,7 @@ extern void syscall_entry(void);
 
 static volatile uint64_t total_syscalls;
 static volatile uint64_t write_syscalls;
+static uint64_t gui_owner_task_id;
 
 static int user_buffer_is_valid(uint64_t address, uint64_t length, int writable) {
     if (length == 0U || length > SYSCALL_WRITE_LIMIT) {
@@ -80,6 +82,7 @@ void syscall_init(void) {
 
     total_syscalls = 0U;
     write_syscalls = 0U;
+    gui_owner_task_id = UINT64_MAX;
     arch_write_msr(IA32_EFER, arch_read_msr(IA32_EFER) | EFER_SYSCALL_ENABLE);
     arch_write_msr(IA32_STAR, star);
     arch_write_msr(IA32_LSTAR, (uint64_t)(uintptr_t)syscall_entry);
@@ -140,6 +143,36 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         }
         return 1U;
     }
+    if (number == MYOS_SYS_GUI_SESSION) {
+        const uint64_t current_task_id = scheduler_current_task_id();
+
+        if (length != 0U) {
+            return UINT64_MAX;
+        }
+        if (descriptor == MYOS_GUI_BEGIN) {
+            if (buffer != 0U || gui_owner_task_id != UINT64_MAX || framebuffer_gui_begin() == 0) {
+                return UINT64_MAX;
+            }
+            gui_owner_task_id = current_task_id;
+            return 0U;
+        }
+        if (gui_owner_task_id != current_task_id || framebuffer_gui_active() == 0) {
+            return UINT64_MAX;
+        }
+        if (descriptor == MYOS_GUI_INPUT) {
+            if (buffer > UINT64_C(127)) {
+                return UINT64_MAX;
+            }
+            framebuffer_gui_handle_input((char)buffer);
+            return 0U;
+        }
+        if (descriptor == MYOS_GUI_END && buffer == 0U) {
+            framebuffer_gui_end();
+            gui_owner_task_id = UINT64_MAX;
+            return 0U;
+        }
+        return UINT64_MAX;
+    }
     if (number == MYOS_SYS_TICKS) {
         return pit_ticks();
     }
@@ -187,6 +220,10 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     if (number == MYOS_SYS_KILL) {
         if (buffer != 0U || length != 0U) {
             return UINT64_MAX;
+        }
+        if (descriptor == gui_owner_task_id) {
+            framebuffer_gui_end();
+            gui_owner_task_id = UINT64_MAX;
         }
         return scheduler_kill_child(descriptor, MYOS_EXIT_STATUS_KILLED) == 0 ? 0U : UINT64_MAX;
     }
@@ -352,7 +389,13 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         arch_reboot();
     }
     if (number == MYOS_SYS_EXIT) {
-        uint64_t *next_context = scheduler_exit_current(descriptor);
+        uint64_t *next_context;
+
+        if (scheduler_current_task_id() == gui_owner_task_id) {
+            framebuffer_gui_end();
+            gui_owner_task_id = UINT64_MAX;
+        }
+        next_context = scheduler_exit_current(descriptor);
 
         if (next_context == (uint64_t *)0) {
             serial_write("[user] exit failed: no runnable replacement task.\n");
