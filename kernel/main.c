@@ -5,6 +5,7 @@
 #include <limine.h>
 
 #include <acpi.h>
+#include <ahci.h>
 #include <arch.h>
 #include <framebuffer.h>
 #include <gdt.h>
@@ -235,7 +236,9 @@ void kmain(void) {
     heap_init();
     pipe_init();
     struct pci_device ahci_device = { 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U };
+    struct ahci_probe ahci_probe = { 0U, 0U, 0U };
     const int ahci_ready = pci_find_class(UINT8_C(0x01), UINT8_C(0x06), UINT8_C(0x01), &ahci_device);
+    const int ahci_probe_ready = ahci_ready != 0 ? ahci_probe_controller(&ahci_device, &ahci_probe) : 0;
     (void)lapic_init();
     pic_init();
     irq_register_handler(0U, pit_on_irq);
@@ -283,6 +286,14 @@ void kmain(void) {
         serial_write(" BAR5=");
         serial_write_hex64(ahci_device.bar5 & UINT32_C(0xFFFFFFF0));
         serial_write("\n");
+        serial_write("[ok] AHCI read-only probe: ");
+        serial_write(ahci_probe_ready != 0 ? "ports=" : "failed\n");
+        if (ahci_probe_ready != 0) {
+            serial_write_hex64(ahci_probe.ports_implemented);
+            serial_write(" SATA=");
+            serial_write_hex64(ahci_probe.sata_ports);
+            serial_write("\n");
+        }
     }
     serial_write("[ok] Scheduler: ");
     serial_write(worker_a_task >= 0 && worker_b_task >= 0 ? "two kernel workers ready\n" : "worker creation degraded\n");
