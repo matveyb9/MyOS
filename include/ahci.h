@@ -12,5 +12,6 @@ struct ahci_probe {
 };
 
 int ahci_probe_controller(const struct pci_device *device, struct ahci_probe *probe);
+int ahci_read_boot_signature(uint16_t *signature);
 
 #endif

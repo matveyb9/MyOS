@@ -239,6 +239,8 @@ void kmain(void) {
     struct ahci_probe ahci_probe = { 0U, 0U, 0U };
     const int ahci_ready = pci_find_class(UINT8_C(0x01), UINT8_C(0x06), UINT8_C(0x01), &ahci_device);
     const int ahci_probe_ready = ahci_ready != 0 ? ahci_probe_controller(&ahci_device, &ahci_probe) : 0;
+    uint16_t ahci_boot_signature = 0U;
+    const int ahci_read_ready = ahci_probe_ready != 0 ? ahci_read_boot_signature(&ahci_boot_signature) : 0;
     (void)lapic_init();
     pic_init();
     irq_register_handler(0U, pit_on_irq);
@@ -293,6 +295,12 @@ void kmain(void) {
             serial_write(" SATA=");
             serial_write_hex64(ahci_probe.sata_ports);
             serial_write("\n");
+            serial_write("[ok] AHCI sector 0 read: ");
+            serial_write(ahci_read_ready != 0 ? "signature=" : "failed\n");
+            if (ahci_read_ready != 0) {
+                serial_write_hex64(ahci_boot_signature);
+                serial_write("\n");
+            }
         }
     }
     serial_write("[ok] Scheduler: ");
