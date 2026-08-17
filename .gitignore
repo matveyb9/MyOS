@@ -1,0 +1,7 @@
+# Generated build products
+/build/
+/*.iso
+/*.hdd
+
+# Downloaded and rebuilt on demand by Makefile
+/third_party/limine-binary/

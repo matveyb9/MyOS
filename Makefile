@@ -1,0 +1,118 @@
+.DEFAULT_GOAL := all
+
+PROJECT        := myos
+BUILD_DIR      := build
+KERNEL         := $(BUILD_DIR)/kernel.elf
+ISO_ROOT       := $(BUILD_DIR)/iso_root
+LIMINE_DIR     := third_party/limine-binary
+LIMINE_URL     := https://github.com/Limine-Bootloader/Limine/releases/latest/download/limine-binary.tar.gz
+OVMF_CODE       := /usr/share/OVMF/OVMF_CODE_4M.fd
+OVMF_VARS       := /usr/share/OVMF/OVMF_VARS_4M.fd
+
+CC             := gcc
+LD             := ld
+NASM           := nasm
+
+WARNINGS       := -Wall -Wextra -Werror -Wshadow -Wconversion -Wundef
+CFLAGS         := -std=gnu11 -O0 -g $(WARNINGS) \
+                 -ffreestanding -fno-stack-protector -fno-stack-check -fno-pic -fno-pie \
+                 -fno-asynchronous-unwind-tables -fno-omit-frame-pointer \
+                 -m64 -march=x86-64 -mabi=sysv -mno-red-zone -mcmodel=kernel \
+                 -mno-mmx -mno-sse -mno-sse2 \
+                 -Iinclude
+NASMFLAGS      := -f elf64 -g -F dwarf -Wall
+LDFLAGS        := -m elf_x86_64 -nostdlib -static -z max-page-size=0x1000 \
+                 --gc-sections -T boot/linker.ld
+
+C_SOURCES      := $(shell find kernel -name '*.c' | sort)
+ASM_SOURCES    := $(shell find kernel -name '*.asm' | sort)
+OBJECTS        := $(patsubst %.c,$(BUILD_DIR)/obj/%.c.o,$(C_SOURCES)) \
+                  $(patsubst %.asm,$(BUILD_DIR)/obj/%.asm.o,$(ASM_SOURCES))
+
+.PHONY: all kernel iso hdd run run-uefi debug clean distclean inspect help
+
+all: iso
+kernel: $(KERNEL)
+iso: $(PROJECT).iso
+hdd: $(PROJECT).hdd
+
+$(BUILD_DIR)/obj/%.c.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+$(BUILD_DIR)/obj/%.asm.o: %.asm
+	@mkdir -p $(dir $@)
+	$(NASM) $(NASMFLAGS) $< -o $@
+
+$(KERNEL): $(OBJECTS) boot/linker.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(LDFLAGS) $(OBJECTS) -o $@
+
+$(LIMINE_DIR)/limine:
+	@rm -rf $(LIMINE_DIR)
+	@mkdir -p third_party
+	curl -L --fail --retry 3 $(LIMINE_URL) | tar -xz -C third_party
+	$(MAKE) -C $(LIMINE_DIR)
+
+$(PROJECT).iso: $(KERNEL) $(LIMINE_DIR)/limine boot/limine.conf
+	@rm -rf $(ISO_ROOT)
+	@mkdir -p $(ISO_ROOT)/boot/limine $(ISO_ROOT)/EFI/BOOT
+	cp $(KERNEL) $(ISO_ROOT)/boot/kernel.elf
+	cp boot/limine.conf $(ISO_ROOT)/boot/limine.conf
+	cp $(LIMINE_DIR)/limine-bios.sys $(LIMINE_DIR)/limine-bios-cd.bin $(LIMINE_DIR)/limine-uefi-cd.bin $(ISO_ROOT)/boot/limine/
+	cp $(LIMINE_DIR)/BOOTX64.EFI $(ISO_ROOT)/EFI/BOOT/
+	xorriso -as mkisofs -R -r -J \
+		-b boot/limine/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table \
+		-hfsplus -apm-block-size 2048 \
+		--efi-boot boot/limine/limine-uefi-cd.bin --efi-boot-part --efi-boot-image --protective-msdos-label \
+		$(ISO_ROOT) -o $@
+	$(LIMINE_DIR)/limine bios-install $@
+
+$(PROJECT).hdd: $(KERNEL) $(LIMINE_DIR)/limine boot/limine.conf
+	@rm -f $@
+	dd if=/dev/zero of=$@ bs=1M count=64 status=none
+	PATH=$$PATH:/usr/sbin:/sbin sgdisk $@ -n 1:2048 -t 1:ef00 -m 1
+	$(LIMINE_DIR)/limine bios-install $@
+	mformat -i $(PROJECT).hdd@@1M
+	mmd -i $(PROJECT).hdd@@1M ::/EFI ::/EFI/BOOT ::/boot ::/boot/limine
+	mcopy -i $(PROJECT).hdd@@1M $(KERNEL) ::/boot/kernel.elf
+	mcopy -i $(PROJECT).hdd@@1M boot/limine.conf ::/boot/limine.conf
+	mcopy -i $(PROJECT).hdd@@1M $(LIMINE_DIR)/limine-bios.sys ::/boot/limine/limine-bios.sys
+	mcopy -i $(PROJECT).hdd@@1M $(LIMINE_DIR)/BOOTX64.EFI ::/EFI/BOOT/BOOTX64.EFI
+
+run: $(PROJECT).iso
+	qemu-system-x86_64 -machine q35 -m 256M -cdrom $(PROJECT).iso -boot d \
+		-serial stdio -display none -no-reboot -no-shutdown
+
+$(BUILD_DIR)/OVMF_VARS.fd:
+	@mkdir -p $(BUILD_DIR)
+	cp $(OVMF_VARS) $@
+
+run-uefi: $(PROJECT).iso $(BUILD_DIR)/OVMF_VARS.fd
+	qemu-system-x86_64 -machine q35 -m 256M \
+		-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) \
+		-drive if=pflash,format=raw,file=$(BUILD_DIR)/OVMF_VARS.fd \
+		-cdrom $(PROJECT).iso -boot d -serial stdio -display none -no-reboot -no-shutdown
+
+debug: $(PROJECT).iso
+	qemu-system-x86_64 -machine q35 -m 256M -cdrom $(PROJECT).iso -boot d \
+		-serial stdio -display none -no-reboot -no-shutdown -S -s
+
+inspect: $(KERNEL)
+	readelf -h -l -S $(KERNEL)
+
+clean:
+	rm -rf $(BUILD_DIR) $(PROJECT).iso $(PROJECT).hdd
+
+distclean: clean
+	rm -rf $(LIMINE_DIR)
+
+help:
+	@printf '%s\n' \
+		'make          Build a hybrid BIOS/UEFI ISO image.' \
+		'make run      Start the ISO through QEMU BIOS and show COM1 output.' \
+		'make run-uefi Start the ISO through QEMU UEFI and show COM1 output.' \
+		'make hdd      Build a raw hybrid HDD/USB image. Flash only to a dedicated test device.' \
+		'make debug    Start QEMU paused with a GDB server on TCP port 1234.'
+
+-include $(OBJECTS:.o=.d)
