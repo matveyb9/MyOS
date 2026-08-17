@@ -23,6 +23,10 @@
 #define MYOS_SYS_TMPFS_CREATE UINT64_C(18)
 #define MYOS_SYS_TMPFS_WRITE UINT64_C(19)
 #define MYOS_SYS_TMPFS_REMOVE UINT64_C(20)
+#define MYOS_SYS_PIPE_CREATE UINT64_C(21)
+#define MYOS_SYS_PIPE_ATTACH_READER UINT64_C(22)
+#define MYOS_SYS_PIPE_ATTACH_WRITER UINT64_C(23)
+#define MYOS_SYS_PIPE_SEAL UINT64_C(24)
 
 #define MYOS_EXIT_STATUS_KILLED UINT64_C(137)
 
@@ -48,6 +52,8 @@
 struct myos_spawn_request {
     char path[MYOS_SPAWN_PATH_MAX];
     char arguments[MYOS_SPAWN_ARGUMENTS_MAX];
+    uint64_t input_pipe_id;
+    uint64_t output_pipe_id;
 };
 
 struct myos_task_info {

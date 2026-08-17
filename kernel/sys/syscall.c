@@ -9,6 +9,7 @@
 #include <paging.h>
 #include <pit.h>
 #include <pmm.h>
+#include <pipe.h>
 #include <serial.h>
 #include <scheduler.h>
 #include <rtc.h>
@@ -90,9 +91,14 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     total_syscalls++;
     if (number == MYOS_SYS_WRITE) {
         char text[SYSCALL_WRITE_LIMIT];
+        uint64_t result;
 
-        if (descriptor != 1U || copy_from_user(text, buffer, length) == 0) {
+        if ((descriptor != 1U && descriptor != 2U) || copy_from_user(text, buffer, length) == 0) {
             return UINT64_MAX;
+        }
+        if (descriptor == 2U) {
+            result = pipe_write(scheduler_current_task_id(), (const uint8_t *)text, length);
+            return result;
         }
         for (uint64_t index = 0U; index < length; index++) {
             serial_write_char(text[index]);
@@ -101,11 +107,21 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         return length;
     }
     if (number == MYOS_SYS_READ) {
+        char data[SYSCALL_WRITE_LIMIT];
         char character;
         uint64_t *next_context;
+        uint64_t result;
 
-        if (descriptor != 0U || length == 0U || user_buffer_is_valid(buffer, 1U, 1) == 0) {
+        if ((descriptor != 0U && descriptor != 1U) || length == 0U || length > SYSCALL_WRITE_LIMIT
+            || user_buffer_is_valid(buffer, descriptor == 1U ? length : 1U, 1) == 0) {
             return UINT64_MAX;
+        }
+        if (descriptor == 1U) {
+            result = pipe_read(scheduler_current_task_id(), (uint8_t *)data, length);
+            if (result == PIPE_INVALID_ID || (result != 0U && copy_to_user(buffer, data, result) == 0)) {
+                return UINT64_MAX;
+            }
+            return result;
         }
         if (serial_input_available() != 0) {
             character = serial_read_char();
@@ -140,9 +156,33 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
             || request_string_is_terminated(request.arguments, MYOS_SPAWN_ARGUMENTS_MAX, 0) == 0) {
             return UINT64_MAX;
         }
-        task_id = initramfs_spawn(request.path, request.arguments);
+        task_id = initramfs_spawn(request.path, request.arguments, request.input_pipe_id,
+                                  request.output_pipe_id, scheduler_current_task_id());
         (void)scheduler_activate_current_task();
         return task_id < 0 ? UINT64_MAX : (uint64_t)task_id;
+    }
+    if (number == MYOS_SYS_PIPE_CREATE) {
+        if (descriptor != 0U || buffer != 0U || length != 0U) {
+            return UINT64_MAX;
+        }
+        return pipe_create(scheduler_current_task_id());
+    }
+    if (number == MYOS_SYS_PIPE_ATTACH_READER || number == MYOS_SYS_PIPE_ATTACH_WRITER) {
+        int attached;
+
+        if (length != 0U) {
+            return UINT64_MAX;
+        }
+        attached = number == MYOS_SYS_PIPE_ATTACH_READER
+                       ? pipe_attach_reader(scheduler_current_task_id(), descriptor, buffer)
+                       : pipe_attach_writer(scheduler_current_task_id(), descriptor, buffer);
+        return attached != 0 ? 0U : UINT64_MAX;
+    }
+    if (number == MYOS_SYS_PIPE_SEAL) {
+        if (buffer != 0U || length != 0U) {
+            return UINT64_MAX;
+        }
+        return pipe_seal(scheduler_current_task_id(), descriptor) != 0 ? 0U : UINT64_MAX;
     }
     if (number == MYOS_SYS_KILL) {
         if (buffer != 0U || length != 0U) {

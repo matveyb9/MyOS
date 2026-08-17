@@ -140,6 +140,8 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
     if (request == (struct myos_spawn_request *)0 || line == (char *)0 || line[0] == '\0') {
         return 0;
     }
+    request->input_pipe_id = UINT64_MAX;
+    request->output_pipe_id = UINT64_MAX;
     arguments = first_argument(line);
     while (line[path_length] != '\0' && path_length + 1U < MYOS_SPAWN_PATH_MAX) {
         request->path[path_length] = line[path_length];
@@ -162,7 +164,7 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm sleep run spawn wait kill stress reboot poweroff dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm sleep run spawn pipe wait kill stress reboot poweroff dmesg clear exit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -419,7 +421,7 @@ static void command_meminfo(void) {
 }
 
 static void command_spawn(char *argument) {
-    struct myos_spawn_request request = { { 0 }, { 0 } };
+    struct myos_spawn_request request = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
     uint64_t result;
 
     if (make_spawn_request(&request, argument) == 0) {
@@ -438,7 +440,7 @@ static void command_spawn(char *argument) {
 
 static void command_stress(void) {
     char sleeper_line[] = "sleeper";
-    struct myos_spawn_request request = { { 0 }, { 0 } };
+    struct myos_spawn_request request = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
     uint64_t launched = 0U;
 
     if (make_spawn_request(&request, sleeper_line) == 0) {
@@ -495,8 +497,54 @@ static void command_kill(const char *argument) {
     write_text(" terminated; use wait to reap it.\n");
 }
 
+static void command_pipe(char *argument) {
+    struct myos_spawn_request writer = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
+    struct myos_spawn_request reader = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
+    uint64_t length = text_length(argument);
+    uint64_t pipe_id;
+    uint64_t writer_id;
+    uint64_t reader_id;
+
+    if (length == 0U || length >= MYOS_SPAWN_ARGUMENTS_MAX) {
+        write_text("Usage: pipe <text up to 127 bytes>\n");
+        return;
+    }
+    writer.path[0] = 'p'; writer.path[1] = 'i'; writer.path[2] = 'p'; writer.path[3] = 'e';
+    writer.path[4] = 'w'; writer.path[5] = 'r'; writer.path[6] = 'i'; writer.path[7] = 't';
+    writer.path[8] = 'e'; writer.path[9] = '\0';
+    reader.path[0] = 'p'; reader.path[1] = 'i'; reader.path[2] = 'p'; reader.path[3] = 'e';
+    reader.path[4] = 'r'; reader.path[5] = 'e'; reader.path[6] = 'a'; reader.path[7] = 'd';
+    reader.path[8] = '\0';
+    for (uint64_t index = 0U; index <= length; index++) {
+        writer.arguments[index] = argument[index];
+    }
+    pipe_id = system_call(MYOS_SYS_PIPE_CREATE, 0U, 0U, 0U);
+    if (pipe_id == UINT64_MAX) {
+        write_text("Unable to create pipe.\n");
+        return;
+    }
+    writer.output_pipe_id = pipe_id;
+    reader.input_pipe_id = pipe_id;
+    writer_id = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&writer, sizeof(writer));
+    if (writer_id == UINT64_MAX) {
+        (void)system_call(MYOS_SYS_PIPE_SEAL, pipe_id, 0U, 0U);
+        write_text("Unable to start pipe producer.\n");
+        return;
+    }
+    reader_id = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&reader, sizeof(reader));
+    (void)system_call(MYOS_SYS_PIPE_SEAL, pipe_id, 0U, 0U);
+    if (reader_id == UINT64_MAX) {
+        (void)system_call(MYOS_SYS_WAIT, writer_id, 0U, 0U);
+        write_text("Unable to start pipe consumer.\n");
+        return;
+    }
+    (void)system_call(MYOS_SYS_WAIT, writer_id, 0U, 0U);
+    (void)system_call(MYOS_SYS_WAIT, reader_id, 0U, 0U);
+    write_char('\n');
+}
+
 static void command_run(char *argument) {
-    struct myos_spawn_request request = { { 0 }, { 0 } };
+    struct myos_spawn_request request = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
     uint64_t result;
     uint64_t status;
 
@@ -594,6 +642,8 @@ static void execute_command(char *line) {
         command_run(argument);
     } else if (text_equal(line, "spawn")) {
         command_spawn(argument);
+    } else if (text_equal(line, "pipe")) {
+        command_pipe(argument);
     } else if (text_equal(line, "wait")) {
         command_wait(argument);
     } else if (text_equal(line, "kill")) {

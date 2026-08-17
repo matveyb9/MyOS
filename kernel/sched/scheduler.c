@@ -4,6 +4,7 @@
 #include <gdt.h>
 #include <keyboard.h>
 #include <paging.h>
+#include <pipe.h>
 #include <pit.h>
 #include <scheduler.h>
 #include <serial.h>
@@ -373,6 +374,7 @@ int scheduler_kill_child(uint64_t task_id, uint64_t status) {
         return -1;
     }
     detach_children(task_id);
+    pipe_release_task(task_id);
     child->state = TASK_STATE_ZOMBIE;
     child->exit_status = status;
     (void)paging_activate_kernel_space();
@@ -552,6 +554,7 @@ uint64_t *scheduler_exit_current(uint64_t status) {
         return (uint64_t *)0;
     }
     detach_children(current_task_index);
+    pipe_release_task(current_task_index);
     current->state = TASK_STATE_ZOMBIE;
     current->exit_status = status;
     (void)paging_activate_kernel_space();

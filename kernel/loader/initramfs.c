@@ -7,6 +7,7 @@
 #include <limine.h>
 #include <paging.h>
 #include <pmm.h>
+#include <pipe.h>
 #include <scheduler.h>
 #include <syscall.h>
 #include <vfs.h>
@@ -383,7 +384,8 @@ cleanup:
     return 0;
 }
 
-int initramfs_spawn(const char *path, const char *arguments) {
+int initramfs_spawn(const char *path, const char *arguments, uint64_t input_pipe_id,
+                    uint64_t output_pipe_id, uint64_t pipe_owner_task_id) {
     const uint8_t *image;
     uint64_t image_size;
     uint64_t entry;
@@ -393,6 +395,10 @@ int initramfs_spawn(const char *path, const char *arguments) {
     int task_id;
 
     if (path == (const char *)0 || arguments == (const char *)0 || init_available == 0
+        || (input_pipe_id != PIPE_INVALID_ID
+            && pipe_can_attach_reader(pipe_owner_task_id, input_pipe_id) == 0)
+        || (output_pipe_id != PIPE_INVALID_ID
+            && pipe_can_attach_writer(pipe_owner_task_id, output_pipe_id) == 0)
         || cpio_find(path, &image, &image_size) == 0) {
         return -1;
     }
@@ -416,6 +422,12 @@ int initramfs_spawn(const char *path, const char *arguments) {
                                          argument_address);
     if (task_id < 0) {
         goto cleanup;
+    }
+    if ((input_pipe_id != PIPE_INVALID_ID
+         && pipe_attach_reader(pipe_owner_task_id, input_pipe_id, (uint64_t)task_id) == 0)
+        || (output_pipe_id != PIPE_INVALID_ID
+            && pipe_attach_writer(pipe_owner_task_id, output_pipe_id, (uint64_t)task_id) == 0)) {
+        arch_halt();
     }
     (void)paging_activate_kernel_space();
     arch_enable_interrupts();

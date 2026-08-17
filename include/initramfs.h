@@ -10,6 +10,7 @@ uint64_t initramfs_size(void);
 uint64_t initramfs_file_count(void);
 int initramfs_has_init(void);
 int initramfs_start_init(void);
-int initramfs_spawn(const char *path, const char *arguments);
+int initramfs_spawn(const char *path, const char *arguments, uint64_t input_pipe_id,
+                    uint64_t output_pipe_id, uint64_t pipe_owner_task_id);
 
 #endif

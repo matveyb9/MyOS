@@ -11,6 +11,8 @@ USER_ORPHANER  := $(USER_BUILD_DIR)/orphaner
 USER_SAFETY    := $(USER_BUILD_DIR)/safety
 USER_ARGSHOW   := $(USER_BUILD_DIR)/argshow
 USER_CALC      := $(USER_BUILD_DIR)/calc
+USER_PIPEWRITE := $(USER_BUILD_DIR)/pipewrite
+USER_PIPEREAD  := $(USER_BUILD_DIR)/piperead
 USER_MOTD      := user/motd.txt
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
@@ -94,8 +96,18 @@ $(USER_CALC): user/calc.c user/linker.ld include/syscall.h
 	$(CC) $(USER_CFLAGS) -c user/calc.c -o $(USER_BUILD_DIR)/calc.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/calc.o -o $@
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_MOTD) tools/mkcpio.py
-	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) argshow $(USER_ARGSHOW) calc $(USER_CALC) motd.txt $(USER_MOTD)
+$(USER_PIPEWRITE): user/pipewrite.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/pipewrite.c -o $(USER_BUILD_DIR)/pipewrite.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/pipewrite.o -o $@
+
+$(USER_PIPEREAD): user/piperead.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/piperead.c -o $(USER_BUILD_DIR)/piperead.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/piperead.o -o $@
+
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_MOTD) tools/mkcpio.py
+	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) argshow $(USER_ARGSHOW) calc $(USER_CALC) pipewrite $(USER_PIPEWRITE) piperead $(USER_PIPEREAD) motd.txt $(USER_MOTD)
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)

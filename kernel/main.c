@@ -18,8 +18,10 @@
 #include <pic.h>
 #include <pit.h>
 #include <pmm.h>
-#include <serial.h>
+#include <pipe.h>
+#include <rtc.h>
 #include <scheduler.h>
+#include <serial.h>
 #include <shell.h>
 #include <syscall.h>
 
@@ -230,6 +232,7 @@ void kmain(void) {
     const int stack_guard_ready = paging_map_guard((uint64_t)(uintptr_t)__kernel_stack_guard);
     const int heap_guard_ready = paging_map_guard(PAGING_KERNEL_HEAP_GUARD_ADDRESS);
     heap_init();
+    pipe_init();
     (void)lapic_init();
     pic_init();
     irq_register_handler(0U, pit_on_irq);
