@@ -94,8 +94,13 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         return task_id < 0 ? UINT64_MAX : (uint64_t)task_id;
     }
     if (number == MYOS_SYS_EXIT) {
-        serial_write("[user] exit requested; system halted.\n");
-        arch_halt();
+        uint64_t *next_context = scheduler_exit_current(descriptor);
+
+        if (next_context == (uint64_t *)0) {
+            serial_write("[user] exit failed: no runnable replacement task.\n");
+            arch_halt();
+        }
+        arch_resume_context(next_context);
     }
     return UINT64_MAX;
 }

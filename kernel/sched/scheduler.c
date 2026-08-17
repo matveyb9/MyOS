@@ -21,6 +21,7 @@ struct task {
     struct paging_space address_space;
     uint64_t *saved_context;
     uint64_t run_count;
+    uint64_t exit_status;
     uint8_t stack[SCHEDULER_STACK_SIZE] __attribute__((aligned(16)));
 };
 
@@ -42,7 +43,7 @@ static void task_trampoline(void) {
     struct task *task = &tasks[current_task_index];
 
     task->kernel_entry(task->argument);
-    task->state = TASK_STATE_TERMINATED;
+    task->state = TASK_STATE_ZOMBIE;
     for (;;) {
         arch_wait_for_interrupt();
     }
@@ -119,6 +120,7 @@ static void clear_task(struct task *task, uint64_t id) {
     task->address_space.mapping_count = 0U;
     task->saved_context = (uint64_t *)0;
     task->run_count = 0U;
+    task->exit_status = 0U;
 }
 
 void scheduler_init(void) {
@@ -153,6 +155,7 @@ int scheduler_create_kernel_thread(const char *name, kernel_thread_entry_t entry
         task->argument = argument;
         task->saved_context = initial_kernel_context(task);
         task->run_count = 0U;
+        task->exit_status = 0U;
         task->state = TASK_STATE_READY;
         return (int)index;
     }
@@ -181,6 +184,7 @@ int scheduler_create_user_task(const char *name, const struct paging_space *addr
         task->address_space = *address_space;
         task->saved_context = initial_user_context(task);
         task->run_count = 0U;
+        task->exit_status = 0U;
         task->state = TASK_STATE_READY;
         return (int)index;
     }
@@ -264,4 +268,35 @@ int scheduler_activate_current_task(void) {
     }
     activate_task_context(&tasks[current_task_index]);
     return 1;
+}
+
+uint64_t *scheduler_exit_current(uint64_t status) {
+    struct task *current;
+    uint64_t next_index;
+
+    if (scheduler_ready == 0 || current_task_index == 0U) {
+        return (uint64_t *)0;
+    }
+    current = &tasks[current_task_index];
+    if (current->kind != TASK_KIND_USER || current->state != TASK_STATE_RUNNING) {
+        return (uint64_t *)0;
+    }
+    current->state = TASK_STATE_ZOMBIE;
+    current->exit_status = status;
+    (void)paging_activate_kernel_space();
+    (void)paging_space_destroy_user(&current->address_space);
+
+    if (next_ready_task(&next_index) == 0) {
+        return (uint64_t *)0;
+    }
+    current_task_index = next_index;
+    tasks[current_task_index].state = TASK_STATE_RUNNING;
+    tasks[current_task_index].run_count++;
+    context_switches++;
+    activate_task_context(&tasks[current_task_index]);
+    return tasks[current_task_index].saved_context;
+}
+
+uint64_t scheduler_task_exit_status(uint64_t task_id) {
+    return task_id < SCHEDULER_MAX_TASKS ? tasks[task_id].exit_status : UINT64_MAX;
 }

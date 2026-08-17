@@ -469,13 +469,18 @@ static int space_unmap_page(struct paging_space *space, uint64_t virtual_address
 static void destroy_user_table_tree(uint64_t physical_address, uint64_t level) {
     uint64_t *table = physical_to_virtual(physical_address);
 
-    if (level > 1U) {
-        for (uint64_t index = 0U; index < PAGE_TABLE_ENTRIES; index++) {
-            const uint64_t entry = table[index];
+    for (uint64_t index = 0U; index < PAGE_TABLE_ENTRIES; index++) {
+        const uint64_t entry = table[index];
 
-            if ((entry & PAGE_PRESENT) != 0U && (entry & PAGE_HUGE) == 0U) {
-                destroy_user_table_tree(entry & PAGE_ADDRESS_MASK, level - 1U);
+        if ((entry & PAGE_PRESENT) == 0U) {
+            continue;
+        }
+        if (level == 1U) {
+            if ((entry & PAGE_MANAGED) != 0U) {
+                (void)pmm_free_frame(entry & PAGE_ADDRESS_MASK);
             }
+        } else if ((entry & PAGE_HUGE) == 0U) {
+            destroy_user_table_tree(entry & PAGE_ADDRESS_MASK, level - 1U);
         }
     }
     (void)pmm_free_frame(physical_address);

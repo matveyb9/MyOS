@@ -153,6 +153,27 @@ syscall_entry:
     mov rsp, [rel syscall_user_rsp]
     o64 sysret
 
+global arch_resume_context
+arch_resume_context:
+    mov rsp, rdi
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rbp
+    pop rbx
+    pop rdx
+    pop rcx
+    pop rax
+    add rsp, 8
+    iretq
+
 extern idt_handle_exception
 extern irq_dispatch
 

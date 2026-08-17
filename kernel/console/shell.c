@@ -50,8 +50,8 @@ static const char *task_state_name(enum task_state state) {
     if (state == TASK_STATE_RUNNING) {
         return "running";
     }
-    if (state == TASK_STATE_TERMINATED) {
-        return "terminated";
+    if (state == TASK_STATE_ZOMBIE) {
+        return "zombie";
     }
     return "unused";
 }
