@@ -86,7 +86,7 @@ static void zero_frame(uint64_t physical) {
     }
 }
 
-int ahci_read_boot_signature(uint16_t *signature) {
+int ahci_read_sector(uint64_t lba, uint8_t *output) {
     uint64_t command_list = PMM_INVALID_ADDRESS;
     uint64_t received_fis = PMM_INVALID_ADDRESS;
     uint64_t command_table = PMM_INVALID_ADDRESS;
@@ -95,7 +95,7 @@ int ahci_read_boot_signature(uint16_t *signature) {
     uint8_t *table;
     uint8_t *data;
 
-    if (signature == (uint16_t *)0 || active_port_base == 0U) {
+    if (output == (uint8_t *)0 || lba > UINT64_C(0x0000FFFFFFFFFFFF) || active_port_base == 0U) {
         return 0;
     }
     command_list = pmm_allocate_frame();
@@ -127,7 +127,9 @@ int ahci_read_boot_signature(uint16_t *signature) {
     list[8] = (uint8_t)command_table; list[9] = (uint8_t)(command_table >> 8U);
     list[10] = (uint8_t)(command_table >> 16U); list[11] = (uint8_t)(command_table >> 24U);
     table[0] = UINT8_C(0x27); table[1] = UINT8_C(0x80); table[2] = AHCI_READ_DMA_EXT;
-    table[7] = UINT8_C(0x40); table[12] = 1U;
+    table[4] = (uint8_t)lba; table[5] = (uint8_t)(lba >> 8U); table[6] = (uint8_t)(lba >> 16U);
+    table[7] = UINT8_C(0x40); table[8] = (uint8_t)(lba >> 24U); table[9] = (uint8_t)(lba >> 32U);
+    table[10] = (uint8_t)(lba >> 40U); table[12] = 1U;
     table[128] = (uint8_t)data_frame; table[129] = (uint8_t)(data_frame >> 8U);
     table[130] = (uint8_t)(data_frame >> 16U); table[131] = (uint8_t)(data_frame >> 24U);
     table[140] = UINT8_C(0xFF); table[141] = 1U;
@@ -137,9 +139,21 @@ int ahci_read_boot_signature(uint16_t *signature) {
     for (uint64_t wait = 0U; wait < AHCI_POLL_LIMIT; wait++) {
         if ((mmio_read32(active_port_base + AHCI_PORT_IS_OFFSET) & AHCI_INTERRUPT_TFES) != 0U) { return 0; }
         if ((mmio_read32(active_port_base + AHCI_PORT_CI_OFFSET) & 1U) == 0U) {
-            *signature = (uint16_t)data[510] | ((uint16_t)data[511] << 8U);
+            for (uint64_t index = 0U; index < AHCI_SECTOR_SIZE; index++) {
+                output[index] = data[index];
+            }
             return 1;
         }
     }
     return 0;
+}
+
+int ahci_read_boot_signature(uint16_t *signature) {
+    uint8_t sector[AHCI_SECTOR_SIZE];
+
+    if (signature == (uint16_t *)0 || ahci_read_sector(0U, sector) == 0) {
+        return 0;
+    }
+    *signature = (uint16_t)sector[510] | ((uint16_t)sector[511] << 8U);
+    return 1;
 }

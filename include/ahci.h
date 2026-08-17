@@ -12,6 +12,9 @@ struct ahci_probe {
 };
 
 int ahci_probe_controller(const struct pci_device *device, struct ahci_probe *probe);
+#define AHCI_SECTOR_SIZE 512U
+
+int ahci_read_sector(uint64_t lba, uint8_t *data);
 int ahci_read_boot_signature(uint16_t *signature);
 
 #endif
