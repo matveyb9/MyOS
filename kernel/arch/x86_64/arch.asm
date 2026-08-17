@@ -53,6 +53,13 @@ arch_out8:
     out dx, al
     ret
 
+global arch_out16
+arch_out16:
+    mov dx, di
+    mov ax, si
+    out dx, ax
+    ret
+
 global arch_in8
 arch_in8:
     mov dx, di

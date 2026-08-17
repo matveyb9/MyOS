@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include <acpi.h>
 #include <arch.h>
 #include <gdt.h>
 #include <initramfs.h>
@@ -187,6 +188,13 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         }
         user_context[14] = 0U;
         arch_resume_context(next_context);
+    }
+    if (number == MYOS_SYS_POWEROFF) {
+        if (descriptor != 0U || buffer != 0U || length != 0U) {
+            return UINT64_MAX;
+        }
+        serial_write("[system] poweroff requested by user task.\n");
+        acpi_poweroff();
     }
     if (number == MYOS_SYS_REBOOT) {
         if (descriptor != 0U || buffer != 0U || length != 0U) {

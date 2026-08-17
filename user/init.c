@@ -133,7 +133,7 @@ static uint64_t parse_decimal(const char *text) {
 }
 
 static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo ls cat sleep run spawn wait stress reboot dmesg clear exit\n");
+    write_text("Commands: help echo uname ps meminfo ls cat sleep run spawn wait stress reboot poweroff dmesg clear exit\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -333,6 +333,16 @@ static void command_run(const char *argument) {
     write_char('\n');
 }
 
+static void command_poweroff(void) {
+    uint64_t result;
+
+    write_text("Powering off MyOS...\n");
+    result = system_call(MYOS_SYS_POWEROFF, 0U, 0U, 0U);
+    if (result == UINT64_MAX) {
+        write_text("Poweroff failed.\n");
+    }
+}
+
 static void command_reboot(void) {
     uint64_t result;
 
@@ -391,6 +401,8 @@ static void execute_command(char *line) {
         command_sleep(argument);
     } else if (text_equal(line, "reboot")) {
         command_reboot();
+    } else if (text_equal(line, "poweroff")) {
+        command_poweroff();
     } else if (text_equal(line, "dmesg")) {
         write_text("MyOS: Limine boot, memory manager, scheduler, ring 3 and initramfs active.\n");
     } else if (text_equal(line, "clear")) {

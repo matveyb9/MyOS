@@ -4,6 +4,7 @@
 
 #include <limine.h>
 
+#include <acpi.h>
 #include <arch.h>
 #include <framebuffer.h>
 #include <gdt.h>
@@ -47,6 +48,12 @@ static volatile struct limine_memmap_request memory_map_request = {
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_hhdm_request hhdm_request = {
     .id = LIMINE_HHDM_REQUEST_ID,
+    .revision = 0
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_rsdp_request rsdp_request = {
+    .id = LIMINE_RSDP_REQUEST_ID,
     .revision = 0
 };
 
@@ -217,6 +224,8 @@ void kmain(void) {
     const int kernel_image_reserved = reserve_kernel_image();
     paging_init(hhdm_request.response == NULL ? 0U : hhdm_request.response->offset);
     const int paging_ready = paging_take_control();
+    const void *rsdp = rsdp_request.response == NULL ? NULL : rsdp_request.response->address;
+    const int acpi_power_ready = acpi_power_init(rsdp, hhdm_request.response == NULL ? 0U : hhdm_request.response->offset);
     const int initramfs_ready = initramfs_init(module_request.response);
     const int stack_guard_ready = paging_map_guard((uint64_t)(uintptr_t)__kernel_stack_guard);
     const int heap_guard_ready = paging_map_guard(PAGING_KERNEL_HEAP_GUARD_ADDRESS);
@@ -241,6 +250,8 @@ void kmain(void) {
 
     serial_write("[ok] GDT, TSS and exception IDT installed.\n");
     serial_write("[ok] SYSCALL/SYSRET boundary enabled.\n");
+    serial_write("[ok] ACPI S5 poweroff: ");
+    serial_write(acpi_power_ready != 0 ? "available\n" : "fallback only\n");
     serial_write("[ok] Initramfs /init: ");
     serial_write(initramfs_ready != 0 ? "available\n" : "unavailable\n");
     serial_write("[ok] PMM free frames: ");
