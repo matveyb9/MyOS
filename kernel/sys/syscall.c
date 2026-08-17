@@ -281,7 +281,8 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         }
         return copy_length;
     }
-    if (number == MYOS_SYS_TMPFS_CREATE || number == MYOS_SYS_TMPFS_REMOVE) {
+    if (number == MYOS_SYS_TMPFS_CREATE || number == MYOS_SYS_TMPFS_REMOVE
+        || number == MYOS_SYS_PERSIST_CREATE || number == MYOS_SYS_PERSIST_REMOVE) {
         struct myos_tmpfs_path_request request;
         int result;
 
@@ -290,18 +291,32 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
             || request_string_is_terminated(request.path, MYOS_VFS_NAME_MAX, 1) == 0) {
             return UINT64_MAX;
         }
-        result = number == MYOS_SYS_TMPFS_CREATE ? vfs_tmpfs_create(request.path)
-                                                  : vfs_tmpfs_remove(request.path);
+        if (number == MYOS_SYS_TMPFS_CREATE) {
+            result = vfs_tmpfs_create(request.path);
+        } else if (number == MYOS_SYS_TMPFS_REMOVE) {
+            result = vfs_tmpfs_remove(request.path);
+        } else if (number == MYOS_SYS_PERSIST_CREATE) {
+            result = vfs_persistent_create(request.path);
+        } else {
+            result = vfs_persistent_remove(request.path);
+        }
         return result != 0 ? 0U : UINT64_MAX;
     }
-    if (number == MYOS_SYS_TMPFS_WRITE) {
+    if (number == MYOS_SYS_TMPFS_WRITE || number == MYOS_SYS_PERSIST_WRITE) {
         struct myos_tmpfs_write_request request;
 
         if (descriptor != 0U || length != sizeof(request)
             || copy_from_user(&request, buffer, sizeof(request)) == 0
             || request_string_is_terminated(request.path, MYOS_VFS_NAME_MAX, 1) == 0
-            || request.length > MYOS_TMPFS_WRITE_CHUNK
-            || vfs_tmpfs_write(request.path, request.offset, request.data, request.length) == 0) {
+            || request.length > MYOS_TMPFS_WRITE_CHUNK) {
+            return UINT64_MAX;
+        }
+        if (number == MYOS_SYS_TMPFS_WRITE) {
+            if (vfs_tmpfs_write(request.path, request.offset, request.data, request.length) == 0) {
+                return UINT64_MAX;
+            }
+        } else if (request.length > MYOS_PERSIST_WRITE_CHUNK
+                   || vfs_persistent_write(request.path, request.offset, request.data, request.length) == 0) {
             return UINT64_MAX;
         }
         return request.length;

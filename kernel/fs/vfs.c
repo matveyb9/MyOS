@@ -1,8 +1,13 @@
 #include <stdint.h>
 
 #include <vfs.h>
+#include <ahci.h>
 
 #define NEWC_HEADER_SIZE 110U
+#define PERSIST_METADATA_LBA AHCI_DATA_LBA_START
+#define PERSIST_FILE_LBA_BASE (AHCI_DATA_LBA_START + 1U)
+#define PERSIST_RECORD_SIZE UINT64_C(56)
+#define PERSIST_RECORD_OFFSET UINT64_C(16)
 
 struct tmpfs_file {
     uint8_t used;
@@ -11,10 +16,19 @@ struct tmpfs_file {
     uint8_t data[VFS_TMPFS_FILE_CAPACITY];
 };
 
+struct persistent_file {
+    uint8_t used;
+    char name[VFS_PERSIST_NAME_CAPACITY];
+    uint64_t size;
+    uint8_t data[VFS_PERSIST_FILE_CAPACITY];
+};
+
 static const uint8_t *mounted_archive;
 static uint64_t mounted_length;
 static uint64_t mounted_files;
 static struct tmpfs_file tmpfs_files[VFS_TMPFS_MAX_FILES];
+static struct persistent_file persistent_files[VFS_PERSIST_MAX_FILES];
+static uint8_t persistent_mounted;
 
 static uint64_t align_up4(uint64_t value) {
     return (value + 3U) & ~UINT64_C(3);
@@ -113,6 +127,168 @@ static void tmpfs_reset(void) {
     }
 }
 
+static void persistent_clear_file(struct persistent_file *file) {
+    for (uint64_t index = 0U; index < VFS_PERSIST_NAME_CAPACITY; index++) {
+        file->name[index] = '\0';
+    }
+    for (uint64_t index = 0U; index < VFS_PERSIST_FILE_CAPACITY; index++) {
+        file->data[index] = 0U;
+    }
+    file->used = 0U;
+    file->size = 0U;
+}
+
+static void persistent_reset(void) {
+    for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
+        persistent_clear_file(&persistent_files[index]);
+    }
+    persistent_mounted = 0U;
+}
+
+static int persistent_path_is_valid(const char *path) {
+    uint64_t index;
+
+    if (path == (const char *)0 || path[0] != 'd' || path[1] != 'i' || path[2] != 's' || path[3] != 'k' || path[4] != '/') {
+        return 0;
+    }
+    for (index = 5U; index < VFS_PERSIST_NAME_CAPACITY; index++) {
+        const char character = path[index];
+
+        if (character == '\0') {
+            return index > 5U;
+        }
+        if (character == '/' || character < ' ' || character > '~') {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static int persistent_find(const char *path) {
+    for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
+        if (persistent_files[index].used != 0U && text_equal(persistent_files[index].name, path) != 0) {
+            return (int)index;
+        }
+    }
+    return -1;
+}
+
+static uint64_t persistent_record_offset(uint64_t index) {
+    return PERSIST_RECORD_OFFSET + index * PERSIST_RECORD_SIZE;
+}
+
+static int persistent_store_metadata(void) {
+    uint8_t sector[AHCI_SECTOR_SIZE] = { 0U };
+
+    sector[0] = 'M'; sector[1] = 'Y'; sector[2] = 'P'; sector[3] = 'F';
+    sector[4] = 'S'; sector[5] = '0'; sector[6] = '0'; sector[7] = '1';
+    for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
+        const uint64_t offset = persistent_record_offset(index);
+        const struct persistent_file *file = &persistent_files[index];
+
+        sector[offset] = file->used;
+        for (uint64_t byte = 0U; byte < 8U; byte++) {
+            sector[offset + 1U + byte] = (uint8_t)(file->size >> (byte * 8U));
+        }
+        for (uint64_t character = 0U; character < VFS_PERSIST_NAME_CAPACITY; character++) {
+            sector[offset + 9U + character] = (uint8_t)file->name[character];
+        }
+    }
+    return ahci_write_data_sector(PERSIST_METADATA_LBA, sector);
+}
+
+int vfs_mount_persistent(void) {
+    uint8_t sector[AHCI_SECTOR_SIZE];
+    int valid = 1;
+
+    persistent_reset();
+    if (ahci_read_sector(PERSIST_METADATA_LBA, sector) == 0) {
+        return 0;
+    }
+    if (sector[0] != 'M' || sector[1] != 'Y' || sector[2] != 'P' || sector[3] != 'F'
+        || sector[4] != 'S' || sector[5] != '0' || sector[6] != '0' || sector[7] != '1') {
+        valid = 0;
+    }
+    if (valid != 0) {
+        for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
+            const uint64_t offset = persistent_record_offset(index);
+            struct persistent_file *file = &persistent_files[index];
+
+            if (sector[offset] > 1U) { valid = 0; break; }
+            file->used = sector[offset];
+            for (uint64_t byte = 0U; byte < 8U; byte++) {
+                file->size |= (uint64_t)sector[offset + 1U + byte] << (byte * 8U);
+            }
+            for (uint64_t character = 0U; character < VFS_PERSIST_NAME_CAPACITY; character++) {
+                file->name[character] = (char)sector[offset + 9U + character];
+            }
+            if (file->used != 0U && (file->size > VFS_PERSIST_FILE_CAPACITY || persistent_path_is_valid(file->name) == 0)) {
+                valid = 0;
+                break;
+            }
+            if (file->used != 0U && ahci_read_sector(PERSIST_FILE_LBA_BASE + index, file->data) == 0) {
+                valid = 0;
+                break;
+            }
+        }
+    }
+    if (valid == 0) {
+        persistent_reset();
+        if (persistent_store_metadata() == 0) {
+            return 0;
+        }
+    }
+    persistent_mounted = 1U;
+    return 1;
+}
+
+int vfs_persistent_create(const char *path) {
+    int slot = -1;
+
+    if (persistent_mounted == 0U || persistent_path_is_valid(path) == 0 || persistent_find(path) >= 0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
+        if (persistent_files[index].used == 0U) { slot = (int)index; break; }
+    }
+    if (slot < 0) { return 0; }
+    persistent_clear_file(&persistent_files[slot]);
+    for (uint64_t index = 0U; index < VFS_PERSIST_NAME_CAPACITY; index++) {
+        persistent_files[slot].name[index] = path[index];
+        if (path[index] == '\0') { break; }
+    }
+    persistent_files[slot].used = 1U;
+    return persistent_store_metadata();
+}
+
+int vfs_persistent_write(const char *path, uint64_t offset, const uint8_t *data, uint64_t length) {
+    const int persistent_index = persistent_find(path);
+    struct persistent_file *file;
+
+    if (persistent_mounted == 0U || persistent_index < 0 || offset > VFS_PERSIST_FILE_CAPACITY
+        || length > VFS_PERSIST_FILE_CAPACITY - offset || (length != 0U && data == (const uint8_t *)0)) {
+        return 0;
+    }
+    file = &persistent_files[persistent_index];
+    for (uint64_t index = file->size; index < offset; index++) { file->data[index] = 0U; }
+    for (uint64_t index = 0U; index < length; index++) { file->data[offset + index] = data[index]; }
+    if (offset + length > file->size) { file->size = offset + length; }
+    if (ahci_write_data_sector(PERSIST_FILE_LBA_BASE + (uint64_t)persistent_index, file->data) == 0) { return 0; }
+    return persistent_store_metadata();
+}
+
+int vfs_persistent_remove(const char *path) {
+    const int persistent_index = persistent_find(path);
+    struct persistent_file *file;
+    uint8_t blank[AHCI_SECTOR_SIZE] = { 0U };
+
+    if (persistent_mounted == 0U || persistent_index < 0) { return 0; }
+    file = &persistent_files[persistent_index];
+    if (ahci_write_data_sector(PERSIST_FILE_LBA_BASE + (uint64_t)persistent_index, blank) == 0) { return 0; }
+    persistent_clear_file(file);
+    return persistent_store_metadata();
+}
+
 static int next_entry(uint64_t *offset, const uint8_t **name, uint64_t *name_size,
                       const uint8_t **data, uint64_t *data_size) {
     const uint8_t *header;
@@ -190,6 +366,7 @@ int vfs_open(const char *path, struct vfs_file *file) {
     uint64_t name_size;
     uint64_t data_size;
     int tmpfs_index;
+    int persistent_index;
 
     if (path == (const char *)0 || file == (struct vfs_file *)0) {
         return 0;
@@ -198,6 +375,12 @@ int vfs_open(const char *path, struct vfs_file *file) {
     if (tmpfs_index >= 0) {
         file->data = tmpfs_files[tmpfs_index].data;
         file->size = tmpfs_files[tmpfs_index].size;
+        return 1;
+    }
+    persistent_index = persistent_find(path);
+    if (persistent_index >= 0) {
+        file->data = persistent_files[persistent_index].data;
+        file->size = persistent_files[persistent_index].size;
         return 1;
     }
     if (mounted_archive == (const uint8_t *)0) {
@@ -273,6 +456,25 @@ int vfs_get_entry(uint64_t index, char *name, uint64_t name_capacity, uint64_t *
         }
         index--;
     }
+    for (uint64_t persistent_index = 0U; persistent_index < VFS_PERSIST_MAX_FILES; persistent_index++) {
+        const struct persistent_file *file = &persistent_files[persistent_index];
+
+        if (file->used == 0U) { continue; }
+        if (index == 0U) {
+            uint64_t character = 0U;
+
+            while (character < VFS_PERSIST_NAME_CAPACITY && file->name[character] != '\0') {
+                if (character + 1U >= name_capacity) { return 0; }
+                name[character] = file->name[character];
+                character++;
+            }
+            if (character >= VFS_PERSIST_NAME_CAPACITY || character >= name_capacity) { return 0; }
+            name[character] = '\0';
+            *size = file->size;
+            return 1;
+        }
+        index--;
+    }
     return 0;
 }
 
@@ -342,6 +544,11 @@ uint64_t vfs_file_count(void) {
             count++;
         }
     }
+    for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
+        if (persistent_files[index].used != 0U) {
+            count++;
+        }
+    }
     return count;
 }
 
@@ -351,6 +558,11 @@ uint64_t vfs_total_size(void) {
     for (uint64_t index = 0U; index < VFS_TMPFS_MAX_FILES; index++) {
         if (tmpfs_files[index].used != 0U) {
             total += tmpfs_files[index].size;
+        }
+    }
+    for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
+        if (persistent_files[index].used != 0U) {
+            total += persistent_files[index].size;
         }
     }
     return total;

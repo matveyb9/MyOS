@@ -260,6 +260,7 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
 
 static void command_help(void) {
     write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm set get env sleep run spawn pipe wait kill stress reboot poweroff dmesg clear exit\n");
+    write_text("Files: tmp/<name> is temporary; disk/<name> persists across reboots.\n");
     write_text("Programs: hello sleeper orphaner safety argshow calc pipewrite piperead wc grep edit\n");
 }
 
@@ -430,14 +431,21 @@ static int make_tmpfs_path_request(struct myos_tmpfs_path_request *request, cons
     return length != 0U && argument[length] == '\0';
 }
 
+static int persistent_path_requested(const char *path) {
+    return path != (const char *)0 && path[0] == 'd' && path[1] == 'i' && path[2] == 's'
+        && path[3] == 'k' && path[4] == '/';
+}
+
 static void command_touch(const char *argument) {
     struct myos_tmpfs_path_request request;
+    uint64_t create_number;
 
     if (make_tmpfs_path_request(&request, argument) == 0) {
-        write_text("Usage: touch tmp/<name>\n");
+        write_text("Usage: touch tmp/<name> | disk/<name>\n");
         return;
     }
-    if (system_call(MYOS_SYS_TMPFS_CREATE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
+    create_number = persistent_path_requested(request.path) != 0 ? MYOS_SYS_PERSIST_CREATE : MYOS_SYS_TMPFS_CREATE;
+    if (system_call(create_number, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
         == UINT64_MAX) {
         write_text("Unable to create file.\n");
         return;
@@ -452,9 +460,12 @@ static void command_write(char *argument) {
     struct myos_tmpfs_write_request request;
     char *text = first_argument(argument);
     uint64_t text_length_value;
+    uint64_t create_number;
+    uint64_t remove_number;
+    uint64_t write_number_value;
 
     if (make_tmpfs_path_request(&path_request, argument) == 0 || text[0] == '\0') {
-        write_text("Usage: write tmp/<name> <text>\n");
+        write_text("Usage: write tmp/<name> | disk/<name> <text>\n");
         return;
     }
     text_length_value = text_length(text);
@@ -473,12 +484,12 @@ static void command_write(char *argument) {
     }
     request.offset = 0U;
     request.length = text_length_value;
-    (void)system_call(MYOS_SYS_TMPFS_REMOVE, 0U, (uint64_t)(uintptr_t)&path_request,
-                      sizeof(path_request));
-    if (system_call(MYOS_SYS_TMPFS_CREATE, 0U, (uint64_t)(uintptr_t)&path_request,
-                    sizeof(path_request)) == UINT64_MAX
-        || system_call(MYOS_SYS_TMPFS_WRITE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
-               == UINT64_MAX) {
+    remove_number = persistent_path_requested(path_request.path) != 0 ? MYOS_SYS_PERSIST_REMOVE : MYOS_SYS_TMPFS_REMOVE;
+    create_number = persistent_path_requested(path_request.path) != 0 ? MYOS_SYS_PERSIST_CREATE : MYOS_SYS_TMPFS_CREATE;
+    write_number_value = persistent_path_requested(path_request.path) != 0 ? MYOS_SYS_PERSIST_WRITE : MYOS_SYS_TMPFS_WRITE;
+    (void)system_call(remove_number, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request));
+    if (system_call(create_number, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request)) == UINT64_MAX
+        || system_call(write_number_value, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
         write_text("Unable to write file.\n");
         return;
     }
@@ -491,12 +502,14 @@ static void command_write(char *argument) {
 
 static void command_rm(const char *argument) {
     struct myos_tmpfs_path_request request;
+    uint64_t remove_number;
 
     if (make_tmpfs_path_request(&request, argument) == 0) {
-        write_text("Usage: rm tmp/<name>\n");
+        write_text("Usage: rm tmp/<name> | disk/<name>\n");
         return;
     }
-    if (system_call(MYOS_SYS_TMPFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
+    remove_number = persistent_path_requested(request.path) != 0 ? MYOS_SYS_PERSIST_REMOVE : MYOS_SYS_TMPFS_REMOVE;
+    if (system_call(remove_number, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
         == UINT64_MAX) {
         write_text("Unable to remove file.\n");
         return;

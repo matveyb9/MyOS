@@ -26,6 +26,7 @@
 #include <serial.h>
 #include <shell.h>
 #include <syscall.h>
+#include <vfs.h>
 
 /*
  * Limine performs the firmware-specific setup. Everything after kmain() is
@@ -267,6 +268,7 @@ void kmain(void) {
             }
         }
     }
+    const int persistent_ready = ahci_probe_ready != 0 ? vfs_mount_persistent() : 0;
     (void)lapic_init();
     pic_init();
     irq_register_handler(0U, pit_on_irq);
@@ -334,6 +336,8 @@ void kmain(void) {
             if (ahci_data_write_readback != 0) {
                 serial_write(ahci_data_existing_pattern != 0 ? "present\n" : "absent\n");
             }
+            serial_write("[ok] Persistent storage mount: ");
+            serial_write(persistent_ready != 0 ? "ready\n" : "unavailable\n");
         }
     }
     serial_write("[ok] Scheduler: ");
