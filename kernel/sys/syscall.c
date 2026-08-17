@@ -96,11 +96,19 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     }
     if (number == MYOS_SYS_WAIT) {
         uint64_t status;
+        uint64_t *next_context;
 
-        if (buffer != 0U || length != 0U || scheduler_wait_child(descriptor, &status) != 0) {
+        if (buffer != 0U || length != 0U) {
             return UINT64_MAX;
         }
-        return status;
+        if (scheduler_wait_child(descriptor, &status) == 0) {
+            return status;
+        }
+        next_context = scheduler_wait_current(descriptor, user_context);
+        if (next_context == (uint64_t *)0) {
+            return UINT64_MAX;
+        }
+        arch_resume_context(next_context);
     }
     if (number == MYOS_SYS_GETPID) {
         if (descriptor != 0U || buffer != 0U || length != 0U) {

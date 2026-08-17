@@ -149,6 +149,9 @@ static const char *task_state_name(uint64_t state) {
     if (state == MYOS_TASK_STATE_ZOMBIE) {
         return "zombie";
     }
+    if (state == MYOS_TASK_STATE_WAITING) {
+        return "waiting";
+    }
     return "unused";
 }
 
@@ -210,10 +213,11 @@ static void command_run(const char *argument) {
     write_text("Started process ");
     write_number(result);
     write_text("; waiting for exit...\n");
-    do {
-        status = system_call(MYOS_SYS_WAIT, result, 0U, 0U);
-        __asm__ volatile ("pause");
-    } while (status == UINT64_MAX);
+    status = system_call(MYOS_SYS_WAIT, result, 0U, 0U);
+    if (status == UINT64_MAX) {
+        write_text("Wait failed.\n");
+        return;
+    }
     write_text("Process ");
     write_number(result);
     write_text(" exited with status ");

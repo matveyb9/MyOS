@@ -56,6 +56,9 @@ static const char *task_state_name(enum task_state state) {
     if (state == TASK_STATE_ZOMBIE) {
         return "zombie";
     }
+    if (state == TASK_STATE_WAITING) {
+        return "waiting";
+    }
     return "unused";
 }
 

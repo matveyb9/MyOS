@@ -24,6 +24,8 @@ struct task {
     uint64_t run_count;
     uint64_t exit_status;
     uint64_t wake_tick;
+    uint64_t parent_task_id;
+    uint64_t wait_task_id;
     uint8_t stack[SCHEDULER_STACK_SIZE] __attribute__((aligned(16)));
 };
 
@@ -110,6 +112,23 @@ static int next_ready_task(uint64_t *next_index) {
     return 0;
 }
 
+static int wake_waiting_parent(const struct task *child) {
+    struct task *parent;
+
+    if (child->parent_task_id >= SCHEDULER_MAX_TASKS) {
+        return 0;
+    }
+    parent = &tasks[child->parent_task_id];
+    if (parent->state != TASK_STATE_WAITING || parent->wait_task_id != child->id
+        || parent->saved_context == (uint64_t *)0) {
+        return 0;
+    }
+    parent->saved_context[14] = child->exit_status;
+    parent->wait_task_id = SCHEDULER_MAX_TASKS;
+    parent->state = TASK_STATE_READY;
+    return 1;
+}
+
 static void activate_task_context(const struct task *task) {
     if (task->kind == TASK_KIND_USER) {
         (void)paging_space_activate(&task->address_space);
@@ -134,6 +153,8 @@ static void clear_task(struct task *task, uint64_t id) {
     task->run_count = 0U;
     task->exit_status = 0U;
     task->wake_tick = 0U;
+    task->parent_task_id = SCHEDULER_MAX_TASKS;
+    task->wait_task_id = SCHEDULER_MAX_TASKS;
 }
 
 void scheduler_init(void) {
@@ -170,6 +191,8 @@ int scheduler_create_kernel_thread(const char *name, kernel_thread_entry_t entry
         task->run_count = 0U;
         task->exit_status = 0U;
         task->wake_tick = 0U;
+        task->parent_task_id = SCHEDULER_MAX_TASKS;
+        task->wait_task_id = SCHEDULER_MAX_TASKS;
         task->state = TASK_STATE_READY;
         return (int)index;
     }
@@ -200,6 +223,8 @@ int scheduler_create_user_task(const char *name, const struct paging_space *addr
         task->run_count = 0U;
         task->exit_status = 0U;
         task->wake_tick = 0U;
+        task->parent_task_id = current_task_index;
+        task->wait_task_id = SCHEDULER_MAX_TASKS;
         task->state = TASK_STATE_READY;
         return (int)index;
     }
@@ -281,7 +306,8 @@ int scheduler_wait_child(uint64_t task_id, uint64_t *status) {
         return -1;
     }
     task = &tasks[task_id];
-    if (task->kind != TASK_KIND_USER || task->state != TASK_STATE_ZOMBIE) {
+    if (task->kind != TASK_KIND_USER || task->parent_task_id != current_task_index
+        || task->state != TASK_STATE_ZOMBIE) {
         return -1;
     }
     *status = task->exit_status;
@@ -373,6 +399,39 @@ uint64_t *scheduler_sleep_current(uint64_t ticks, uint64_t *user_context) {
     return tasks[current_task_index].saved_context;
 }
 
+uint64_t *scheduler_wait_current(uint64_t task_id, uint64_t *user_context) {
+    struct task *current;
+    const struct task *child;
+    uint64_t next_index;
+
+    if (scheduler_ready == 0 || user_context == (uint64_t *)0 || current_task_index == 0U
+        || task_id == 0U || task_id >= SCHEDULER_MAX_TASKS || task_id == current_task_index) {
+        return (uint64_t *)0;
+    }
+    current = &tasks[current_task_index];
+    child = &tasks[task_id];
+    if (current->kind != TASK_KIND_USER || current->state != TASK_STATE_RUNNING
+        || child->kind != TASK_KIND_USER || child->parent_task_id != current_task_index
+        || child->state == TASK_STATE_UNUSED || child->state == TASK_STATE_ZOMBIE) {
+        return (uint64_t *)0;
+    }
+    current->saved_context = user_context;
+    current->wait_task_id = task_id;
+    current->state = TASK_STATE_WAITING;
+
+    if (next_ready_task(&next_index) == 0) {
+        current->state = TASK_STATE_RUNNING;
+        current->wait_task_id = SCHEDULER_MAX_TASKS;
+        return (uint64_t *)0;
+    }
+    current_task_index = next_index;
+    tasks[current_task_index].state = TASK_STATE_RUNNING;
+    tasks[current_task_index].run_count++;
+    context_switches++;
+    activate_task_context(&tasks[current_task_index]);
+    return tasks[current_task_index].saved_context;
+}
+
 uint64_t *scheduler_exit_current(uint64_t status) {
     struct task *current;
     uint64_t next_index;
@@ -388,6 +447,9 @@ uint64_t *scheduler_exit_current(uint64_t status) {
     current->exit_status = status;
     (void)paging_activate_kernel_space();
     (void)paging_space_destroy_user(&current->address_space);
+    if (wake_waiting_parent(current) != 0) {
+        clear_task(current, current_task_index);
+    }
 
     if (next_ready_task(&next_index) == 0) {
         return (uint64_t *)0;
