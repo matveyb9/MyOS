@@ -61,13 +61,13 @@ static int copy_to_user(uint64_t destination_address, const void *source, uint64
     return 1;
 }
 
-static int request_path_is_terminated(const char *path) {
-    if (path == (const char *)0) {
+static int request_string_is_terminated(const char *text, uint64_t capacity, int require_nonempty) {
+    if (text == (const char *)0 || capacity == 0U) {
         return 0;
     }
-    for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) {
-        if (path[index] == '\0') {
-            return index != 0U;
+    for (uint64_t index = 0U; index < capacity; index++) {
+        if (text[index] == '\0') {
+            return require_nonempty == 0 || index != 0U;
         }
     }
     return 0;
@@ -131,15 +131,16 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         return pmm_free_frame_count();
     }
     if (number == MYOS_SYS_SPAWN) {
-        char path[16];
+        struct myos_spawn_request request;
         int task_id;
 
-        if (descriptor != 0U || length == 0U || length >= sizeof(path)
-            || copy_from_user(path, buffer, length) == 0) {
+        if (descriptor != 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.path, MYOS_SPAWN_PATH_MAX, 1) == 0
+            || request_string_is_terminated(request.arguments, MYOS_SPAWN_ARGUMENTS_MAX, 0) == 0) {
             return UINT64_MAX;
         }
-        path[length] = '\0';
-        task_id = initramfs_spawn(path);
+        task_id = initramfs_spawn(request.path, request.arguments);
         (void)scheduler_activate_current_task();
         return task_id < 0 ? UINT64_MAX : (uint64_t)task_id;
     }
@@ -246,7 +247,7 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
 
         if (descriptor != 0U || length != sizeof(request)
             || copy_from_user(&request, buffer, sizeof(request)) == 0
-            || request_path_is_terminated(request.path) == 0) {
+            || request_string_is_terminated(request.path, MYOS_VFS_NAME_MAX, 1) == 0) {
             return UINT64_MAX;
         }
         result = number == MYOS_SYS_TMPFS_CREATE ? vfs_tmpfs_create(request.path)
@@ -258,7 +259,7 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
 
         if (descriptor != 0U || length != sizeof(request)
             || copy_from_user(&request, buffer, sizeof(request)) == 0
-            || request_path_is_terminated(request.path) == 0
+            || request_string_is_terminated(request.path, MYOS_VFS_NAME_MAX, 1) == 0
             || request.length > MYOS_TMPFS_WRITE_CHUNK
             || vfs_tmpfs_write(request.path, request.offset, request.data, request.length) == 0) {
             return UINT64_MAX;

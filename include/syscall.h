@@ -31,6 +31,8 @@
 #define MYOS_VFS_NAME_MAX UINT64_C(64)
 #define MYOS_VFS_READ_CHUNK UINT64_C(128)
 #define MYOS_TMPFS_WRITE_CHUNK UINT64_C(128)
+#define MYOS_SPAWN_PATH_MAX MYOS_TASK_NAME_MAX
+#define MYOS_SPAWN_ARGUMENTS_MAX UINT64_C(128)
 
 #define MYOS_TASK_STATE_UNUSED UINT64_C(0)
 #define MYOS_TASK_STATE_READY UINT64_C(1)
@@ -42,6 +44,11 @@
 
 #define MYOS_TASK_KIND_KERNEL UINT64_C(0)
 #define MYOS_TASK_KIND_USER UINT64_C(1)
+
+struct myos_spawn_request {
+    char path[MYOS_SPAWN_PATH_MAX];
+    char arguments[MYOS_SPAWN_ARGUMENTS_MAX];
+};
 
 struct myos_task_info {
     uint64_t id;

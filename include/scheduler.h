@@ -28,7 +28,7 @@ typedef void (*kernel_thread_entry_t)(void *argument);
 void scheduler_init(void);
 int scheduler_create_kernel_thread(const char *name, kernel_thread_entry_t entry, void *argument);
 int scheduler_create_user_task(const char *name, const struct paging_space *address_space,
-                               uint64_t entry, uint64_t user_stack_top);
+                               uint64_t entry, uint64_t user_stack_top, uint64_t argument_address);
 uint64_t *scheduler_exit_current(uint64_t status);
 uint64_t *scheduler_sleep_current(uint64_t ticks, uint64_t *user_context);
 uint64_t *scheduler_wait_current(uint64_t task_id, uint64_t *user_context);

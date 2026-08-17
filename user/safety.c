@@ -31,6 +31,8 @@ void _start(void) {
                                       sizeof(struct myos_rtc_time)));
     passed_all &= rejected(system_call(MYOS_SYS_VFS_ENTRY, 0U, INVALID_USER_POINTER,
                                       sizeof(struct myos_vfs_entry)));
+    passed_all &= rejected(system_call(MYOS_SYS_SPAWN, 0U, INVALID_USER_POINTER,
+                                      sizeof(struct myos_spawn_request)));
     passed_all &= rejected(system_call(MYOS_SYS_TMPFS_CREATE, 0U, INVALID_USER_POINTER,
                                       sizeof(struct myos_tmpfs_path_request)));
     passed_all &= rejected(system_call(MYOS_SYS_TMPFS_WRITE, 0U, INVALID_USER_POINTER,

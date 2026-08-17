@@ -21,6 +21,7 @@ struct task {
     void *argument;
     uint64_t user_entry;
     uint64_t user_stack_top;
+    uint64_t user_argument_address;
     struct paging_space address_space;
     uint64_t *saved_context;
     uint64_t run_count;
@@ -94,6 +95,8 @@ static uint64_t *initial_kernel_context(struct task *task) {
 static uint64_t *initial_user_context(struct task *task) {
     uint64_t *context = empty_context(task);
 
+    context[8] = 1U;
+    context[9] = task->user_argument_address;
     context[16] = task->user_entry;
     context[17] = (uint64_t)(GDT_USER_CODE_SELECTOR | UINT16_C(3));
     context[18] = SCHEDULER_INITIAL_RFLAGS;
@@ -149,6 +152,7 @@ static void clear_task(struct task *task, uint64_t id) {
     task->argument = (void *)0;
     task->user_entry = 0U;
     task->user_stack_top = 0U;
+    task->user_argument_address = 0U;
     task->address_space.root_physical = 0U;
     task->address_space.mapping_count = 0U;
     task->saved_context = (uint64_t *)0;
@@ -229,11 +233,12 @@ int scheduler_create_kernel_thread(const char *name, kernel_thread_entry_t entry
 }
 
 int scheduler_create_user_task(const char *name, const struct paging_space *address_space,
-                               uint64_t entry, uint64_t user_stack_top) {
+                               uint64_t entry, uint64_t user_stack_top, uint64_t argument_address) {
     if (scheduler_ready == 0 || name == (const char *)0 || address_space == (const struct paging_space *)0
         || address_space->root_physical == 0U || entry < PAGING_USER_SPACE_START
         || entry > PAGING_USER_SPACE_END || user_stack_top < PAGING_USER_SPACE_START
-        || user_stack_top > PAGING_USER_SPACE_END) {
+        || user_stack_top > PAGING_USER_SPACE_END || argument_address < PAGING_USER_SPACE_START
+        || argument_address > user_stack_top) {
         return -1;
     }
 
@@ -247,6 +252,7 @@ int scheduler_create_user_task(const char *name, const struct paging_space *addr
         task_set_name(task, name);
         task->user_entry = entry;
         task->user_stack_top = user_stack_top;
+        task->user_argument_address = argument_address;
         task->address_space = *address_space;
         task->saved_context = initial_user_context(task);
         task->run_count = 0U;

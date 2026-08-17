@@ -132,6 +132,35 @@ static uint64_t parse_decimal(const char *text) {
     return value;
 }
 
+static int make_spawn_request(struct myos_spawn_request *request, char *line) {
+    char *arguments;
+    uint64_t path_length = 0U;
+    uint64_t arguments_length = 0U;
+
+    if (request == (struct myos_spawn_request *)0 || line == (char *)0 || line[0] == '\0') {
+        return 0;
+    }
+    arguments = first_argument(line);
+    while (line[path_length] != '\0' && path_length + 1U < MYOS_SPAWN_PATH_MAX) {
+        request->path[path_length] = line[path_length];
+        path_length++;
+    }
+    if (path_length == 0U || line[path_length] != '\0') {
+        return 0;
+    }
+    request->path[path_length] = '\0';
+    while (arguments[arguments_length] != '\0'
+           && arguments_length + 1U < MYOS_SPAWN_ARGUMENTS_MAX) {
+        request->arguments[arguments_length] = arguments[arguments_length];
+        arguments_length++;
+    }
+    if (arguments[arguments_length] != '\0') {
+        return 0;
+    }
+    request->arguments[arguments_length] = '\0';
+    return 1;
+}
+
 static void command_help(void) {
     write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm sleep run spawn wait kill stress reboot poweroff dmesg clear exit\n");
 }
@@ -389,15 +418,15 @@ static void command_meminfo(void) {
     write_text(")\n");
 }
 
-static void command_spawn(const char *argument) {
-    const uint64_t length = text_length(argument);
+static void command_spawn(char *argument) {
+    struct myos_spawn_request request = { { 0 }, { 0 } };
     uint64_t result;
 
-    if (length == 0U) {
-        write_text("Usage: spawn <program>\n");
+    if (make_spawn_request(&request, argument) == 0) {
+        write_text("Usage: spawn <program> [arguments]\n");
         return;
     }
-    result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)argument, length);
+    result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
     if (result == UINT64_MAX) {
         write_text("Unable to start program.\n");
         return;
@@ -408,12 +437,17 @@ static void command_spawn(const char *argument) {
 }
 
 static void command_stress(void) {
-    static const char sleeper_name[] = "sleeper";
+    char sleeper_line[] = "sleeper";
+    struct myos_spawn_request request = { { 0 }, { 0 } };
     uint64_t launched = 0U;
 
+    if (make_spawn_request(&request, sleeper_line) == 0) {
+        write_text("Unable to prepare stress program.\n");
+        return;
+    }
     while (launched < MYOS_TASK_SLOT_COUNT) {
-        const uint64_t result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)sleeper_name,
-                                            sizeof(sleeper_name) - 1U);
+        const uint64_t result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request,
+                                            sizeof(request));
 
         if (result == UINT64_MAX) {
             break;
@@ -461,16 +495,16 @@ static void command_kill(const char *argument) {
     write_text(" terminated; use wait to reap it.\n");
 }
 
-static void command_run(const char *argument) {
-    const uint64_t length = text_length(argument);
+static void command_run(char *argument) {
+    struct myos_spawn_request request = { { 0 }, { 0 } };
     uint64_t result;
     uint64_t status;
 
-    if (length == 0U) {
-        write_text("Usage: run <program>\n");
+    if (make_spawn_request(&request, argument) == 0) {
+        write_text("Usage: run <program> [arguments]\n");
         return;
     }
-    result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)argument, length);
+    result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
     if (result == UINT64_MAX) {
         write_text("Unable to start program.\n");
         return;

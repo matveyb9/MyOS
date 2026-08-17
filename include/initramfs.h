@@ -10,6 +10,6 @@ uint64_t initramfs_size(void);
 uint64_t initramfs_file_count(void);
 int initramfs_has_init(void);
 int initramfs_start_init(void);
-int initramfs_spawn(const char *path);
+int initramfs_spawn(const char *path, const char *arguments);
 
 #endif

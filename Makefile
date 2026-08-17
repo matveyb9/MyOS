@@ -9,6 +9,7 @@ USER_HELLO     := $(USER_BUILD_DIR)/hello
 USER_SLEEPER   := $(USER_BUILD_DIR)/sleeper
 USER_ORPHANER  := $(USER_BUILD_DIR)/orphaner
 USER_SAFETY    := $(USER_BUILD_DIR)/safety
+USER_ARGSHOW   := $(USER_BUILD_DIR)/argshow
 USER_MOTD      := user/motd.txt
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
@@ -82,8 +83,13 @@ $(USER_SAFETY): user/safety.c user/linker.ld include/syscall.h
 	$(CC) $(USER_CFLAGS) -c user/safety.c -o $(USER_BUILD_DIR)/safety.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/safety.o -o $@
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_MOTD) tools/mkcpio.py
-	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) motd.txt $(USER_MOTD)
+$(USER_ARGSHOW): user/argshow.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/argshow.c -o $(USER_BUILD_DIR)/argshow.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/argshow.o -o $@
+
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_MOTD) tools/mkcpio.py
+	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) argshow $(USER_ARGSHOW) motd.txt $(USER_MOTD)
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)

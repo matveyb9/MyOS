@@ -8,6 +8,7 @@
 #include <paging.h>
 #include <pmm.h>
 #include <scheduler.h>
+#include <syscall.h>
 #include <vfs.h>
 
 #define CPIO_HEADER_SIZE 110U
@@ -19,6 +20,7 @@
 #define INIT_STACK_PAGE UINT64_C(0x00007FFFFFFFF000)
 #define INIT_STACK_GUARD UINT64_C(0x00007FFFFFFFE000)
 #define INIT_STACK_TOP UINT64_C(0x00007FFFFFFFFFF0)
+#define INIT_ARGUMENTS_ADDRESS (INIT_STACK_PAGE + UINT64_C(256))
 #define INIT_MAX_PAGES 32U
 
 struct elf64_header {
@@ -209,6 +211,25 @@ static int load_page(uint64_t virtual_address, uint64_t flags) {
     return 1;
 }
 
+static int copy_user_arguments(const char *arguments, uint64_t *argument_address) {
+    uint64_t length = 0U;
+    char *destination = (char *)(uintptr_t)INIT_ARGUMENTS_ADDRESS;
+
+    if (arguments == (const char *)0 || argument_address == (uint64_t *)0) {
+        return 0;
+    }
+    while (length + 1U < MYOS_SPAWN_ARGUMENTS_MAX && arguments[length] != '\0') {
+        destination[length] = arguments[length];
+        length++;
+    }
+    if (arguments[length] != '\0') {
+        return 0;
+    }
+    destination[length] = '\0';
+    *argument_address = INIT_ARGUMENTS_ADDRESS;
+    return 1;
+}
+
 static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *entry) {
     const struct elf64_header *header;
 
@@ -323,6 +344,7 @@ int initramfs_start_init(void) {
     const uint8_t *image;
     uint64_t image_size;
     uint64_t entry;
+    uint64_t argument_address;
     int task_id;
 
     if (init_available == 0 || init_started != 0 || cpio_find("init", &image, &image_size) == 0) {
@@ -337,10 +359,12 @@ int initramfs_start_init(void) {
     init_stack_frame = pmm_allocate_user_frame();
     if (init_stack_frame == PMM_INVALID_ADDRESS
         || paging_space_map_guard(&init_address_space, INIT_STACK_GUARD) == 0
-        || paging_map_page(INIT_STACK_PAGE, init_stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0) {
+        || paging_map_page(INIT_STACK_PAGE, init_stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0
+        || copy_user_arguments("", &argument_address) == 0) {
         goto cleanup;
     }
-    task_id = scheduler_create_user_task("init", &init_address_space, entry, INIT_STACK_TOP);
+    task_id = scheduler_create_user_task("init", &init_address_space, entry, INIT_STACK_TOP,
+                                         argument_address);
     if (task_id < 0) {
         goto cleanup;
     }
@@ -359,15 +383,17 @@ cleanup:
     return 0;
 }
 
-int initramfs_spawn(const char *path) {
+int initramfs_spawn(const char *path, const char *arguments) {
     const uint8_t *image;
     uint64_t image_size;
     uint64_t entry;
+    uint64_t argument_address;
     uint64_t stack_frame = PMM_INVALID_ADDRESS;
     struct paging_space address_space = { 0U, 0U };
     int task_id;
 
-    if (path == (const char *)0 || init_available == 0 || cpio_find(path, &image, &image_size) == 0) {
+    if (path == (const char *)0 || arguments == (const char *)0 || init_available == 0
+        || cpio_find(path, &image, &image_size) == 0) {
         return -1;
     }
     arch_disable_interrupts();
@@ -382,10 +408,12 @@ int initramfs_spawn(const char *path) {
     stack_frame = pmm_allocate_user_frame();
     if (stack_frame == PMM_INVALID_ADDRESS
         || paging_space_map_guard(&address_space, INIT_STACK_GUARD) == 0
-        || paging_map_page(INIT_STACK_PAGE, stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0) {
+        || paging_map_page(INIT_STACK_PAGE, stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0
+        || copy_user_arguments(arguments, &argument_address) == 0) {
         goto cleanup;
     }
-    task_id = scheduler_create_user_task(path, &address_space, entry, INIT_STACK_TOP);
+    task_id = scheduler_create_user_task(path, &address_space, entry, INIT_STACK_TOP,
+                                         argument_address);
     if (task_id < 0) {
         goto cleanup;
     }
