@@ -2,6 +2,7 @@
 
 #include <arch.h>
 #include <keyboard.h>
+#include <scheduler.h>
 
 #define PS2_DATA_PORT 0x60U
 #define PS2_STATUS_PORT 0x64U
@@ -100,6 +101,7 @@ static void keyboard_process_scancode(uint8_t scan_code) {
     character = shift_held != 0U ? shifted_set1[key_code] : unshifted_set1[key_code];
     if (character != '\0') {
         keyboard_push_char(character);
+        scheduler_wake_console_input();
     }
 }
 

@@ -82,10 +82,10 @@ static uint64_t read_line(char *line, uint64_t capacity) {
         char character;
         uint64_t result;
 
-        do {
-            result = system_call(MYOS_SYS_READ, 0U, (uint64_t)(uintptr_t)&character, 1U);
-            __asm__ volatile ("pause");
-        } while (result == 0U);
+        result = system_call(MYOS_SYS_READ, 0U, (uint64_t)(uintptr_t)&character, 1U);
+        if (result == 0U || result == UINT64_MAX) {
+            continue;
+        }
         if (character == '\r' || character == '\n') {
             write_char('\n');
             break;
@@ -151,6 +151,9 @@ static const char *task_state_name(uint64_t state) {
     }
     if (state == MYOS_TASK_STATE_WAITING) {
         return "waiting";
+    }
+    if (state == MYOS_TASK_STATE_INPUT) {
+        return "input";
     }
     return "unused";
 }

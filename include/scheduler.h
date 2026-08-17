@@ -14,7 +14,8 @@ enum task_state {
     TASK_STATE_RUNNING,
     TASK_STATE_SLEEPING,
     TASK_STATE_ZOMBIE,
-    TASK_STATE_WAITING
+    TASK_STATE_WAITING,
+    TASK_STATE_INPUT
 };
 
 enum task_kind {
@@ -31,6 +32,8 @@ int scheduler_create_user_task(const char *name, const struct paging_space *addr
 uint64_t *scheduler_exit_current(uint64_t status);
 uint64_t *scheduler_sleep_current(uint64_t ticks, uint64_t *user_context);
 uint64_t *scheduler_wait_current(uint64_t task_id, uint64_t *user_context);
+uint64_t *scheduler_wait_console_input(uint64_t *user_context);
+void scheduler_wake_console_input(void);
 int scheduler_activate_current_task(void);
 uint64_t *scheduler_on_timer(uint64_t *interrupted_context);
 uint64_t scheduler_current_task_id(void);

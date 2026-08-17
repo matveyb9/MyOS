@@ -2,9 +2,11 @@
 
 #include <arch.h>
 #include <gdt.h>
+#include <keyboard.h>
 #include <paging.h>
 #include <pit.h>
 #include <scheduler.h>
+#include <serial.h>
 
 #define SCHEDULER_STACK_SIZE (64U * 1024U)
 #define SCHEDULER_CONTEXT_WORDS 21U
@@ -276,6 +278,9 @@ uint64_t *scheduler_on_timer(uint64_t *interrupted_context) {
             tasks[index].wake_tick = 0U;
         }
     }
+    if (serial_input_available() != 0 || keyboard_has_char() != 0) {
+        scheduler_wake_console_input();
+    }
 
     current = &tasks[current_task_index];
     current->saved_context = interrupted_context;
@@ -461,6 +466,43 @@ uint64_t *scheduler_wait_current(uint64_t task_id, uint64_t *user_context) {
     context_switches++;
     activate_task_context(&tasks[current_task_index]);
     return tasks[current_task_index].saved_context;
+}
+
+uint64_t *scheduler_wait_console_input(uint64_t *user_context) {
+    struct task *current;
+    uint64_t next_index;
+
+    if (scheduler_ready == 0 || user_context == (uint64_t *)0 || current_task_index == 0U) {
+        return (uint64_t *)0;
+    }
+    current = &tasks[current_task_index];
+    if (current->kind != TASK_KIND_USER || current->state != TASK_STATE_RUNNING) {
+        return (uint64_t *)0;
+    }
+    current->saved_context = user_context;
+    current->state = TASK_STATE_INPUT;
+
+    if (next_ready_task(&next_index) == 0) {
+        current->state = TASK_STATE_RUNNING;
+        return (uint64_t *)0;
+    }
+    current_task_index = next_index;
+    tasks[current_task_index].state = TASK_STATE_RUNNING;
+    tasks[current_task_index].run_count++;
+    context_switches++;
+    activate_task_context(&tasks[current_task_index]);
+    return tasks[current_task_index].saved_context;
+}
+
+void scheduler_wake_console_input(void) {
+    if (scheduler_ready == 0) {
+        return;
+    }
+    for (uint64_t index = 1U; index < SCHEDULER_MAX_TASKS; index++) {
+        if (tasks[index].state == TASK_STATE_INPUT) {
+            tasks[index].state = TASK_STATE_READY;
+        }
+    }
 }
 
 uint64_t *scheduler_exit_current(uint64_t status) {

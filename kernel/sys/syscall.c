@@ -58,6 +58,7 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     }
     if (number == MYOS_SYS_READ) {
         char character;
+        uint64_t *next_context;
 
         if (descriptor != 0U || length == 0U || user_buffer_is_valid(buffer, 1U) == 0) {
             return UINT64_MAX;
@@ -67,7 +68,12 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         } else if (keyboard_has_char() != 0) {
             character = keyboard_read_char();
         } else {
-            return 0U;
+            next_context = scheduler_wait_console_input(user_context);
+            if (next_context == (uint64_t *)0) {
+                return UINT64_MAX;
+            }
+            user_context[14] = 0U;
+            arch_resume_context(next_context);
         }
         ((char *)(uintptr_t)buffer)[0] = character;
         return 1U;
