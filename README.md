@@ -2,7 +2,7 @@
 
 **MyOS** — экспериментальная операционная система для **x86_64**, написанная с нуля на freestanding C11 и x86_64 NASM. Limine используется только как текущий bootloader; ядро, memory management, scheduler, ring-3 processes, shell, filesystem и drivers реализованы в этом repository.
 
-> Console OS завершена и зафиксирована тегом [`v0.12.0-console`](docs/RELEASES_RU.md). GUI-разработка хранится отдельно в ветке `gui/bringup`; она не является частью console release.
+> Последний стабильный console release зафиксирован тегом [`v0.12.1-console`](docs/RELEASES_RU.md). Исходный completion point [`v0.12.0-console`](docs/RELEASES_RU.md) сохранён неизменяемым; GUI-разработка хранится отдельно в `gui/bringup` и не является частью console release.
 
 ## Что готово
 
@@ -11,7 +11,7 @@
 | Загрузка | BIOS и UEFI/OVMF в QEMU; `myos.iso` и raw GPT `myos.img`. |
 | Kernel | GDT, IDT, TSS, PMM, paging, heap, PIT, PS/2 keyboard, RTC, ACPI, PCI и AHCI. |
 | Processes | Ring 3, ELF loader, scheduler, `wait`, `kill`, `sleep`, arguments и pipes. |
-| Console | Kernel shell, user shell, history, Tab completion и environment variables. |
+| Console | Kernel shell, user shell, improved onboarding, history, Tab completion, signed `calc`, `clear` и environment variables. |
 | Files | Initramfs, временные `tmp/` files и persistent `disk/` files в isolated AHCI data partition. |
 | Utilities | `calc`, `wc`, `grep`, `edit`, `hello`, `sleeper`, `argshow` и другие. |
 
@@ -103,8 +103,9 @@ cat disk/note
 | Reference | Purpose |
 |---|---|
 | `main` | Current console-maintenance branch and documentation baseline. |
-| `console-stable` | Strict original console snapshot. |
-| `v0.12.0-console` | Immutable annotated tag marking completed console OS. |
+| `console-stable` | Latest reviewed console release baseline (`v0.12.1-console`). |
+| `v0.12.1-console` | Immutable annotated tag for the refreshed console UX release. |
+| `v0.12.0-console` | Immutable original console completion tag, preserved for history. |
 | `gui/bringup` | Separate GUI experiment branch. |
 
 ## Current limits
