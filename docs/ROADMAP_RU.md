@@ -73,6 +73,7 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 | 3 | `[x]` | Hardware mouse/pointer support | PS/2 IRQ12 packets перемещают pointer, left click фокусирует topmost window, а keyboard controls остаются fallback; BIOS и UEFI tests пройдены. |
 | 4 | `[x]` | GUI reliability pass | BIOS create/save/return/relaunch, UEFI readback/append/save/return и cross-firmware AHCI persistence прошли без регрессии `startgui`. |
 | 5 | `[x]` | Решение о GUI release boundary | Принято: immutable `v0.12.2-gui-preview` фиксирует tested GUI scope; `main` и `console-stable` не меняются, а `gui/bringup` продолжает следующий этап. |
+| 6 | `[x]` | Pointer refresh hardening | Ordinary PS/2 and WASD fallback movement больше не repaint полный desktop: kernel restores the 11×11 pointer underlay and draws cursor at the new location. BIOS framebuffer captures, GUI note save, native program execution и UEFI remount checks пройдены. |
 
 ## 5. Ближайший пост-GUI этап: собственные программы и среда разработки
 

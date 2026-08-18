@@ -61,6 +61,8 @@ typedef struct framebuffer_console {
     uint64_t gui_content_viewport;
     uint64_t gui_pointer_x;
     uint64_t gui_pointer_y;
+    uint32_t gui_pointer_under[11U * 11U];
+    int gui_pointer_under_valid;
     int active;
 } framebuffer_console_t;
 
@@ -435,6 +437,19 @@ static void draw_gui_window(const gui_window_t *window, int focused) {
     }
 }
 
+static void erase_gui_pointer(void) {
+    if (console.gui_pointer_under_valid == 0) {
+        return;
+    }
+    for (uint64_t row = 0U; row < 11U; row++) {
+        for (uint64_t column = 0U; column < 11U; column++) {
+            console.pixels[(console.gui_pointer_y + row) * console.pixels_per_row
+                           + console.gui_pointer_x + column] = console.gui_pointer_under[row * 11U + column];
+        }
+    }
+    console.gui_pointer_under_valid = 0;
+}
+
 static void draw_gui_pointer(void) {
     const uint32_t outline = console_rgb(13U, 20U, 34U);
     const uint32_t fill = console_rgb(255U, 255U, 255U);
@@ -444,6 +459,9 @@ static void draw_gui_pointer(void) {
         for (uint64_t column = 0U; column < 11U; column++) {
             uint32_t colour = fill;
 
+            console.gui_pointer_under[row * 11U + column] =
+                console.pixels[(console.gui_pointer_y + row) * console.pixels_per_row
+                               + console.gui_pointer_x + column];
             if (row == 0U || column == 0U || row == 10U || column == 10U) {
                 colour = outline;
             } else if (row == 5U || column == 5U) {
@@ -452,6 +470,7 @@ static void draw_gui_pointer(void) {
             put_pixel(console.gui_pointer_x + column, console.gui_pointer_y + row, colour);
         }
     }
+    console.gui_pointer_under_valid = 1;
 }
 
 static void redraw_gui_desktop(void) {
@@ -459,6 +478,7 @@ static void redraw_gui_desktop(void) {
     const uint32_t top_bar = console_rgb(25U, 54U, 92U);
     const uint32_t text = console_rgb(229U, 235U, 243U);
 
+    console.gui_pointer_under_valid = 0;
     fill_rect(0U, 0U, console.width, console.height, desktop);
     fill_rect(0U, 0U, console.width, 32U, top_bar);
     draw_gui_text(16U, 12U, "MYOS DESKTOP", text);
@@ -564,6 +584,7 @@ int framebuffer_console_init(const struct limine_framebuffer *framebuffer) {
     gui_reset_content();
     console.gui_pointer_x = 0U;
     console.gui_pointer_y = 0U;
+    console.gui_pointer_under_valid = 0;
     console.background = rgb(framebuffer, 13U, 20U, 34U);
     console.foreground = rgb(framebuffer, 229U, 235U, 243U);
     console.accent = rgb(framebuffer, 36U, 170U, 224U);
@@ -660,6 +681,7 @@ int framebuffer_gui_begin(void) {
     gui_layout_windows();
     console.gui_pointer_x = console.width / 2U;
     console.gui_pointer_y = console.height / 2U;
+    console.gui_pointer_under_valid = 0;
     redraw_gui_desktop();
     return 1;
 }
@@ -669,6 +691,7 @@ void framebuffer_gui_end(void) {
         return;
     }
     console.gui_active = 0;
+    console.gui_pointer_under_valid = 0;
     framebuffer_console_clear();
 }
 
@@ -707,20 +730,31 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
 
 void framebuffer_gui_handle_input(char character) {
     const uint64_t step = 16U;
+    int pointer_only = 0;
 
     if (console.gui_active == 0) {
         return;
     }
     if (character == 'w' || character == 'W') {
+        erase_gui_pointer();
         console.gui_pointer_y = console.gui_pointer_y > step ? console.gui_pointer_y - step : 0U;
+        pointer_only = 1;
     } else if (character == 's' || character == 'S') {
         const uint64_t limit = console.height - 11U;
+
+        erase_gui_pointer();
         console.gui_pointer_y = console.gui_pointer_y + step < limit ? console.gui_pointer_y + step : limit;
+        pointer_only = 1;
     } else if (character == 'a' || character == 'A') {
+        erase_gui_pointer();
         console.gui_pointer_x = console.gui_pointer_x > step ? console.gui_pointer_x - step : 0U;
+        pointer_only = 1;
     } else if (character == 'd' || character == 'D') {
         const uint64_t limit = console.width - 11U;
+
+        erase_gui_pointer();
         console.gui_pointer_x = console.gui_pointer_x + step < limit ? console.gui_pointer_x + step : limit;
+        pointer_only = 1;
     } else if (character == '\t' || character == '\n' || character == ' ') {
         gui_focus_next_window();
     } else if (character == 'f' || character == 'F') {
@@ -734,7 +768,11 @@ void framebuffer_gui_handle_input(char character) {
     } else {
         return;
     }
-    redraw_gui_desktop();
+    if (pointer_only != 0) {
+        draw_gui_pointer();
+    } else {
+        redraw_gui_desktop();
+    }
 }
 
 static uint64_t gui_pointer_offset(uint64_t position, int64_t delta, uint64_t limit) {
@@ -750,20 +788,24 @@ static uint64_t gui_pointer_offset(uint64_t position, int64_t delta, uint64_t li
 }
 
 void framebuffer_gui_handle_mouse(int64_t delta_x, int64_t delta_y, int left_pressed, int left_was_pressed) {
-    const uint64_t previous_x = console.gui_pointer_x;
-    const uint64_t previous_y = console.gui_pointer_y;
     const uint8_t previous_focus = console.gui_focus;
 
     if (console.gui_active == 0) {
         return;
     }
+    if (delta_x == 0 && delta_y == 0 && (left_pressed == 0 || left_was_pressed != 0)) {
+        return;
+    }
+    erase_gui_pointer();
     console.gui_pointer_x = gui_pointer_offset(console.gui_pointer_x, delta_x, console.width - 11U);
     console.gui_pointer_y = gui_pointer_offset(console.gui_pointer_y, delta_y, console.height - 11U);
     if (left_pressed != 0 && left_was_pressed == 0) {
         gui_focus_pointer_window();
     }
-    if (console.gui_pointer_x != previous_x || console.gui_pointer_y != previous_y || console.gui_focus != previous_focus) {
+    if (console.gui_focus != previous_focus) {
         redraw_gui_desktop();
+    } else {
+        draw_gui_pointer();
     }
 }
 

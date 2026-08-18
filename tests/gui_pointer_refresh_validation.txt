@@ -1,0 +1,6 @@
+GUI pointer refresh validation, BIOS QEMU Q35
+
+Baseline capture: 1280x800 MyOS GUI desktop rendered three bounded windows, top bar, help bar and pointer at the initial center position.
+Post-movement capture: same desktop composition and window contents remained intact after keyboard fallback pointer motion (ddss).
+Pixel comparison: 726 differing PPM byte positions out of the 1280x800 framebuffer capture; this is consistent with old and new 11x11 pointer regions rather than a full desktop repaint.
+Conclusion: pointer-only movement preserves desktop composition and no visible corruption was observed in the captured states.

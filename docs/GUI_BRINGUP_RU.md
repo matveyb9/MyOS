@@ -70,7 +70,7 @@ run sdk-hello external SDK validation
 | Владение session | Одновременно допустим ровно один GUI owner; kernel отклоняет вторую параллельную session. |
 | Desktop | Тёмный desktop, верхняя строка состояния и нижняя строка доступных controls. |
 | Windows | Три статические bounded window records: `SYSTEM`, `NOTES` и `MONITOR`. |
-| Z-order | Focused window поднимается на передний план; каждый event вызывает bounded full redraw композиции. |
+| Z-order | Focused window поднимается на передний план; focus, visibility, layout и content events выполняют bounded full redraw композиции, тогда как ordinary pointer movement обновляет только cursor region. |
 | Viewer | `NOTES` отображает до 128 bytes выбранного VFS file. |
 | File loading | `startgui [absolute-path]` читает первые 128 bytes указанного VFS file; без аргумента используется `/system/core/resources/motd.txt`. |
 | Persistent selection | `D` выбирает стандартный `/users/myos/files/notes/note`; `N` циклически выбирает следующую existing note через directory-scoped VFS enumeration. |
@@ -115,10 +115,10 @@ run sdk-hello external SDK validation
 |---|---|
 | Window records | Три статических bounded records. |
 | Input | Existing scheduler-safe console input path; PS/2 auxiliary port выдаёт three-byte packets через IRQ12. PS/2 arrows, Home, End и Delete переводятся в internal bounded key bytes; в editor keys принадлежат draft, а не window manager. |
-| Rendering | Bounded full redraw после GUI input или content update. |
+| Rendering | Full desktop composition выполняется при content update, focus, visibility или layout change. Обычное pointer movement восстанавливает bounded 11×11 cursor underlay и рисует cursor в новом месте без полного redraw. |
 | Files | Viewer читает любой доступный absolute VFS file; editor изменяет выбранную note в `/users/myos/files/notes/`. |
 | Atomicity | Save удаляет и пересоздаёт file перед записью; MYPFS004 сохраняет bounded metadata and allocation state, а полная application-level atomic replace пока не реализована. |
-| Mouse hardware | PS/2 relative motion и left-button focus реализованы; higher-level actions, dragging, wheel и multi-button semantics пока отсутствуют. |
+| Mouse hardware | PS/2 relative motion и left-button focus реализованы. Обычное движение использует bounded cursor-only refresh; higher-level actions, dragging, wheel и multi-button semantics пока отсутствуют. |
 | General window API | Не реализован; records остаются внутренними для framebuffer renderer. |
 
 ## Проверка milestone
@@ -148,6 +148,8 @@ run sdk-hello external SDK validation
 | MYPFS003 → MYPFS004 migration | Passed (BIOS): fixture hierarchy and payload migrated through durable `M4MG` recovery marker; `MYPFS004` superblock и cleared journal confirmed before second clean mount. |
 | MYPFS002 legacy migration | Passed (BIOS): `disk/note` fixture migrated to `/users/myos/files/notes/note`; `MYPFS004` superblock, cleared journal and second-mount readback confirmed. |
 | MYPFS004 large-file I/O | Passed (BIOS): 1 MiB fragmented two-extent pattern write/readback, fresh-mount `wc` of all 1,048,576 bytes, SDK install/run after reboot и UEFI persisted SDK execution. |
+| Pointer refresh hardening | Passed: two 1280×800 BIOS framebuffer captures before/after keyboard pointer movement differed in only 726 PPM byte positions, consistent with old/new 11×11 cursor regions; desktop composition remained intact. |
+| GUI note and native workflow | Passed: BIOS GUI editor changed persistent note `base` → `base!`; the same note and a BIOS-built native program were read/executed under UEFI. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
 Screenshots и краткие test findings находятся вне source tree в локальных `/home/ubuntu/myos-mouse-validation/`, `/home/ubuntu/myos-reliability-validation/` и `/home/ubuntu/myos-disk-elf-validation/`; они не входят в Git commit.
@@ -165,4 +167,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`. Текущая ветка `gui/bringup` теперь содержит MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, MyOS SDK для внешней сборки и restricted in-OS `asm`/`build` workflow. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); следующий milestone — расширение native toolchain с labels/control flow и multi-line project editing.
+GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`. Текущая ветка `gui/bringup` теперь содержит MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, MyOS SDK для внешней сборки, restricted in-OS `asm`/`build` workflow и cursor-only GUI pointer refresh. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); следующий milestone — расширение native toolchain с labels/control flow и multi-line project editing.

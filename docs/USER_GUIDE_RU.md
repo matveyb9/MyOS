@@ -218,7 +218,7 @@ startgui
 startgui /users/myos/files/notes/note
 ```
 
-`Q` или `Esc` вне editor закрывает GUI session и возвращает в тот же user shell. Полное описание controls, notes editor и известных границ находится в [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md).
+`Q` или `Esc` вне editor закрывает GUI session и возвращает в тот же user shell. Обычное движение PS/2 mouse или keyboard fallback `W`/`A`/`S`/`D` теперь перерисовывает только 11×11 pointer region; full desktop refresh остаётся только для content, focus, window visibility и layout changes. Полное описание controls, notes editor и известных границ находится в [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md).
 
 ## 10. UEFI и ISO
 
