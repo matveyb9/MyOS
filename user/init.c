@@ -20,8 +20,8 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "ps", "meminfo", "date", "uptime", "ls", "cat", "touch", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "pipe", "wait", "kill", "stress", "reboot", "poweroff",
-    "dmesg", "clear", "exit"
+    "set", "get", "env", "sleep", "run", "spawn", "pipe", "wait", "kill", "stress", "calc", "reboot",
+    "poweroff", "dmesg", "clear", "exit"
 };
 
 static uint64_t system_call(uint64_t number, uint64_t argument1, uint64_t argument2, uint64_t argument3) {
@@ -393,10 +393,26 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
     return 1;
 }
 
-static void command_help(void) {
-    write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm set get env sleep run spawn pipe wait kill stress reboot poweroff dmesg clear exit\n");
+static void command_help(const char *topic) {
+    if (text_equal(topic, "calc")) {
+        write_text("calc <number> <+|-|*|/> <number>\n");
+        write_text("Examples: calc 7 * 6   calc 12 / 3\n");
+        write_text("Uses non-negative integers; division returns an integer result.\n");
+        return;
+    }
+    if (topic[0] != '\0') {
+        write_text("No detailed help for: ");
+        write_text(topic);
+        write_text(". Try help or help calc.\n");
+        return;
+    }
+    write_text("MYOS SHELL QUICK START\n");
+    write_text("Files: ls cat touch write rm | Processes: ps run spawn wait kill sleep\n");
+    write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");
+    write_text("Tools: calc <a> <op> <b>; run <program> [arguments]; pipe <text>\n");
+    write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
     write_text("Files: tmp/<name> is temporary; disk/<name> persists across reboots.\n");
-    write_text("Programs: hello sleeper orphaner safety argshow calc pipewrite piperead wc grep edit\n");
+    write_text("For calculator details, type: help calc\n");
 }
 
 static const char *task_state_name(uint64_t state) {
@@ -847,6 +863,30 @@ static void command_run(char *argument) {
     write_char('\n');
 }
 
+static void command_calc(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "calc";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("calc");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Calculator expression is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Calculator expression is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    command_run(program);
+}
+
 static void command_poweroff(void) {
     uint64_t result;
 
@@ -892,7 +932,7 @@ static void execute_command(char *line) {
         return;
     }
     if (text_equal(line, "help")) {
-        command_help();
+        command_help(argument);
     } else if (text_equal(line, "echo")) {
         write_text(argument);
         write_char('\n');
@@ -936,6 +976,8 @@ static void execute_command(char *line) {
         command_stress();
     } else if (text_equal(line, "sleep")) {
         command_sleep(argument);
+    } else if (text_equal(line, "calc")) {
+        command_calc(argument);
     } else if (text_equal(line, "reboot")) {
         command_reboot();
     } else if (text_equal(line, "poweroff")) {
@@ -943,15 +985,13 @@ static void execute_command(char *line) {
     } else if (text_equal(line, "dmesg")) {
         write_text("MyOS: Limine boot, memory manager, scheduler, ring 3 and initramfs active.\n");
     } else if (text_equal(line, "clear")) {
-        for (uint64_t index = 0U; index < 48U; index++) {
-            write_char('\n');
-        }
+        write_text("\x1B[2J\x1B[H");
     } else if (text_equal(line, "exit")) {
         (void)system_call(MYOS_SYS_EXIT, 0U, 0U, 0U);
     } else {
         write_text("Unknown command: ");
         write_text(line);
-        write_char('\n');
+        write_text(". Type 'help' to see available commands.\n");
     }
 }
 
@@ -960,10 +1000,13 @@ void _start(void) __attribute__((noreturn));
 void _start(void) {
     char line[USER_LINE_CAPACITY];
 
-    write_text("MyOS user shell 0.12.0-dev\n");
-    write_text("Type 'help' for available commands.\n");
+    write_text("\n+----------------------------------------------+\n");
+    write_text("| MyOS user shell 0.12.0-dev                  |\n");
+    write_text("| help: commands  |  help calc: arithmetic    |\n");
+    write_text("| Tab: complete   |  Up/Down: history          |\n");
+    write_text("+----------------------------------------------+\n");
     for (;;) {
-        write_text("myos$ ");
+        write_text("[myos]$ ");
         (void)read_line(line, USER_LINE_CAPACITY);
         history_store(line);
         execute_command(line);

@@ -88,6 +88,7 @@ void _start(uint64_t argc, const char *arguments) {
     uint64_t right;
     uint64_t result;
     char operation;
+    const char *error = (const char *)0;
     int valid = argc == 1U;
 
     if (valid != 0 && parse_number(&cursor, &left) != 0) {
@@ -106,34 +107,35 @@ void _start(uint64_t argc, const char *arguments) {
         valid = 0;
     }
     if (valid == 0) {
-        write_text("Usage: run calc <non-negative-integer> <+|-|*|/> <non-negative-integer>\n");
+        write_text("Usage: calc <non-negative-integer> <+|-|*|/> <non-negative-integer>\n");
+        write_text("Examples: calc 7 * 6   calc 12 / 3\n");
         (void)system_call(MYOS_SYS_EXIT, 2U, 0U, 0U);
     }
     if (operation == '+') {
         if (left > UINT64_MAX - right) {
-            valid = 0;
+            error = "calc: addition overflows 64-bit unsigned integer\n";
         } else {
             result = left + right;
         }
     } else if (operation == '-') {
         if (left < right) {
-            valid = 0;
+            error = "calc: negative results are not supported\n";
         } else {
             result = left - right;
         }
     } else if (operation == '*') {
         if (right != 0U && left > UINT64_MAX / right) {
-            valid = 0;
+            error = "calc: multiplication overflows 64-bit unsigned integer\n";
         } else {
             result = left * right;
         }
     } else if (right == 0U) {
-        valid = 0;
+        error = "calc: division by zero\n";
     } else {
         result = left / right;
     }
-    if (valid == 0) {
-        write_text("calc: invalid or overflowing operation\n");
+    if (error != (const char *)0) {
+        write_text(error);
         (void)system_call(MYOS_SYS_EXIT, 3U, 0U, 0U);
     }
     write_text("[calc] result: ");

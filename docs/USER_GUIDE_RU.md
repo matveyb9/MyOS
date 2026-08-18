@@ -66,8 +66,10 @@ init
 После этого откроется пользовательская оболочка:
 
 ```text
-myos$
+[myos]$
 ```
+
+При первом входе shell выводит компактную стартовую карточку с подсказками по `help`, `help calc`, Tab completion и command history.
 
 Для запуска с serial output в терминале добавьте `-serial stdio`. Если нужен только терминал без QEMU window, добавьте также `-display none`:
 
@@ -84,6 +86,8 @@ qemu-system-x86_64 \
 
 ```text
 help
+help calc
+calc 7 * 6
 uname
 ps
 meminfo
@@ -135,7 +139,8 @@ cat disk/note
 
 | Команда | Пример | Назначение |
 |---|---|---|
-| `help` | `help` | Список доступных команд. |
+| `help` | `help` | Краткая карта возможностей shell. |
+| `help calc` | `help calc` | Синтаксис, examples и ограничения calculator. |
 | `ls` | `ls` | Список файлов initramfs, `tmp/` и `disk/`. |
 | `cat` | `cat motd.txt` | Показать файл. |
 | `touch` | `touch disk/note` | Создать пустой файл. |
@@ -144,7 +149,8 @@ cat disk/note
 | `edit` | `run edit disk/note` | Открыть простой однострочный editor. |
 | `ps` | `ps` | Показать процессы. |
 | `sleep` | `sleep 2` | Подождать указанное число секунд. |
-| `run` | `run calc 7 * 6` | Запустить программу и дождаться её завершения. |
+| `calc` | `calc 7 * 6` | Быстро выполнить простую арифметику и дождаться результата. |
+| `run` | `run hello` | Запустить произвольную программу и дождаться её завершения. |
 | `spawn` | `spawn sleeper 3` | Запустить программу в фоне. |
 | `wait` | `wait 4` | Дождаться процесса по PID. |
 | `kill` | `kill 4` | Остановить дочерний процесс. |
@@ -152,14 +158,15 @@ cat disk/note
 | `set` / `get` / `env` | `set NAME Ada` | Работать с environment variables shell. |
 | `reboot` | `reboot` | Перезапустить виртуальную машину. |
 | `poweroff` | `poweroff` | Запросить корректное выключение через ACPI. |
+| `clear` | `clear` | Очистить serial terminal и framebuffer text console. |
 
 ### Программы из initramfs
 
-Программы запускаются через `run` или `spawn`.
+Большинство программ запускаются через `run` или `spawn`; `calc` также доступен как прямой shell command.
 
 ```text
 run hello
-run calc 12 / 3
+calc 12 / 3
 run wc motd.txt
 run grep MyOS motd.txt
 run argshow one two three
@@ -173,11 +180,25 @@ run edit disk/note
 | `orphaner` | Демонстрирует orphan handling. |
 | `safety` | Проверяет user/kernel safety boundary. |
 | `argshow` | Показывает полученные arguments. |
-| `calc` | Выполняет простую арифметику. |
+| `calc` | Выполняет простую арифметику; доступна напрямую как shell command или через `run calc ...`. |
 | `pipewrite`, `piperead` | Служебные programs для bounded pipes. |
 | `wc` | Считает строки, слова и bytes файла. |
 | `grep` | Ищет строку в файле. |
 | `edit` | Меняет одну строку в `tmp/` или `disk/` файле. |
+
+### Calculator `calc`
+
+`calc` принимает два **неотрицательных целых числа** и один оператор: `+`, `-`, `*` или `/`. Рекомендуемый формат — прямой shell command, поэтому `run` писать не требуется.
+
+| Ввод | Результат |
+|---|---|
+| `calc 7 * 6` | `42` |
+| `calc 12 / 3` | `4` |
+| `calc 9 / 2` | `4`: деление является целочисленным, дробная часть отбрасывается. |
+| `calc 5 - 8` | Ошибка: отрицательные результаты пока не поддерживаются. |
+| `calc 1 / 0` | Ошибка деления на ноль. |
+
+Если забыли синтаксис, введите `help calc`. Calculator также обнаруживает переполнение 64-bit unsigned integer и сообщает об этом вместо выдачи неверного результата.
 
 ## 7. Удобства ввода
 
@@ -188,6 +209,7 @@ run edit disk/note
 | Up / Down | Переход по ограниченной истории команд. |
 | Tab | Завершение уникальной команды или уникального пути файла. |
 | `$NAME` | Подстановка ранее установленной переменной environment. |
+| `clear` | Очищает экран без печати множества пустых строк. |
 
 Пример:
 

@@ -260,6 +260,11 @@ void framebuffer_console_putc(char character) {
     if (console.ansi_state != 0U) {
         if (console.ansi_state == 1U && character == '[') {
             console.ansi_state = 2U;
+        } else if (console.ansi_state == 2U && character == '2') {
+            console.ansi_state = 3U;
+        } else if (console.ansi_state == 3U && character == 'J') {
+            console.ansi_state = 0U;
+            framebuffer_console_clear();
         } else if (character >= '@' && character <= '~') {
             console.ansi_state = 0U;
         }
