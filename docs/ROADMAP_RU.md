@@ -74,20 +74,33 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 | 4 | `[x]` | GUI reliability pass | BIOS create/save/return/relaunch, UEFI readback/append/save/return и cross-firmware AHCI persistence прошли без регрессии `startgui`. |
 | 5 | `[ ]` | Решение о GUI release boundary | Отдельно оценить readiness GUI и только тогда решить, объединять ли GUI с `main` или выпускать отдельную experimental/stable ветку. |
 
-## 5. Следующий системный горизонт
+## 5. Ближайший пост-GUI этап: собственные программы и среда разработки
 
-Эти пункты не должны отвлекать от ближайшего GUI milestone. Они станут планируемыми работами только после решения о GUI release и уточнения требований.
+После **решения о GUI release boundary** эта линия становится ближайшим функциональным приоритетом, а не дальним исследованием. Цель — быстро перейти от встроенных программ initramfs к безопасному запуску собственных программ пользователя, затем дать практичный workflow для их создания и первой нативной компиляции в MyOS. GUI не требуется сливать в `main`, чтобы начать эту работу: release decision определяет ветку и scope, а не откладывает development environment на неопределённый срок.
+
+| Приоритет | Статус | Работа | Критерий завершения |
+|---:|---|---|---|
+| 1 | `[ ]` | Persistent ELF64 program execution | Валидный MyOS x86_64 ELF64 из `disk/bin/<name>` загружается в отдельное user address space, получает arguments и запускается из shell; loader отклоняет неверные headers, segments, размеры и ABI. |
+| 2 | `[ ]` | MyOS SDK для внешней сборки | Репозиторий содержит public syscall headers, startup code, linker script, build template и example app; пользователь собирает программу на ПК и запускает её в MyOS без пересборки kernel. |
+| 3 | `[ ]` | Developer filesystem workflow | `disk/src/` и `disk/bin/`, увеличенные безопасные limits persistent storage, console editor и shell-команды позволяют хранить, редактировать, копировать и запускать исходники/бинарники прямо в MyOS. |
+| 4 | `[ ]` | Первая нативная сборка в MyOS | В MyOS появляется компактный native assembler или ограниченный C compiler с командой build, создающей запускаемый MyOS ELF64 для учебных и практических user programs. |
+| 5 | `[ ]` | Расширение native toolchain | По мере готовности: более полное подмножество C, linker, базовая C-библиотека, build scripts и затем оценка портирования более крупного compiler. GCC/Clang не являются первым шагом. |
+
+> **Приоритет пользователя:** собственные программы и первый native build workflow не откладываются до сети, SMP, USB или собственного bootloader. После GUI release decision они образуют ближайшую линию функциональной разработки.
+
+## 6. Последующий системный горизонт
 
 | Статус | Направление | Правило принятия решения |
 |---|---|---|
-| `[ ]` | Укрепление VFS и persistent storage | Расширять после GUI file workflows, сохраняя ясные limits, validation и data safety. |
-| `[ ]` | Дополнительные user applications | Добавлять только после определения практических GUI/use-case потребностей. |
+| `[ ]` | Дополнительные user applications | Развивать поверх SDK и executable workflow, начиная с practical developer tools. |
 | `[ ]` | Поддержка физического hardware | Проверять на реальной x86_64 машине после сохранения QEMU BIOS/UEFI regression baseline. |
+| `[ ]` | Пользователи и права доступа | Вводить после базового user-program workflow: uid/gid, owners, file permissions, login/session model. |
+| `[ ]` | Сеть | Начать с QEMU-supported Ethernet driver и минимального IPv4 path после согласования user-program execution и storage contracts. |
 | `[R&D]` | Multiboot compatibility | Исследовать как дополнительный boot protocol, если появится конкретная задача совместимости; текущий Limine path не заменять без проверки всех boot artifacts. |
 | `[R&D]` | Собственный bootloader | Начать с изолированного учебного proof of concept; не заменять Limine, пока custom path не достигнет BIOS/UEFI feature parity и повторяемой validation. |
 | `[ ]` | SMP, IOAPIC и расширенный timer model | Планировать при появлении задач, которые действительно требуют параллельного CPU execution. |
 
-## 6. Границы, которые не меняются
+## 7. Границы, которые не меняются
 
 | Решение | Статус | Причина |
 |---|---|---|
@@ -96,10 +109,10 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 | GUI не сливается в console baseline автоматически | `[x]` | `gui/bringup` остаётся отдельной экспериментальной веткой до отдельного решения о release. |
 | Учебные комментарии и учебная документация — после разработки | `[x]` | Полный pedagogical pass начнётся только после завершения функциональной разработки, чтобы не превращать незавершённые детали в ложную спецификацию. |
 
-## 7. Условие перехода к учебной редакции
+## 8. Условие перехода к учебной редакции
 
 После функционального завершения выбранной release scope потребуется отдельный финальный этап: объясняющие комментарии в исходниках, последовательные учебные главы, diagrams архитектуры, reproducible lab exercises и обновлённая validation guide. Этот этап намеренно не выполняется параллельно с активной разработкой.
 
 ## Следующее действие
 
-Ближайшее практическое действие — выполнить **оценку GUI release boundary** в `gui/bringup`: уточнить remaining scope, release criteria и policy для возможного merge в `main` либо отдельного experimental/stable выпуска. До отдельного решения GUI не переносится в `main`. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
+Ближайшее практическое действие — выполнить **оценку GUI release boundary** в `gui/bringup`: уточнить remaining scope, release criteria и policy для возможного merge в `main` либо отдельного experimental/stable выпуска. Сразу после этого начинается priority 1: persistent ELF64 program execution из `disk/bin/`, затем MyOS SDK и первый native build workflow. До отдельного решения GUI не переносится в `main`. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
