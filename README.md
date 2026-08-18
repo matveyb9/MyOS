@@ -1,45 +1,54 @@
-# MyOS Console 0.12.0-dev
+# MyOS
 
-**MyOS** is an experimental x86_64 operating system written from scratch in freestanding C11 and x86_64 NASM. It uses Limine only as the current bootloader; the kernel, memory manager, scheduler, syscall boundary, shell, file systems and drivers are MyOS code.
+**MyOS** — экспериментальная операционная система для **x86_64**, написанная с нуля на freestanding C11 и x86_64 NASM. Limine используется только как текущий bootloader; ядро, memory management, scheduler, ring-3 processes, shell, filesystem и drivers реализованы в этом repository.
 
-> This branch is the completed **console OS** milestone. Its immutable release point is the annotated Git tag `v0.12.0-console`. GUI work is intentionally separate and is not part of this branch or release.
+> Console OS завершена и зафиксирована тегом [`v0.12.0-console`](docs/RELEASES_RU.md). GUI-разработка хранится отдельно в ветке `gui/bringup`; она не является частью console release.
 
-## Start here
+## Что готово
 
-The project has two current manuals with different audiences. New users should begin with the user guide; contributors and people studying the implementation should use the developer guide.
-
-| Document | Audience | Purpose |
-|---|---|---|
-| [User guide](docs/USER_GUIDE_RU.md) | Anyone who wants to build, boot and use MyOS | Plain-language steps for QEMU, USB testing, shell commands and file storage. |
-| [Developer guide](docs/DEVELOPER_GUIDE_RU.md) | Developers and systems-programming learners | Architecture, source tree, build/test workflow, interfaces and technical limits. |
-| [Documentation index](docs/README.md) | All readers | Current-document index and status of older development notes. |
-
-## What the console release provides
-
-| Area | Current capability |
+| Область | Возможности console release |
 |---|---|
-| Boot | Limine boot in BIOS and UEFI/OVMF QEMU; hybrid `myos.iso` and raw GPT `myos.img`. |
-| Kernel | GDT, IDT, TSS, PIC/APIC virtual wire, PIT, PS/2 keyboard, RTC, ACPI S5 poweroff and PCI discovery. |
-| Memory | PMM, four-level paging, higher-half kernel, HHDM, heap, per-process address spaces and user-buffer validation. |
-| Processes | Ring 3 ELF processes, round-robin scheduler, wait/kill/sleep, process states and task inspection. |
-| Shell | Commands, program arguments, environment variables, history with Up/Down and deterministic Tab completion. |
-| Files and storage | Read-only initramfs, bounded `tmp/` files and persistent `disk/` files backed by an isolated AHCI data partition. |
-| Utilities | `hello`, `sleeper`, `orphaner`, `safety`, `argshow`, `calc`, `pipewrite`, `piperead`, `wc`, `grep` and `edit`. |
+| Загрузка | BIOS и UEFI/OVMF в QEMU; `myos.iso` и raw GPT `myos.img`. |
+| Kernel | GDT, IDT, TSS, PMM, paging, heap, PIT, PS/2 keyboard, RTC, ACPI, PCI и AHCI. |
+| Processes | Ring 3, ELF loader, scheduler, `wait`, `kill`, `sleep`, arguments и pipes. |
+| Console | Kernel shell, user shell, history, Tab completion и environment variables. |
+| Files | Initramfs, временные `tmp/` files и persistent `disk/` files в isolated AHCI data partition. |
+| Utilities | `calc`, `wc`, `grep`, `edit`, `hello`, `sleeper`, `argshow` и другие. |
 
-## Quick QEMU launch
+## Быстрый старт
 
-The recommended command for the complete console experience, including persistent `disk/` files, is to boot `myos.img` as an IDE drive:
+### 1. Получите исходники
 
 ```bash
-cd /home/ubuntu/myos
+git clone <URL-вашего-репозитория> myos
+cd myos
+```
+
+Если project был получен как ZIP, распакуйте его и откройте каталог `myos-complete-project` в терминале.
+
+### 2. Соберите artifacts
+
+```bash
 make all img
+```
+
+| Artifact | Для чего нужен |
+|---|---|
+| `myos.iso` | Быстрый BIOS/UEFI test как ISO/CD в QEMU. |
+| `myos.img` | Рекомендуемый disk/USB image с persistent `disk/` storage. |
+
+### 3. Запустите в QEMU
+
+Для полного console experience, включая persistent files, используйте raw image:
+
+```bash
 qemu-system-x86_64 \
   -machine q35 -m 256M \
   -drive if=ide,format=raw,file=myos.img \
   -boot c
 ```
 
-At the kernel prompt enter `init`, then use the user shell. A simple first session is:
+После boot введите `init`, чтобы открыть user shell, затем попробуйте:
 
 ```text
 help
@@ -49,43 +58,63 @@ write disk/note Hello MyOS
 cat disk/note
 ```
 
-For complete launch, UEFI and physical-USB instructions, read the [user guide](docs/USER_GUIDE_RU.md).
+## Платформы разработки и запуска
 
-## Release artifacts
+| Host platform | Рекомендуемый путь | Статус |
+|---|---|---|
+| Linux | Native build + QEMU | Основной и проверенный путь. |
+| Windows 10/11 | WSL 2 + Ubuntu + QEMU | Рекомендуемый Windows path. |
+| Windows 10/11 | Native MSYS2 + QEMU | Возможен, но менее проверен, чем WSL. |
+| macOS | Homebrew toolchain + QEMU | Experimental host path. |
+| Other Unix-like hosts | Подобрать equivalent tools | Community/experimental path. |
 
-| Artifact | Intended use | Persistent `disk/` storage |
-|---|---|---:|
-| `myos.iso` | QEMU CD/ISO testing and read-only boot demonstrations | No |
-| `myos.img` | QEMU disk boot, USB test media and physical-PC testing | Yes |
+Подробные команды для Linux, Windows, WSL, MSYS2 и macOS находятся в [руководстве по платформам](docs/PLATFORMS_RU.md).
 
-> Writing an image with `dd` erases the entire selected device. Use only a dedicated test USB device and verify its device name with `lsblk` before writing.
+> Для записи на реальную USB-флешку используйте `myos.img`, а не ISO. Запись через `dd` или аналог полностью стирает выбранный device. Полную безопасную процедуру смотрите в [руководстве пользователя](docs/USER_GUIDE_RU.md).
 
-## Repository layout
+## Документация
 
-| Path | Contents |
+| Документ | Для кого | Содержание |
+|---|---|---|
+| [Руководство пользователя](docs/USER_GUIDE_RU.md) | Обычные пользователи | QEMU, shell, files, utilities, persistence и USB testing. |
+| [Руководство по платформам](docs/PLATFORMS_RU.md) | Linux, Windows, macOS users | Installation prerequisites and launch paths. |
+| [Руководство разработчика](docs/DEVELOPER_GUIDE_RU.md) | Contributors | Architecture, source tree, ABI, storage invariants and validation. |
+| [Правила документации](docs/DOCUMENTATION_POLICY_RU.md) | Maintainers | What must be updated with every project change. |
+| [Releases and branches](docs/RELEASES_RU.md) | All readers | Meaning of `main`, `console-stable`, tags and GUI branch. |
+| [Documentation index](docs/README.md) | All readers | Current manuals versus historical development notes. |
+
+## Build and repository actions
+
+| Action | Command |
 |---|---|
-| `boot/` | Linker scripts and Limine configuration. |
-| `include/` | Shared kernel and user-space interfaces. |
-| `kernel/` | Architecture code, console, memory, drivers, scheduler, loader, filesystem and syscalls. |
-| `user/` | Ring-3 shell and user utilities packaged into initramfs. |
-| `docs/` | Current user/developer manuals and older development notes. |
-| `tools/` | Host-side build helpers. |
+| Build ISO | `make` or `make all` |
+| Build disk/USB image | `make img` |
+| BIOS ISO test | `make run` |
+| BIOS graphical ISO test | `make run-graphic` |
+| UEFI ISO test | `make run-uefi` |
+| Inspect kernel ELF | `make inspect` |
+| Clean generated files | `make clean` |
+| Deep-clean Limine dependency too | `make distclean` |
 
-## Git branches and release point
+`make img` intentionally recreates `myos.img`; any existing persistent `disk/` files inside the prior image are erased.
 
-| Reference | Meaning |
+## Git model
+
+| Reference | Purpose |
 |---|---|
-| `main` | Active console-maintenance branch, rooted at `v0.12.0-console`; it may contain approved documentation and console-only fixes after the tag. |
-| `console-stable` | Strict baseline branch that remains at the final console milestone unless an explicitly tested maintenance fix is selected. |
-| `v0.12.0-console` | Immutable annotated tag for the completed console release. |
-| `gui/bringup` | Separate experimental GUI branch; not included in the console release. |
+| `main` | Current console-maintenance branch and documentation baseline. |
+| `console-stable` | Strict original console snapshot. |
+| `v0.12.0-console` | Immutable annotated tag marking completed console OS. |
+| `gui/bringup` | Separate GUI experiment branch. |
 
-## Scope and current limits
+## Current limits
 
-MyOS is an educational experimental operating system, not a secure general-purpose desktop OS. It does not currently provide networking, USB HID support, SMP, demand paging, a general-purpose filesystem, application isolation comparable to a production OS, Secure Boot support, or a completed GUI in this console release.
+MyOS is an educational experimental OS, not a production desktop OS. The console release does not yet provide networking, USB HID, SMP, Secure Boot, demand paging, a general-purpose filesystem, package management or production security hardening.
 
-The current project documentation replaces the obsolete top-level status that described versions `0.1.0`–`0.7.0-dev` as if they were current. Earlier subsystem notes are kept as historical development records and are identified in the [documentation index](docs/README.md).
+## Documentation maintenance promise
+
+Documentation is maintained continuously. Every change that affects build/run commands, supported hosts, public shell commands, user-visible behavior, file layout, ABI, storage format, Git workflow or safety warnings must update the appropriate README or file in `docs/` in the **same commit**. See [the detailed policy](docs/DOCUMENTATION_POLICY_RU.md).
 
 ## License
 
-A project license has not yet been selected. Do not redistribute the project as a licensed release until a license file is added.
+A project license has not yet been selected. Do not redistribute MyOS as a licensed release until a license file is added.

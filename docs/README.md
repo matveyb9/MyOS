@@ -1,28 +1,42 @@
-# Документация MyOS Console 0.12.0-dev
+# Документация MyOS
 
-Эта папка разделяет **актуальную документацию завершённой консольной версии** и ранние документы, сохранённые как история разработки. Не следует использовать ранние документы как инструкцию по сборке или описание текущих возможностей без сверки с актуальными руководствами.
+`README.md` в корне repository — короткая главная страница проекта: описание, basic build/run commands and links. Все подробные материалы находятся в этой папке.
 
-## Актуальные материалы
+## Актуальная документация
 
-| Документ | Для кого | Содержание |
+| Документ | Для кого | Что отвечает |
 |---|---|---|
-| [USER_GUIDE_RU.md](USER_GUIDE_RU.md) | Обычные пользователи | Сборка, запуск в QEMU, первый сеанс shell, работа с файлами, USB-тест и безопасное выключение. |
-| [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md) | Разработчики | Архитектура console release, каталоги, исходный код, ABI, test workflow и технические ограничения. |
-| [../README.md](../README.md) | Все | Краткое описание release, artifacts и Git references. |
+| [USER_GUIDE_RU.md](USER_GUIDE_RU.md) | Обычные пользователи | Сборка, QEMU, shell, files, utilities and USB safety. |
+| [PLATFORMS_RU.md](PLATFORMS_RU.md) | Users of Linux, Windows and macOS | Host prerequisites, WSL, MSYS2, QEMU and support status. |
+| [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md) | Developers | Source tree, kernel architecture, ABI, storage invariants and validation. |
+| [RELEASES_RU.md](RELEASES_RU.md) | Everyone using Git | Branches, tags, console boundary, GUI branch and publication commands. |
+| [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md) | Maintainers | Mandatory same-commit documentation update rules. |
 
-## Исторические development notes
+## How to choose a guide
 
-Файлы ниже отражают состояние ранних milestones `0.3.0-dev`–`0.7.0-dev`. Они сохранены для истории решений и для последующей учебной редакции, но не описывают полный console release `0.12.0-dev`.
+| Need | Start with |
+|---|---|
+| «Как запустить MyOS?» | `../README.md`, then `USER_GUIDE_RU.md`. |
+| «Как установить инструменты на Windows/macOS/Linux?» | `PLATFORMS_RU.md`. |
+| «Как устроены kernel, syscall или filesystem?» | `DEVELOPER_GUIDE_RU.md`. |
+| «Почему есть несколько branches?» | `RELEASES_RU.md`. |
+| «Как не допустить устаревшей документации?» | `DOCUMENTATION_POLICY_RU.md`. |
 
-| Файл | Историческая тема | Как использовать сейчас |
-|---|---|---|
-| `architecture.md` | Ранняя архитектура `0.7.0-dev` | Только как исторический снимок; актуальная архитектура — в developer guide. |
-| `validation.md` | Ранняя проверка `0.3.0-dev` и `myos.hdd` | Устарело: современный raw image называется `myos.img` и имеет GPT data partition. |
-| `interrupt-model.md`, `irq-validation.md` | Ранняя модель IRQ/PS/2 | Исторический контекст; современный kernel также использует scheduler, ring 3 и user shell. |
-| `paging-model.md`, `paging-validation.md` | Ранний paging/heap milestone | Исторический контекст; актуальные memory boundaries перечислены в developer guide. |
-| `memory-safety-model.md`, `memory-safety-validation.md` | Ранний memory-safety milestone | Исторический контекст; не заменяет текущие invariants. |
-| `framebuffer-console-model.md`, `framebuffer-validation.md`, `framebuffer-visual-check.md` | Ранняя framebuffer text console | Исторический контекст; current console release сохраняет text console и COM1 mirror. |
-| `research-apic-virtual-wire.md` | Исследование APIC virtual-wire | Справочный материал для разработчиков. |
-| `architecture-decision-32bit.md` | Решение не поддерживать 32-bit | Актуальное архитектурное решение: MyOS остаётся x86_64-only. |
+## Historical development notes
 
-> Для публикации на GitHub в корне repository достаточно начать с `README.md`; ссылки на оба актуальных руководства находятся в нём в первой таблице.
+The files below are preserved records from early milestones `0.3.0-dev`–`0.7.0-dev`. Each now has an explicit **Исторический документ** banner. They are useful for tracking design evolution, but they are not current build instructions or specifications for console release `0.12.0-dev`.
+
+| File | Historical topic |
+|---|---|
+| `architecture.md` | Early architecture and framebuffer console plan. |
+| `validation.md` | Early artifact and boot validation; references obsolete `myos.hdd`. |
+| `interrupt-model.md`, `irq-validation.md` | Initial PIC/APIC/PIT/PS2 work. |
+| `paging-model.md`, `paging-validation.md` | Initial owned PML4 and heap work. |
+| `memory-safety-model.md`, `memory-safety-validation.md` | Early memory-safety milestone. |
+| `framebuffer-console-model.md`, `framebuffer-validation.md`, `framebuffer-visual-check.md` | First framebuffer text-console milestone. |
+| `research-apic-virtual-wire.md` | APIC virtual-wire research reference. |
+| `architecture-decision-32bit.md` | Active decision record: MyOS remains x86_64-only. |
+
+## Maintenance rule
+
+Any change that affects the build, run flow, host support, shell, user-visible behavior, storage, public ABI, safety warning, branch or release must update the relevant current document in the same commit. Full rules are in [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md).
