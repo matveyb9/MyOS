@@ -100,11 +100,12 @@ cat /users/myos/files/note.txt
 | BIOS ISO test | `make run` |
 | BIOS graphical ISO test | `make run-graphic` |
 | UEFI ISO test | `make run-uefi` |
+| BIOS + UEFI raw-image boot smoke | `make smoke` |
 | Inspect kernel ELF | `make inspect` |
 | Clean generated files | `make clean` |
 | Deep-clean Limine dependency too | `make distclean` |
 
-`make img` intentionally recreates `myos.img`; any existing persistent MYPFS004 files and application packages inside the prior image are erased.
+`make img` intentionally recreates `myos.img`; any existing persistent MYPFS004 files and application packages inside the prior image are erased. `make smoke` boots that raw image headlessly through BIOS and UEFI, verifies firmware, persistent AHCI mount and automatic `[myos]$` entry, then stops both guests. It is a boot baseline rather than a substitute for interactive GUI, filesystem or native-program tests.
 
 ## Git model
 

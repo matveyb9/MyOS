@@ -74,7 +74,7 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 | 4 | `[x]` | GUI reliability pass | BIOS create/save/return/relaunch, UEFI readback/append/save/return и cross-firmware AHCI persistence прошли без регрессии `startgui`. |
 | 5 | `[x]` | Решение о GUI release boundary | Принято: immutable `v0.12.2-gui-preview` фиксирует tested GUI scope; `main` и `console-stable` не меняются, а `gui/bringup` продолжает следующий этап. |
 | 6 | `[x]` | Pointer refresh hardening | Ordinary PS/2 and WASD fallback movement больше не repaint полный desktop: kernel restores the 11×11 pointer underlay and draws cursor at the new location. BIOS framebuffer captures, GUI note save, native program execution и UEFI remount checks пройдены. |
-| 7 | `[ ]` | Первый GUI release-stabilization pass | Зафиксировать release scope, повторить clean BIOS/UEFI checklist, выполнить physical x86_64 PC smoke test, подготовить release notes и только затем решить вопрос нового GUI tag и переноса tested commit в `main`. |
+| 7 | `[ ]` | Первый GUI release-stabilization pass | `make smoke` уже автоматизирует clean raw-image BIOS/UEFI boot markers, persistent AHCI mount и automatic user-shell entry. Остаётся зафиксировать release scope, дополнить interactive checklist, выполнить physical x86_64 PC smoke test, подготовить release notes и только затем решить вопрос нового GUI tag и переноса tested commit в `main`. |
 
 ## 5. Ближайший пост-GUI этап: собственные программы и среда разработки
 
