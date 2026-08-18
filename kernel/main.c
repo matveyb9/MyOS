@@ -190,6 +190,12 @@ static uint64_t memory_region_count(void) {
     return memory_map == NULL ? 0U : memory_map->entry_count;
 }
 
+static void boot_stage(const char *title) {
+    serial_write("\n== ");
+    serial_write(title);
+    serial_write(" ==\n");
+}
+
 static void report_boot_environment(void) {
     struct limine_bootloader_info_response *bootloader = bootloader_info_request.response;
     if (bootloader != NULL) {
@@ -284,9 +290,11 @@ void kmain(void) {
     serial_write("\nMyOS 0.12.2-dev — x86_64 kernel\n");
     serial_write("--------------------------------\n");
 
+    boot_stage("BOOT ENVIRONMENT");
     report_boot_environment();
     initialise_framebuffer();
 
+    boot_stage("KERNEL SERVICES");
     serial_write("[ok] GDT, TSS and exception IDT installed.\n");
     serial_write("[ok] SYSCALL/SYSRET boundary enabled.\n");
     serial_write("[ok] ACPI S5 poweroff: ");
@@ -307,6 +315,8 @@ void kmain(void) {
     serial_write_hex64(PAGING_KERNEL_HEAP_START);
     serial_write("; guard pages: ");
     serial_write(stack_guard_ready != 0 && heap_guard_ready != 0 ? "active\n" : "degraded\n");
+
+    boot_stage("STORAGE AND RUNTIME");
     serial_write("[ok] Q35 AHCI PCI controller: ");
     serial_write(ahci_ready != 0 ? "detected at 00:" : "unavailable\n");
     if (ahci_ready != 0) {
@@ -353,7 +363,9 @@ void kmain(void) {
     serial_write(keyboard_ready != 0 ? "enabled\n" : "unavailable; serial input remains active\n");
     serial_write("[ok] Bootstrap complete. IRQ0 timer is enabled.\n");
     serial_write("[ok] Framebuffer text console is active; COM1 remains mirrored.\n");
-    serial_write("[next] ring 3 entry, TSS and system-call boundary.\n");
+
+    boot_stage("USER ENVIRONMENT");
+    serial_write("[next] User shell startup path is ready.\n");
 
     const struct shell_context shell_context = {
         .usable_memory_bytes = usable_memory_bytes(),
