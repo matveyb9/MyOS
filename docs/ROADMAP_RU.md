@@ -17,7 +17,7 @@
 |---|---|---|
 | `console-stable` | Неподвижная опорная линия завершённой консольной ОС. | `[x]` `v0.12.1-console` на commit `b6914d4`. |
 | `main` | Основная линия консольной ОС и её поддерживаемой документации. | `[x]` boot UX refinement в `0dbcc25`: stage headers, three-second auto-init и очистка экрана перед user shell. |
-| `gui/bringup` | Изолированная разработка framebuffer GUI. | `[~]` содержит GUI bringup и merge `33294d1` с текущим `main`. |
+| `gui/bringup` | Изолированная разработка framebuffer GUI и дальнейшей user-program platform. | `[~]` GUI scope закрыт preview checkpoint `v0.12.2-gui-preview`; ветка остаётся отдельной от `main` для следующего этапа. |
 
 Версия разработки — **MyOS 0.12.2-dev**. Теги `v0.12.0-console` и `v0.12.1-console` являются историческими неизменяемыми границами и не перемещаются.
 
@@ -72,11 +72,11 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 | 2 | `[x]` | Named persistent `disk/` files | `startgui disk/name` выбирает конкретный path, `N` циклически перебирает existing files, а editor сохраняет выбранный file; BIOS и UEFI readback пройдены. |
 | 3 | `[x]` | Hardware mouse/pointer support | PS/2 IRQ12 packets перемещают pointer, left click фокусирует topmost window, а keyboard controls остаются fallback; BIOS и UEFI tests пройдены. |
 | 4 | `[x]` | GUI reliability pass | BIOS create/save/return/relaunch, UEFI readback/append/save/return и cross-firmware AHCI persistence прошли без регрессии `startgui`. |
-| 5 | `[ ]` | Решение о GUI release boundary | Отдельно оценить readiness GUI и только тогда решить, объединять ли GUI с `main` или выпускать отдельную experimental/stable ветку. |
+| 5 | `[x]` | Решение о GUI release boundary | Принято: immutable `v0.12.2-gui-preview` фиксирует tested GUI scope; `main` и `console-stable` не меняются, а `gui/bringup` продолжает следующий этап. |
 
 ## 5. Ближайший пост-GUI этап: собственные программы и среда разработки
 
-После **решения о GUI release boundary** эта линия становится ближайшим функциональным приоритетом, а не дальним исследованием. Цель — быстро перейти от встроенных программ initramfs к безопасному запуску собственных программ пользователя, затем дать практичный workflow для их создания и первой нативной компиляции в MyOS. GUI не требуется сливать в `main`, чтобы начать эту работу: release decision определяет ветку и scope, а не откладывает development environment на неопределённый срок.
+GUI release decision принят: immutable preview tag фиксирует проверенный framebuffer scope, но не объявляет GUI production-ready и не меняет stable console baseline. Эта линия теперь становится ближайшим функциональным приоритетом, а не дальним исследованием. Цель — быстро перейти от встроенных программ initramfs к безопасному запуску собственных программ пользователя, затем дать практичный workflow для их создания и первой нативной компиляции в MyOS. GUI не требуется сливать в `main`, чтобы начать эту работу: preview checkpoint определяет scope, а `gui/bringup` продолжает development environment без неопределённой паузы.
 
 | Приоритет | Статус | Работа | Критерий завершения |
 |---:|---|---|---|
@@ -115,4 +115,4 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 
 ## Следующее действие
 
-Ближайшее практическое действие — выполнить **оценку GUI release boundary** в `gui/bringup`: уточнить remaining scope, release criteria и policy для возможного merge в `main` либо отдельного experimental/stable выпуска. Сразу после этого начинается priority 1: persistent ELF64 program execution из `disk/bin/`, затем MyOS SDK и первый native build workflow. До отдельного решения GUI не переносится в `main`. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
+Ближайшее практическое действие — начать priority 1: **persistent ELF64 program execution** из `disk/bin/` в `gui/bringup`, затем подготовить MyOS SDK и первый native build workflow. Preview `v0.12.2-gui-preview` не сливается в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
