@@ -10,6 +10,21 @@
 #define MAX_COLUMNS 160U
 #define MAX_ROWS 100U
 #define ANSI_ESC 0x1BU
+#define GUI_WINDOW_COUNT 3U
+#define GUI_WINDOW_SYSTEM 0U
+#define GUI_WINDOW_NOTES 1U
+#define GUI_WINDOW_MONITOR 2U
+
+typedef struct gui_window {
+    uint64_t x;
+    uint64_t y;
+    uint64_t width;
+    uint64_t height;
+    const char *title;
+    const char *line_one;
+    const char *line_two;
+    uint8_t visible;
+} gui_window_t;
 
 typedef struct framebuffer_console {
     volatile uint32_t *pixels;
@@ -33,6 +48,8 @@ typedef struct framebuffer_console {
     uint8_t blue_mask_shift;
     int gui_active;
     uint8_t gui_focus;
+    uint8_t gui_z_order[GUI_WINDOW_COUNT];
+    gui_window_t gui_windows[GUI_WINDOW_COUNT];
     uint64_t gui_pointer_x;
     uint64_t gui_pointer_y;
     int active;
@@ -187,20 +204,137 @@ static void draw_gui_text(uint64_t x, uint64_t y, const char *text, uint32_t col
     }
 }
 
-static void draw_gui_window(uint64_t x, uint64_t y, uint64_t width, uint64_t height,
-                            const char *title, const char *line_one, const char *line_two,
-                            int focused) {
+static void gui_layout_windows(void) {
+    gui_window_t *system_window = &console.gui_windows[GUI_WINDOW_SYSTEM];
+    gui_window_t *notes_window = &console.gui_windows[GUI_WINDOW_NOTES];
+    gui_window_t *monitor_window = &console.gui_windows[GUI_WINDOW_MONITOR];
+
+    system_window->x = 40U;
+    system_window->y = 64U;
+    system_window->width = (console.width * 3U) / 5U;
+    system_window->height = (console.height * 3U) / 5U;
+    system_window->title = "SYSTEM";
+    system_window->line_one = "MYOS GUI BRINGUP";
+    system_window->line_two = "WINDOW MANAGER READY";
+    system_window->visible = 1U;
+
+    notes_window->x = console.width / 4U;
+    notes_window->y = console.height / 4U;
+    notes_window->width = (console.width * 3U) / 5U;
+    notes_window->height = console.height / 2U;
+    notes_window->title = "NOTES";
+    notes_window->line_one = "DEMO APP SURFACE";
+    notes_window->line_two = "NO USER FILE LOADED";
+    notes_window->visible = 1U;
+
+    monitor_window->x = console.width / 2U;
+    monitor_window->y = 96U;
+    monitor_window->width = console.width / 3U;
+    monitor_window->height = console.height / 3U;
+    monitor_window->title = "MONITOR";
+    monitor_window->line_one = "TASKS AND INPUT";
+    monitor_window->line_two = "BOUNDED EVENT LOOP";
+    monitor_window->visible = 1U;
+
+    console.gui_z_order[0] = GUI_WINDOW_NOTES;
+    console.gui_z_order[1] = GUI_WINDOW_MONITOR;
+    console.gui_z_order[2] = GUI_WINDOW_SYSTEM;
+    console.gui_focus = GUI_WINDOW_SYSTEM;
+}
+
+static uint64_t gui_visible_window_count(void) {
+    uint64_t count = 0U;
+
+    for (uint64_t index = 0U; index < GUI_WINDOW_COUNT; index++) {
+        if (console.gui_windows[index].visible != 0U) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static void gui_raise_window(uint8_t window_id) {
+    uint64_t slot;
+
+    if (window_id >= GUI_WINDOW_COUNT || console.gui_windows[window_id].visible == 0U) {
+        return;
+    }
+    for (slot = 0U; slot < GUI_WINDOW_COUNT; slot++) {
+        if (console.gui_z_order[slot] == window_id) {
+            break;
+        }
+    }
+    if (slot == GUI_WINDOW_COUNT) {
+        return;
+    }
+    while (slot + 1U < GUI_WINDOW_COUNT) {
+        console.gui_z_order[slot] = console.gui_z_order[slot + 1U];
+        slot++;
+    }
+    console.gui_z_order[GUI_WINDOW_COUNT - 1U] = window_id;
+    console.gui_focus = window_id;
+}
+
+static void gui_focus_next_window(void) {
+    for (uint64_t offset = 1U; offset <= GUI_WINDOW_COUNT; offset++) {
+        const uint8_t candidate = (uint8_t)((console.gui_focus + offset) % GUI_WINDOW_COUNT);
+
+        if (console.gui_windows[candidate].visible != 0U) {
+            gui_raise_window(candidate);
+            return;
+        }
+    }
+}
+
+static int gui_window_contains(const gui_window_t *window, uint64_t x, uint64_t y) {
+    return window->visible != 0U && x >= window->x && y >= window->y
+        && x - window->x < window->width && y - window->y < window->height;
+}
+
+static void gui_focus_pointer_window(void) {
+    for (uint64_t slot = GUI_WINDOW_COUNT; slot > 0U; slot--) {
+        const uint8_t candidate = console.gui_z_order[slot - 1U];
+
+        if (gui_window_contains(&console.gui_windows[candidate], console.gui_pointer_x,
+                                console.gui_pointer_y) != 0) {
+            gui_raise_window(candidate);
+            return;
+        }
+    }
+    gui_focus_next_window();
+}
+
+static void gui_toggle_window(uint8_t window_id) {
+    if (window_id >= GUI_WINDOW_COUNT) {
+        return;
+    }
+    if (console.gui_windows[window_id].visible == 0U) {
+        console.gui_windows[window_id].visible = 1U;
+        gui_raise_window(window_id);
+        return;
+    }
+    if (gui_visible_window_count() <= 1U) {
+        return;
+    }
+    console.gui_windows[window_id].visible = 0U;
+    if (console.gui_focus == window_id) {
+        gui_focus_next_window();
+    }
+}
+
+static void draw_gui_window(const gui_window_t *window, int focused) {
     const uint32_t border = focused != 0 ? console_rgb(36U, 170U, 224U) : console_rgb(92U, 112U, 138U);
     const uint32_t header = focused != 0 ? console_rgb(36U, 170U, 224U) : console_rgb(54U, 76U, 106U);
     const uint32_t surface = console_rgb(229U, 235U, 243U);
     const uint32_t text = console_rgb(13U, 20U, 34U);
 
-    fill_rect(x, y, width, height, border);
-    fill_rect(x + 2U, y + 2U, width - 4U, height - 4U, surface);
-    fill_rect(x + 2U, y + 2U, width - 4U, 24U, header);
-    draw_gui_text(x + 14U, y + 10U, title, surface);
-    draw_gui_text(x + 16U, y + 48U, line_one, text);
-    draw_gui_text(x + 16U, y + 72U, line_two, text);
+    fill_rect(window->x, window->y, window->width, window->height, border);
+    fill_rect(window->x + 2U, window->y + 2U, window->width - 4U, window->height - 4U, surface);
+    fill_rect(window->x + 2U, window->y + 2U, window->width - 4U, 24U, header);
+    draw_gui_text(window->x + 14U, window->y + 10U, window->title, surface);
+    fill_rect(window->x + window->width - 22U, window->y + 7U, 10U, 10U, surface);
+    draw_gui_text(window->x + 16U, window->y + 48U, window->line_one, text);
+    draw_gui_text(window->x + 16U, window->y + 72U, window->line_two, text);
 }
 
 static void draw_gui_pointer(void) {
@@ -226,21 +360,20 @@ static void redraw_gui_desktop(void) {
     const uint32_t desktop = console_rgb(18U, 31U, 56U);
     const uint32_t top_bar = console_rgb(25U, 54U, 92U);
     const uint32_t text = console_rgb(229U, 235U, 243U);
-    const uint64_t left_x = 40U;
-    const uint64_t top_y = 72U;
-    const uint64_t gap = 24U;
-    const uint64_t left_width = (console.width * 3U) / 5U;
-    const uint64_t right_x = left_x + left_width + gap;
-    const uint64_t right_width = console.width - right_x - 40U;
-    const uint64_t window_height = console.height - top_y - 92U;
 
     fill_rect(0U, 0U, console.width, console.height, desktop);
     fill_rect(0U, 0U, console.width, 32U, top_bar);
     draw_gui_text(16U, 12U, "MYOS DESKTOP", text);
-    draw_gui_window(left_x, top_y, left_width, window_height, "SYSTEM", "MYOS GUI BRINGUP", "FRAMEBUFFER COMPOSITOR", console.gui_focus == 0U);
-    draw_gui_window(right_x, top_y, right_width, window_height, "WORKSPACE", "INTERACTIVE DESKTOP", "FOCUS WITH TAB OR ENTER", console.gui_focus != 0U);
+    for (uint64_t slot = 0U; slot < GUI_WINDOW_COUNT; slot++) {
+        const uint8_t window_id = console.gui_z_order[slot];
+        const gui_window_t *window = &console.gui_windows[window_id];
+
+        if (window->visible != 0U) {
+            draw_gui_window(window, window_id == console.gui_focus);
+        }
+    }
     fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-    draw_gui_text(30U, console.height - 36U, "WASD MOVE  TAB FOCUS  ENTER SELECT  Q EXIT", text);
+    draw_gui_text(30U, console.height - 36U, "WASD MOVE TAB FOCUS 1-3 TOGGLE F POINTER X HIDE Q EXIT", text);
     draw_gui_pointer();
 }
 
@@ -326,6 +459,10 @@ int framebuffer_console_init(const struct limine_framebuffer *framebuffer) {
     console.blue_mask_shift = framebuffer->blue_mask_shift;
     console.gui_active = 0;
     console.gui_focus = 0U;
+    for (uint64_t index = 0U; index < GUI_WINDOW_COUNT; index++) {
+        console.gui_z_order[index] = (uint8_t)index;
+        console.gui_windows[index].visible = 0U;
+    }
     console.gui_pointer_x = 0U;
     console.gui_pointer_y = 0U;
     console.background = rgb(framebuffer, 13U, 20U, 34U);
@@ -415,7 +552,7 @@ int framebuffer_gui_begin(void) {
         return 0;
     }
     console.gui_active = 1;
-    console.gui_focus = 0U;
+    gui_layout_windows();
     console.gui_pointer_x = console.width / 2U;
     console.gui_pointer_y = console.height / 2U;
     redraw_gui_desktop();
@@ -451,7 +588,15 @@ void framebuffer_gui_handle_input(char character) {
         const uint64_t limit = console.width - 11U;
         console.gui_pointer_x = console.gui_pointer_x + step < limit ? console.gui_pointer_x + step : limit;
     } else if (character == '\t' || character == '\n' || character == ' ') {
-        console.gui_focus = console.gui_focus == 0U ? 1U : 0U;
+        gui_focus_next_window();
+    } else if (character == 'f' || character == 'F') {
+        gui_focus_pointer_window();
+    } else if (character >= '1' && character <= '3') {
+        gui_toggle_window((uint8_t)(character - '1'));
+    } else if (character == 'x' || character == 'X') {
+        gui_toggle_window(console.gui_focus);
+    } else if (character == 'r' || character == 'R') {
+        gui_layout_windows();
     } else {
         return;
     }

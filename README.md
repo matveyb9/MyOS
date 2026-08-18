@@ -82,6 +82,7 @@ cat disk/note
 | [Правила документации](docs/DOCUMENTATION_POLICY_RU.md) | Maintainers | What must be updated with every project change. |
 | [Releases and branches](docs/RELEASES_RU.md) | All readers | Meaning of `main`, `console-stable`, tags and GUI branch. |
 | [Documentation index](docs/README.md) | All readers | Current manuals versus historical development notes. |
+| [GUI bring-up manual](docs/GUI_BRINGUP_RU.md) | `gui/bringup` only | Experimental framebuffer desktop controls and validation. |
 
 ## Build and repository actions
 
