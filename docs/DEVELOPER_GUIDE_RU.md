@@ -187,3 +187,7 @@ A normal GitHub publication should push `main`, `console-stable` and the annotat
 This is a console milestone, not a production OS. Current non-goals include networking, USB HID, SMP, IOAPIC routing, NVMe, demand paging, dynamic linker, Unix ABI compatibility, package management, full filesystem semantics, Secure Boot and production security hardening. AHCI is deliberately limited to one bounded sector operation and the known isolated data range.
 
 The next project phase, if resumed, is GUI work in a separate branch. Do not add GUI interfaces or GUI user commands to this console guide or console release branch.
+
+## 10. Documentation maintenance
+
+Documentation changes are part of feature maintenance. Any change to build/run behavior, public shell behavior, ABI, storage layout, host support, branch policy or safety guidance must update the corresponding documentation in the same commit. The authoritative checklist is [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md).
