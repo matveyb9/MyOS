@@ -11,7 +11,7 @@
 | [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md) | Developers | Source tree, kernel architecture, ABI, storage invariants and validation. |
 | [RELEASES_RU.md](RELEASES_RU.md) | Everyone using Git | Branches, tags, console boundary, GUI branch and publication commands. |
 | [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md) | Maintainers | Mandatory same-commit documentation update rules. |
-| [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md) | GUI branch readers | Experimental native framebuffer desktop, controls and validation; available only on `gui/bringup`. |
+| [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md) | `gui/bringup` users | Experimental framebuffer GUI, VFS viewer, note editor and GUI roadmap. |
 
 ## How to choose a guide
 
@@ -21,8 +21,8 @@
 | «Как установить инструменты на Windows/macOS/Linux?» | `PLATFORMS_RU.md`. |
 | «Как устроены kernel, syscall или filesystem?» | `DEVELOPER_GUIDE_RU.md`. |
 | «Почему есть несколько branches?» | `RELEASES_RU.md`. |
+| «Как пользоваться experimental GUI?» | `GUI_BRINGUP_RU.md` после перехода на `gui/bringup`. |
 | «Как не допустить устаревшей документации?» | `DOCUMENTATION_POLICY_RU.md`. |
-| «Как запустить экспериментальный GUI?» | Switch to `gui/bringup`, then read `GUI_BRINGUP_RU.md`. |
 
 ## Historical development notes
 
