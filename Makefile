@@ -18,6 +18,7 @@ USER_GREP      := $(USER_BUILD_DIR)/grep
 USER_EDIT      := $(USER_BUILD_DIR)/edit
 USER_STARTGUI  := $(USER_BUILD_DIR)/startgui
 USER_INSTALL   := $(USER_BUILD_DIR)/install
+USER_ASM       := $(USER_BUILD_DIR)/asm
 SDK_HELLO      := $(BUILD_DIR)/sdk/sdk-hello.elf
 USER_MOTD      := user/motd.txt
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
@@ -137,13 +138,18 @@ $(USER_INSTALL): user/install.c user/linker.ld include/syscall.h
 	$(CC) $(USER_CFLAGS) -c user/install.c -o $(USER_BUILD_DIR)/install.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/install.o -o $@
 
+$(USER_ASM): user/asm.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/asm.c -o $(USER_BUILD_DIR)/asm.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/asm.o -o $@
+
 $(SDK_HELLO): sdk/examples/hello.c sdk/Makefile sdk/lib/crt0.c sdk/include/myos.h sdk/myos-user.ld
 	$(MAKE) -C sdk APP=$(abspath sdk/examples/hello.c) OUT=$(abspath $@)
 
 sdk-stage: $(SDK_HELLO)
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_STARTGUI) $(USER_INSTALL) $(SDK_HELLO) $(USER_MOTD) tools/mkcpio.py Makefile
-	python3 tools/mkcpio.py $@ system/core/apps/init.elf $(USER_INIT) system/core/apps/hello.elf $(USER_HELLO) system/core/apps/sleeper.elf $(USER_SLEEPER) system/core/apps/orphaner.elf $(USER_ORPHANER) system/core/apps/safety.elf $(USER_SAFETY) system/core/apps/argshow.elf $(USER_ARGSHOW) system/core/apps/calc.elf $(USER_CALC) system/core/apps/pipewrite.elf $(USER_PIPEWRITE) system/core/apps/piperead.elf $(USER_PIPEREAD) system/core/apps/wc.elf $(USER_WC) system/core/apps/grep.elf $(USER_GREP) system/core/apps/edit.elf $(USER_EDIT) system/core/apps/startgui.elf $(USER_STARTGUI) system/core/apps/install.elf $(USER_INSTALL) system/core/examples/sdk/hello.elf $(SDK_HELLO) system/core/resources/motd.txt $(USER_MOTD)
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_STARTGUI) $(USER_INSTALL) $(USER_ASM) $(SDK_HELLO) $(USER_MOTD) tools/mkcpio.py Makefile
+	python3 tools/mkcpio.py $@ system/core/apps/init.elf $(USER_INIT) system/core/apps/hello.elf $(USER_HELLO) system/core/apps/sleeper.elf $(USER_SLEEPER) system/core/apps/orphaner.elf $(USER_ORPHANER) system/core/apps/safety.elf $(USER_SAFETY) system/core/apps/argshow.elf $(USER_ARGSHOW) system/core/apps/calc.elf $(USER_CALC) system/core/apps/pipewrite.elf $(USER_PIPEWRITE) system/core/apps/piperead.elf $(USER_PIPEREAD) system/core/apps/wc.elf $(USER_WC) system/core/apps/grep.elf $(USER_GREP) system/core/apps/edit.elf $(USER_EDIT) system/core/apps/startgui.elf $(USER_STARTGUI) system/core/apps/install.elf $(USER_INSTALL) system/core/apps/asm.elf $(USER_ASM) system/core/examples/sdk/hello.elf $(SDK_HELLO) system/core/resources/motd.txt $(USER_MOTD)
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)

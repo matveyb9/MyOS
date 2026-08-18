@@ -186,9 +186,25 @@ run sdk-hello external SDK validation
 run sdk-hello persisted
 ```
 
-SDK собирает собственные freestanding C11 programs на host computer. Подробный workflow, ABI и linker contract приведены в [SDK_RU.md](SDK_RU.md). Нативная сборка непосредственно внутри MyOS является следующим отдельным milestone.
+SDK собирает собственные freestanding C11 programs на host computer. Подробный workflow, ABI и linker contract приведены в [SDK_RU.md](SDK_RU.md). Для первого in-OS workflow используйте restricted assembler из следующего раздела; более богатый native C frontend остаётся последующим milestone.
 
-## 8. Experimental GUI
+## 8. Native build прямо в MyOS
+
+Первый native build workflow использует restricted assembler и command `build`. Source хранится в `/users/myos/projects/`, generated ELF остаётся рядом с source, а для запуска program устанавливается в global package `/apps/<name>/main.elf`.
+
+```text
+mkdir /users/myos/projects/native
+write /users/myos/projects/native/hello.mya write "Hello from MyOS native build\n"; exit 37
+build /users/myos/projects/native/hello.mya /users/myos/projects/native/hello.elf
+install /users/myos/projects/native/hello.elf /apps/native-hello/main.elf
+run native-hello
+```
+
+Source language currently supports `write "text"` and final `exit <0..255>`. Escapes `\n`, `\r`, `\t`, `\\` and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` for the command summary and [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) for all bounds and syntax rules.
+
+> Project ELF files are intentionally not directly runnable. The loader accepts installed user applications only from `/apps/<name>/main.elf`, so `install` remains the explicit package boundary.
+
+## 9. Experimental GUI
 
 GUI доступен только в ветке `gui/bringup` и запускается из console, а не автоматически:
 
@@ -204,7 +220,7 @@ startgui /users/myos/files/notes/note
 
 `Q` или `Esc` вне editor закрывает GUI session и возвращает в тот же user shell. Полное описание controls, notes editor и известных границ находится в [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md).
 
-## 9. UEFI и ISO
+## 10. UEFI и ISO
 
 ISO подходит для простого boot test, но не предназначен для persistent data workflow:
 
@@ -224,7 +240,7 @@ qemu-system-x86_64 \
   -boot c
 ```
 
-## 10. Запись на USB-флешку
+## 11. Запись на USB-флешку
 
 Для физического компьютера используйте **`myos.img`**, а не ISO. Образ содержит GPT, BIOS boot partition, EFI partition и MYPFS004 data partition.
 
@@ -240,8 +256,8 @@ qemu-system-x86_64 \
 
 > `dd` полностью удаляет содержимое выбранного устройства. Неверный `/dev/sdX` может уничтожить данные на системном или внешнем диске. Не выполняйте эту команду, если не уверены в имени носителя.
 
-## 11. Ограничения текущей линии
+## 12. Ограничения текущей линии
 
-MyOS не является заменой Linux, Windows или BSD. В `gui/bringup` пока нет сети, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, полноценного native compiler или production security hardening. GUI остаётся bounded framebuffer environment, а не general-purpose desktop.
+MyOS не является заменой Linux, Windows или BSD. В `gui/bringup` пока нет сети, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, полноценного native C compiler или production security hardening. Restricted native assembler реализован, но GUI остаётся bounded framebuffer environment, а не general-purpose desktop.
 
 Если сборка или запуск не работают, выполните `make clean`, затем `make all img` и повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).

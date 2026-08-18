@@ -4,7 +4,7 @@
 
 **MyOS SDK** предоставляет минимальный, воспроизводимый путь для сборки собственных пользовательских программ MyOS на хост-компьютере. SDK создаёт статический исполняемый файл `x86_64 ELF64 ET_EXEC`, который загружается в ring 3 по адресу `0x400000` и не требует изменения или пересборки исходного кода ядра.
 
-На данном milestone SDK преднамеренно остаётся компактным: он не содержит POSIX, динамический linker, стандартную C-библиотеку или native compiler внутри MyOS. Это внешний workflow для freestanding C11 с прямым использованием небольшой публичной syscall ABI.
+На данном milestone SDK преднамеренно остаётся компактным: он не содержит POSIX, динамический linker, стандартную C-библиотеку или native C compiler внутри MyOS. Restricted native assembler `asm`/`build` уже доступен как отдельный in-OS workflow, но SDK остаётся внешним путём для freestanding C11 с прямым использованием небольшой публичной syscall ABI.
 
 | Компонент | Путь | Назначение |
 |---|---|---|
@@ -90,7 +90,7 @@ run sdk-hello external SDK validation
 
 Путь `sdk/examples/hello.c` является обычным исходным файлом SDK. Его можно изменить или указать другой файл с `APP`; например, `make -C sdk APP=apps/status.c OUT=sdk/build/status.elf`. Для воспроизводимой проверки reference image собирает sample в `/system/core/examples/sdk/hello.elf`. Замените sample source, затем запустите `make img`, чтобы обновлённый ELF оказался по этому пути, после чего используйте `install /system/core/examples/sdk/hello.elf /apps/<name>/main.elf` и `run <name>`.
 
-MYPFS004 предоставляет настоящую файловую иерархию и dynamic multi-extent regular files: исходники и local build outputs предназначены для `/users/myos/projects/`, global installed apps — для `/apps/`, а personal data и configuration — для `/users/myos/data/` и `/users/myos/config/`. Нативная сборка исходников прямо в MyOS остаётся следующим самостоятельным milestone.
+MYPFS004 предоставляет настоящую файловую иерархию и dynamic multi-extent regular files: исходники и local build outputs предназначены для `/users/myos/projects/`, global installed apps — для `/apps/`, а personal data и configuration — для `/users/myos/data/` и `/users/myos/config/`. Первый in-OS assembly workflow реализован через `build`; его restricted syntax и package workflow приведены в [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md).
 
 ## Проверка milestone
 

@@ -152,11 +152,11 @@ Build system продолжает помещать base user programs в initram
 
 Current separate persistent/tmpfs syscall families are replaced by unified path operations: lookup/stat, list directory, create file, create directory, write file, remove object and rename object. The current `vfs_get_entry(index)` flat enumeration becomes directory-scoped list semantics. Kernel owns source selection, read-only mount policy and object-type validation; user programs must not choose an underlying storage provider based on a `disk/` or `tmp/` prefix.
 
-The initial release exposes regular files and directories through bounded syscalls. Symbolic-link creation/readlink is postponed; runtime objects are read-only. New shell commands must use ordinary absolute paths: `list`, `make-dir`, `touch`, `write`, `remove`, `run`, `install`, `startgui` and `edit`. Their final spellings remain a shell UX decision, but all must route through the unified VFS API.
+The initial release exposes regular files and directories through bounded syscalls. Symbolic-link creation/readlink is postponed; runtime objects are read-only. New shell commands must use ordinary absolute paths: `list`, `make-dir`, `touch`, `write`, `remove`, `build`, `run`, `install`, `startgui` and `edit`. Their final spellings remain a shell UX decision, but all must route through the unified VFS API.
 
 ## 10. Deferred work
 
-Personal app installation, actual login/accounts and permissions, hard links, GUI shortcuts, external mountable volumes, raw device access, writable runtime controls, Unicode naming and native compiler support remain intentionally outside the current hierarchy release. MYPFS004 multi-extent allocation is implemented; its limits, migration contract and validation record are in [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md).
+Personal app installation, actual login/accounts and permissions, hard links, GUI shortcuts, external mountable volumes, raw device access, writable runtime controls, Unicode naming and a full native C compiler remain intentionally outside the current hierarchy release. Restricted native assembly source and its project-to-package workflow are implemented; see [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md). MYPFS004 multi-extent allocation is implemented; its limits, migration contract and validation record are in [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md).
 
 ## References
 

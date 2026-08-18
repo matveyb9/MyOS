@@ -13,6 +13,7 @@
 | [ROADMAP_RU.md](ROADMAP_RU.md) | Everyone following development | Completed milestones, current GUI work, priorities and deferred research. |
 | [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md) | Maintainers | Mandatory same-commit documentation update rules. |
 | [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md) | `gui/bringup` users | Experimental framebuffer GUI, VFS viewer, note editor and GUI roadmap. |
+| [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) | User-program authors | Restricted in-MyOS assembler, project-to-package workflow, bounds and validation. |
 
 ## How to choose a guide
 
@@ -24,6 +25,7 @@
 | «Почему есть несколько branches?» | `RELEASES_RU.md`. |
 | «Что уже завершено и что будет дальше?» | `ROADMAP_RU.md`. |
 | «Как пользоваться experimental GUI?» | `GUI_BRINGUP_RU.md` после перехода на `gui/bringup`. |
+| «Как написать и собрать первую программу прямо в MyOS?» | `NATIVE_BUILD_RU.md`. |
 | «Как не допустить устаревшей документации?» | `DOCUMENTATION_POLICY_RU.md`. |
 
 ## Historical development notes

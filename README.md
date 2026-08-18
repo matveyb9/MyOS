@@ -13,7 +13,8 @@
 | Processes | Ring 3, ELF loader, scheduler, `wait`, `kill`, `sleep`, arguments и pipes. |
 | Console | Kernel shell, user shell, improved onboarding, history, Tab completion, signed `calc`, `clear` и environment variables. |
 | Files | Unified MYPFS004 root: read-only `/system/core`, persistent `/system/data`, `/apps`, `/users/myos`, RAM `/temp` и read-only runtime `/system/live`; regular files до 8 MiB. |
-| Utilities | `calc`, `wc`, `grep`, `edit`, `hello`, `sleeper`, `argshow` и другие. |
+| Utilities | `calc`, `wc`, `grep`, `edit`, `asm`, `hello`, `sleeper`, `argshow` и другие. |
+| Native build | `build <source.mya> <output.elf>` creates a bounded native x86_64 ELF in `/users/myos/projects/`; `install` packages it under `/apps/<name>/main.elf`. |
 
 ## Быстрый старт
 
@@ -86,6 +87,7 @@ cat /users/myos/files/note.txt
 | [Filesystem specification](docs/FILESYSTEM_SPEC_RU.md) | Users and contributors | Unified root layout, path contract and runtime projection. |
 | [MYPFS004 storage](docs/MYPFS004_STORAGE_RU.md) | Users and contributors | 8 MiB dynamic multi-extent persistent storage and migration contract. |
 | [MyOS SDK](docs/SDK_RU.md) | User-program authors | External freestanding C11 build and persistent ELF workflow. |
+| [Native build guide](docs/NATIVE_BUILD_RU.md) | User-program authors | In-MyOS restricted assembler, source syntax and project-to-package workflow. |
 
 ## Build and repository actions
 

@@ -191,7 +191,7 @@ A normal GitHub publication should push `main`, `console-stable` and the annotat
 
 This is a console milestone, not a production OS. Current non-goals include networking, USB HID, SMP, IOAPIC routing, NVMe, demand paging, dynamic linker, Unix ABI compatibility, package management, full filesystem semantics, Secure Boot and production security hardening. AHCI is deliberately limited to one bounded sector operation and the known isolated data range.
 
-The next project phase is native build capability inside MyOS, starting with a compact assembler or restricted C compiler. Do not merge GUI, MYPFS004 or native-toolchain work into `main` or `console-stable` without an explicit release decision.
+The first native build milestone is complete: `asm` emits a bounded one-segment x86_64 `ET_EXEC` from `.mya` source, and shell `build` provides the project workflow. The next project phase is restricted toolchain expansion: labels/control flow, richer syscall support, a multi-line editor and a small linker before any C frontend. Do not merge GUI, MYPFS004 or native-toolchain work into `main` or `console-stable` without an explicit release decision.
 
 ## 10. Documentation maintenance
 

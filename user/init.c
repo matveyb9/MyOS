@@ -365,7 +365,7 @@ static void environment_expand(const char *source, char *destination, uint64_t c
 static int built_in_program(const char *name) {
     static const char *const names[] = {
         "init", "hello", "sleeper", "orphaner", "safety", "argshow", "calc", "pipewrite",
-        "piperead", "wc", "grep", "edit", "startgui", "install"
+        "piperead", "wc", "grep", "edit", "startgui", "install", "asm"
     };
 
     for (uint64_t index = 0U; index < sizeof(names) / sizeof(names[0]); index++) {
@@ -425,6 +425,12 @@ static void command_help(const char *topic) {
         write_text("Uses signed 64-bit integers; division truncates toward zero.\n");
         return;
     }
+    if (text_equal(topic, "asm")) {
+        write_text("run asm <source.mya> <output.elf>\n");
+        write_text("Source statements: write \"text\"; exit <0..255>\n");
+        write_text("Use absolute paths; escape \\n, \\r, \\t, \\\\ and \\\" inside text.\n");
+        return;
+    }
     if (topic[0] != '\0') {
         write_text("No detailed help for: ");
         write_text(topic);
@@ -434,6 +440,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; run <program-or-absolute-path> [arguments]\n");
+    write_text("Native: build <source.mya> <output.elf>; help asm for source syntax\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -925,6 +932,30 @@ static void command_install(const char *argument) {
     (void)run_foreground(program, 1);
 }
 
+static void command_build(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "asm";
+    uint64_t length = 3U;
+
+    if (argument[0] == '\0') {
+        write_text("Usage: build <source.mya> <output.elf>\n");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Build command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Build command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 1);
+}
+
 static void command_calc(const char *argument) {
     char program[USER_LINE_CAPACITY] = "calc";
     uint64_t length = 4U;
@@ -1054,6 +1085,8 @@ static void execute_command(char *line) {
         command_spawn(argument);
     } else if (text_equal(line, "install")) {
         command_install(argument);
+    } else if (text_equal(line, "build")) {
+        command_build(argument);
     } else if (text_equal(line, "pipe")) {
         command_pipe(argument);
     } else if (text_equal(line, "wait")) {
