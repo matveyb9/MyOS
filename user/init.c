@@ -1021,7 +1021,8 @@ void _start(void) __attribute__((noreturn));
 void _start(void) {
     char line[USER_LINE_CAPACITY];
 
-    write_text("\n+----------------------------------------------+\n");
+    write_text("\x1B[2J\x1B[H");
+    write_text("+----------------------------------------------+\n");
     write_text("| MYOS USER SHELL 0.12.2-dev                  |\n");
     write_text("| Ready. Type help for available commands.    |\n");
     write_text("| Tab: complete   |  Up/Down: history         |\n");
