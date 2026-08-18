@@ -1047,9 +1047,9 @@ void _start(void) {
     char line[USER_LINE_CAPACITY];
 
     write_text("\n+----------------------------------------------+\n");
-    write_text("| MyOS user shell 0.12.2-dev                  |\n");
-    write_text("| help: commands  |  help calc: arithmetic    |\n");
-    write_text("| Tab: complete   |  Up/Down: history          |\n");
+    write_text("| MYOS USER SHELL 0.12.2-dev                  |\n");
+    write_text("| Ready. Type help for available commands.    |\n");
+    write_text("| Tab: complete   |  Up/Down: history         |\n");
     write_text("+----------------------------------------------+\n");
     for (;;) {
         write_text("[myos]$ ");

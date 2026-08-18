@@ -61,7 +61,7 @@ qemu-system-x86_64 \
   -boot c
 ```
 
-MyOS automatically enters the `[myos]$` user shell after a three-second countdown. Press `K` during that countdown to remain at `myos>` diagnostic kernel shell, where `init` still starts the user shell manually.
+MyOS automatically enters the `[myos]$` user shell after a three-second countdown. Press `K` during that countdown to remain at the `kernel>` diagnostic shell, where `init` still starts the user shell manually.
 
 ### Run UEFI/OVMF
 
