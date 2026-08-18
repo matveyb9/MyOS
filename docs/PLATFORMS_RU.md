@@ -20,16 +20,16 @@
 On every platform, first obtain the project and enter its root:
 
 ```bash
-git clone <URL-вашего-репозитория> myos
+git clone https://github.com/matveyb9/MyOS.git myos
 cd myos
 ```
 
-If you downloaded a full ZIP, unpack it and open its root (`myos-complete-project`). The full ZIP already contains `.git`; check the project state with:
+If you downloaded a GitHub ZIP archive, unpack it and open its root. ZIP contains source only: it does **not** contain `.git`, branch references or tags. Use `git clone` when you need branch selection, history or future `git pull` updates.
+
+The published default branch is the console-maintenance `main`. To build the current GUI development line after cloning, select it explicitly:
 
 ```bash
-git branch
-git tag
-git status
+git switch gui/bringup
 ```
 
 For every verified path, the main build command is:
@@ -113,8 +113,9 @@ Restart when Windows asks. Then open the Ubuntu application from the Start menu,
 sudo apt update
 sudo apt install build-essential nasm xorriso mtools gdisk qemu-system-x86 ovmf git
 cd ~
-git clone <URL-вашего-репозитория> myos
+git clone https://github.com/matveyb9/MyOS.git myos
 cd myos
+git switch gui/bringup
 make all img
 ```
 

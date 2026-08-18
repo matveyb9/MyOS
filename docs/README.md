@@ -1,6 +1,6 @@
 # Документация MyOS
 
-`README.md` в корне repository — короткая главная страница проекта: описание, basic build/run commands and links. Все подробные материалы находятся в этой папке.
+[`README.md`](../README.md) в корне public repository [`matveyb9/MyOS`](https://github.com/matveyb9/MyOS) — короткая главная страница проекта: scope, branch selection, basic build/run commands and links. Все подробные материалы находятся в этой папке.
 
 ## Актуальная документация
 
@@ -12,7 +12,10 @@
 | [RELEASES_RU.md](RELEASES_RU.md) | Everyone using Git | Branches, tags, console boundary, GUI branch and publication commands. |
 | [ROADMAP_RU.md](ROADMAP_RU.md) | Everyone following development | Completed milestones, current GUI work, priorities and deferred research. |
 | [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md) | Maintainers | Mandatory same-commit documentation update rules. |
-| [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md) | `gui/bringup` users | Experimental framebuffer GUI, VFS viewer, note editor and GUI roadmap. |
+| [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md) | `gui/bringup` users | Experimental framebuffer GUI, VFS viewer, note editor, cursor-only pointer refresh and GUI validation. |
+| [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md) | Users and contributors | Unified root layout, absolute-path contract and runtime projection. |
+| [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md) | Users and contributors | 8 MiB dynamic multi-extent persistent storage and migration contract. |
+| [SDK_RU.md](SDK_RU.md) | User-program authors | External freestanding C11 build and persistent ELF package workflow. |
 | [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) | User-program authors | Restricted in-MyOS assembler, project-to-package workflow, bounds and validation. |
 
 ## How to choose a guide
@@ -21,7 +24,7 @@
 |---|---|
 | «Как запустить MyOS?» | `../README.md`, then `USER_GUIDE_RU.md`. |
 | «Как установить инструменты на Windows/macOS/Linux?» | `PLATFORMS_RU.md`. |
-| «Как устроены kernel, syscall или filesystem?» | `DEVELOPER_GUIDE_RU.md`. |
+| «Как устроены kernel, syscall или filesystem?» | `DEVELOPER_GUIDE_RU.md`, затем `FILESYSTEM_SPEC_RU.md` и `MYPFS004_STORAGE_RU.md`. |
 | «Почему есть несколько branches?» | `RELEASES_RU.md`. |
 | «Что уже завершено и что будет дальше?» | `ROADMAP_RU.md`. |
 | «Как пользоваться experimental GUI?» | `GUI_BRINGUP_RU.md` после перехода на `gui/bringup`. |

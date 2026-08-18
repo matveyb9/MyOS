@@ -2,30 +2,32 @@
 
 **MyOS** — экспериментальная операционная система для **x86_64**, написанная с нуля на freestanding C11 и x86_64 NASM. Limine используется только как текущий bootloader; ядро, memory management, scheduler, ring-3 processes, shell, filesystem и drivers реализованы в этом repository.
 
-> Последний стабильный console release зафиксирован тегом [`v0.12.1-console`](docs/RELEASES_RU.md). Исходный completion point [`v0.12.0-console`](docs/RELEASES_RU.md) сохранён неизменяемым; GUI-разработка хранится отдельно в `gui/bringup` и не является частью console release.
+> Исходный код и полная Git history опубликованы в [`matveyb9/MyOS`](https://github.com/matveyb9/MyOS). Последний стабильный console release зафиксирован тегом [`v0.12.1-console`](docs/RELEASES_RU.md); исходный completion point [`v0.12.0-console`](docs/RELEASES_RU.md) остаётся неизменяемым. Актуальная GUI, MYPFS004 и native-build development line находится в отдельной ветке `gui/bringup` и пока не является stable GUI release.
 
 ## Что готово
 
-| Область | Возможности console release |
+| Область | Текущее состояние `gui/bringup` |
 |---|---|
 | Загрузка | BIOS и UEFI/OVMF в QEMU; `myos.iso` и raw GPT `myos.img`. |
-| Kernel | GDT, IDT, TSS, PMM, paging, heap, PIT, PS/2 keyboard, RTC, ACPI, PCI и AHCI. |
+| Kernel | GDT, IDT, TSS, PMM, paging, heap, PIT, PS/2 keyboard/mouse, RTC, ACPI, PCI и AHCI. |
 | Processes | Ring 3, ELF loader, scheduler, `wait`, `kill`, `sleep`, arguments и pipes. |
 | Console | Kernel shell, user shell, improved onboarding, history, Tab completion, signed `calc`, `clear` и environment variables. |
 | Files | Unified MYPFS004 root: read-only `/system/core`, persistent `/system/data`, `/apps`, `/users/myos`, RAM `/temp` и read-only runtime `/system/live`; regular files до 8 MiB. |
-| Utilities | `calc`, `wc`, `grep`, `edit`, `asm`, `hello`, `sleeper`, `argshow` и другие. |
-| Native build | `build <source.mya> <output.elf>` creates a bounded native x86_64 ELF in `/users/myos/projects/`; `install` packages it under `/apps/<name>/main.elf`. |
+| GUI | Framebuffer desktop, `SYSTEM`/`NOTES`/`MONITOR` windows, cursor-aware note editor, PS/2 pointer, cursor-only movement refresh и return to shell. |
+| Native development | SDK для host-built freestanding C11 apps, persistent `install`/`run`, and bounded in-OS `asm`/`build` workflow. |
 
 ## Быстрый старт
 
 ### 1. Получите исходники
 
 ```bash
-git clone <URL-вашего-репозитория> myos
+git clone https://github.com/matveyb9/MyOS.git myos
 cd myos
+# Для актуальной GUI development line:
+git switch gui/bringup
 ```
 
-Если project был получен как ZIP, распакуйте его и откройте каталог `myos-complete-project` в терминале.
+Если project был получен как ZIP, распакуйте его, откройте корневой каталог репозитория в терминале и помните: ZIP не содержит Git history, branches и tags.
 
 ### 2. Соберите artifacts
 
@@ -112,11 +114,11 @@ cat /users/myos/files/note.txt
 | `console-stable` | Latest reviewed console release baseline (`v0.12.1-console`). |
 | `v0.12.1-console` | Immutable annotated tag for the refreshed console UX release. |
 | `v0.12.0-console` | Immutable original console completion tag, preserved for history. |
-| `gui/bringup` | Separate GUI experiment branch. |
+| `gui/bringup` | Актуальная GUI development branch: MYPFS004, SDK, native `asm`/`build` и GUI hardening. Она не является stable GUI release. |
 
 ## Current limits
 
-MyOS is an educational experimental OS, not a production desktop OS. The console release does not yet provide networking, USB HID, SMP, Secure Boot, demand paging, a general-purpose filesystem, package management or production security hardening.
+MyOS is an educational experimental OS, not a production desktop OS. Current GUI development still does not provide networking, USB HID, SMP, Secure Boot, demand paging, dynamic linking, package management, a full native C compiler, physical-PC release validation or production security hardening.
 
 ## Documentation maintenance promise
 
