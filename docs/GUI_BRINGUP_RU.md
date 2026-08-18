@@ -1,6 +1,6 @@
 # GUI bring-up: native framebuffer desktop
 
-Этот документ описывает **экспериментальный GUI** только для ветки `gui/bringup`. Он не входит в console release `v0.12.0-console` и не изменяет назначение веток `main` или `console-stable`. GUI остаётся нативным x86_64-компонентом MyOS: он рисуется непосредственно в RGB framebuffer, без web runtime, внешнего graphical toolkit или dynamic memory allocation.
+Этот документ описывает **экспериментальный GUI** только для ветки `gui/bringup`. Он не входит в стабильный console release `v0.12.1-console` и не изменяет назначение веток `main` или `console-stable`. GUI остаётся нативным x86_64-компонентом MyOS: он рисуется непосредственно в RGB framebuffer, без web runtime, внешнего graphical toolkit или dynamic memory allocation.
 
 ## Запуск
 
@@ -15,10 +15,9 @@ qemu-system-x86_64 \
   -boot c
 ```
 
-После kernel prompt нужно запустить user shell, а затем graphical viewer. Без аргумента viewer загружает `motd.txt`; необязательный аргумент задаёт путь к читаемому VFS file.
+После kernel bootstrap MyOS автоматически запускает user shell через три секунды. Нажмите `K` во время countdown, если нужна diagnostic kernel shell; в этом случае `init` сохраняется как ручной запуск user shell. Затем запустите graphical viewer. Без аргумента viewer загружает `motd.txt`; необязательный аргумент задаёт путь к читаемому VFS file.
 
 ```text
-init
 startgui
 # либо: startgui disk/note
 ```
@@ -95,19 +94,17 @@ startgui
 
 Screenshots и краткие test findings находятся вне source tree в локальном `/home/ubuntu/myos-note-validation/`; они не входят в Git commit.
 
-## Ближайшая roadmap: automatic user-space initialization
+## Boot UX, унаследованный из main
 
-В текущем bring-up варианте пользователь вручную вводит `init`, чтобы запустить `/init`. Это полезно для ранней диагностики, но не является удобным нормальным startup path. Следующий boot UX milestone добавит automatic user-space initialization после короткого обратного отсчёта, сохранив явный и безопасный путь в kernel shell.
+Automatic user-space initialization теперь реализована и интегрирована в GUI branch. После bootstrap kernel выводит трёхсекундный countdown; при отсутствии отмены он запускает `/init`, а затем можно сразу вызвать `startgui`. Это сохраняет быстрый normal path и отдельный диагностический режим без запуска GUI.
 
-| Сценарий после загрузки | Запланированное поведение |
+| Сценарий после загрузки | Реализованное поведение |
 |---|---|
-| Обычная загрузка | Kernel выводит заметный countdown и автоматически запускает `/init` через **3 секунды**. |
-| Отмена | Нажатие `K` во время countdown отменяет auto-init; введённый символ не передаётся будущей user shell. |
-| Kernel shell | После `K` система остаётся в диагностической kernel shell. Команда `init` сохраняется как ручной запуск `/init`. |
-| Неудача init | Если automatic spawn `/init` недоступен или завершается ошибкой, kernel печатает diagnostics и остаётся в kernel shell без цикла повторных запусков. |
-| Input source | Cancel key должен работать через существующие PS/2 keyboard и serial console input paths. |
-| Проверка | BIOS и UEFI должны подтвердить auto-init, `K` cancellation, ручной `init` после cancellation и fallback при ошибке. |
+| Обычная загрузка | Kernel выводит countdown и автоматически запускает `/init` через **3 секунды**. |
+| Отмена | Нажатие `K` во время countdown отменяет auto-init; cancel key не передаётся user shell. |
+| Kernel shell | После `K` система остаётся в diagnostic kernel shell. Команда `init` вручную запускает ту же user shell. |
+| Неудача init | Если `/init` отсутствует или automatic loading не проходит, kernel выводит diagnostics и остаётся в kernel shell без retry loop. |
+| Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
+| Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot прошли на QEMU Q35. |
 
-> Клавиша `K` выбрана как явный, отображаемый и доступный в нынешнем character-based input path способ перейти к kernel shell. При реализации можно добавить `Esc` как эквивалентную удобную альтернативу, только если это не ухудшит надёжность обработки escape sequences.
-
-После этого boot milestone следующими GUI направлениями останутся cursor-aware editor with scrolling, named `disk/` files и аппаратная mouse/pointer support. Все они должны сохранить отдельную GUI branch до отдельного решения о merge или release.
+После boot UX milestone следующими GUI направлениями остаются cursor-aware editor with scrolling, named `disk/` files и аппаратная mouse/pointer support. Они должны сохранять отдельную GUI branch до отдельного решения о merge или release.
