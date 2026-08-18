@@ -37,6 +37,16 @@
 #define MYOS_GUI_END UINT64_C(2)
 #define MYOS_GUI_SET_CONTENT UINT64_C(3)
 
+#define MYOS_GUI_CONTENT_FLAG_EDITABLE UINT64_C(1)
+
+#define MYOS_INPUT_KEY_LEFT UINT8_C(0x80)
+#define MYOS_INPUT_KEY_RIGHT UINT8_C(0x81)
+#define MYOS_INPUT_KEY_UP UINT8_C(0x82)
+#define MYOS_INPUT_KEY_DOWN UINT8_C(0x83)
+#define MYOS_INPUT_KEY_DELETE UINT8_C(0x84)
+#define MYOS_INPUT_KEY_HOME UINT8_C(0x85)
+#define MYOS_INPUT_KEY_END UINT8_C(0x86)
+
 #define MYOS_EXIT_STATUS_KILLED UINT64_C(137)
 
 #define MYOS_TASK_SLOT_COUNT UINT64_C(16)
@@ -99,6 +109,9 @@ struct myos_vfs_read_request {
 
 struct myos_gui_content_request {
     uint64_t length;
+    uint64_t flags;
+    uint64_t cursor;
+    uint64_t viewport;
     char title[MYOS_GUI_CONTENT_TITLE_MAX];
     uint8_t data[MYOS_GUI_CONTENT_MAX];
 };

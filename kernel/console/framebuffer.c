@@ -4,6 +4,7 @@
 #include <limine.h>
 
 #include <framebuffer.h>
+#include <syscall.h>
 
 #define CELL_WIDTH 8U
 #define CELL_HEIGHT 8U
@@ -55,6 +56,9 @@ typedef struct framebuffer_console {
     char gui_content_title[GUI_CONTENT_TITLE_MAX];
     uint8_t gui_content[GUI_CONTENT_MAX];
     uint64_t gui_content_length;
+    uint64_t gui_content_flags;
+    uint64_t gui_content_cursor;
+    uint64_t gui_content_viewport;
     uint64_t gui_pointer_x;
     uint64_t gui_pointer_y;
     int active;
@@ -231,6 +235,18 @@ static void gui_reset_content(void) {
         console.gui_content[index] = (uint8_t)default_content[index];
     }
     console.gui_content_length = index;
+    console.gui_content_flags = 0U;
+    console.gui_content_cursor = 0U;
+    console.gui_content_viewport = 0U;
+}
+
+static uint64_t gui_content_line_start(uint64_t position) {
+    uint64_t start = position > console.gui_content_length ? console.gui_content_length : position;
+
+    while (start != 0U && console.gui_content[start - 1U] != (uint8_t)'\n') {
+        start--;
+    }
+    return start;
 }
 
 static void draw_gui_content(const gui_window_t *window, uint32_t colour) {
@@ -239,17 +255,27 @@ static void draw_gui_content(const gui_window_t *window, uint32_t colour) {
     const uint64_t first_x = x;
     const uint64_t limit_x = window->x + window->width - 16U;
     const uint64_t limit_y = window->y + window->height - 12U;
+    uint64_t index = console.gui_content_viewport;
 
-    for (uint64_t index = 0U; index < console.gui_content_length && y < limit_y; index++) {
-        char character = (char)console.gui_content[index];
+    if (index > console.gui_content_length) {
+        index = console.gui_content_length;
+    }
+    index = gui_content_line_start(index);
+    while (y < limit_y) {
+        const int caret_here = (console.gui_content_flags & MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U
+            && index == console.gui_content_cursor;
 
-        if (character == '\n') {
+        if (caret_here != 0) {
+            fill_rect(x, y, 2U, 8U, console_rgb(36U, 170U, 224U));
+        }
+        if (index == console.gui_content_length) {
+            break;
+        }
+        if (console.gui_content[index] == (uint8_t)'\n') {
+            index++;
             x = first_x;
             y += 12U;
             continue;
-        }
-        if ((uint8_t)character < 32U || (uint8_t)character > 126U) {
-            character = '?';
         }
         if (x + 7U > limit_x) {
             x = first_x;
@@ -257,8 +283,17 @@ static void draw_gui_content(const gui_window_t *window, uint32_t colour) {
             if (y >= limit_y) {
                 break;
             }
+            continue;
         }
-        draw_gui_character(x, y, character, colour);
+        {
+            char character = (char)console.gui_content[index];
+
+            if ((uint8_t)character < 32U || (uint8_t)character > 126U) {
+                character = '?';
+            }
+            draw_gui_character(x, y, character, colour);
+        }
+        index++;
         x += 7U;
     }
 }
@@ -436,7 +471,7 @@ static void redraw_gui_desktop(void) {
         }
     }
     fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-    draw_gui_text(30U, console.height - 36U, "WASD MOVE TAB FOCUS 1-3 TOGGLE F POINTER X HIDE E EDIT CTRL-S SAVE ESC CANCEL D NOTE Q EXIT", text);
+    draw_gui_text(30U, console.height - 36U, "WASD MOVE TAB FOCUS 1-3 TOGGLE F POINTER X HIDE E EDIT ARROWS NAV HOME END DEL CTRL-S SAVE ESC CANCEL Q EXIT", text);
     draw_gui_pointer();
 }
 
@@ -641,11 +676,13 @@ int framebuffer_gui_active(void) {
     return console.gui_active;
 }
 
-int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t length) {
+int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t length, uint64_t flags,
+                                uint64_t cursor, uint64_t viewport) {
     uint64_t index;
 
     if (console.gui_active == 0 || title == (const char *)0 || data == (const uint8_t *)0
-        || length > GUI_CONTENT_MAX || title[0] == '\0') {
+        || length > GUI_CONTENT_MAX || (flags & ~MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U || cursor > length
+        || viewport > length || title[0] == '\0') {
         return 0;
     }
     for (index = 0U; index < GUI_CONTENT_TITLE_MAX; index++) {
@@ -661,6 +698,9 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
         console.gui_content[index] = data[index];
     }
     console.gui_content_length = length;
+    console.gui_content_flags = flags;
+    console.gui_content_cursor = cursor;
+    console.gui_content_viewport = gui_content_line_start(viewport);
     redraw_gui_desktop();
     return 1;
 }

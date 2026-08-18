@@ -41,14 +41,18 @@ static int make_path(char *destination, const char *source) {
     return index != 0U && source[index] == '\0';
 }
 
-static int set_viewer_content(const char *title, const uint8_t *data, uint64_t length) {
-    struct myos_gui_content_request content = { 0U, { 0 }, { 0 } };
+static int set_viewer_content(const char *title, const uint8_t *data, uint64_t length, uint64_t flags,
+                              uint64_t cursor, uint64_t viewport) {
+    struct myos_gui_content_request content = { 0U, 0U, 0U, 0U, { 0 }, { 0 } };
 
     copy_title(content.title, title);
     for (uint64_t index = 0U; index < length; index++) {
         content.data[index] = data[index];
     }
     content.length = length;
+    content.flags = flags;
+    content.cursor = cursor;
+    content.viewport = viewport;
     return system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_SET_CONTENT, (uint64_t)(uintptr_t)&content,
                        sizeof(content)) != UINT64_MAX;
 }
@@ -61,7 +65,7 @@ static void set_viewer_status(const char *message) {
         data[length] = (uint8_t)message[length];
         length++;
     }
-    (void)set_viewer_content("VIEWER", data, length);
+    (void)set_viewer_content("VIEWER", data, length, 0U, 0U, 0U);
 }
 
 static uint64_t read_viewer_file(const char *path, uint8_t *data) {
@@ -89,7 +93,7 @@ static void load_viewer_file(const char *path) {
         set_viewer_status("UNABLE TO READ FILE");
         return;
     }
-    if (set_viewer_content("FILE VIEWER", data, count) == 0) {
+    if (set_viewer_content("FILE VIEWER", data, count, 0U, 0U, 0U) == 0) {
         set_viewer_status("VIEWER UPDATE FAILED");
     }
 }
@@ -115,18 +119,95 @@ static int save_disk_note(const uint8_t *data, uint64_t length) {
     return 1;
 }
 
+static uint64_t editor_line_start(const uint8_t *data, uint64_t length, uint64_t position) {
+    uint64_t start = position > length ? length : position;
+
+    while (start != 0U && data[start - 1U] != (uint8_t)'\n') {
+        start--;
+    }
+    return start;
+}
+
+static uint64_t editor_line_end(const uint8_t *data, uint64_t length, uint64_t start) {
+    uint64_t end = start;
+
+    while (end < length && data[end] != (uint8_t)'\n') {
+        end++;
+    }
+    return end;
+}
+
+static uint64_t editor_next_line_start(const uint8_t *data, uint64_t length, uint64_t start) {
+    const uint64_t end = editor_line_end(data, length, start);
+
+    return end < length ? end + 1U : length;
+}
+
+static uint64_t editor_viewport_for_cursor(const uint8_t *data, uint64_t length, uint64_t cursor) {
+    uint64_t viewport = 0U;
+    uint64_t current = 0U;
+    uint64_t rows_to_cursor = 0U;
+    const uint64_t target = editor_line_start(data, length, cursor);
+
+    while (current != target) {
+        const uint64_t next = editor_next_line_start(data, length, current);
+
+        if (next == current) {
+            break;
+        }
+        current = next;
+        rows_to_cursor++;
+    }
+    while (rows_to_cursor >= 20U) {
+        const uint64_t next = editor_next_line_start(data, length, viewport);
+
+        if (next == viewport) {
+            break;
+        }
+        viewport = next;
+        rows_to_cursor--;
+    }
+    return viewport;
+}
+
+static void editor_delete_at_cursor(uint8_t *data, uint64_t *length, uint64_t cursor) {
+    if (cursor >= *length) {
+        return;
+    }
+    for (uint64_t index = cursor; index + 1U < *length; index++) {
+        data[index] = data[index + 1U];
+    }
+    (*length)--;
+    data[*length] = 0U;
+}
+
+static void editor_insert_byte(uint8_t *data, uint64_t *length, uint64_t *cursor, uint8_t value) {
+    if (*length >= MYOS_GUI_CONTENT_MAX) {
+        return;
+    }
+    for (uint64_t index = *length; index > *cursor; index--) {
+        data[index] = data[index - 1U];
+    }
+    data[*cursor] = value;
+    (*length)++;
+    (*cursor)++;
+}
+
 static void edit_disk_note(void) {
     uint8_t data[MYOS_GUI_CONTENT_MAX] = { 0 };
     uint64_t length = read_viewer_file(GUI_NOTE_PATH, data);
+    uint64_t cursor;
 
     if (length == UINT64_MAX) {
         length = 0U;
     }
+    cursor = length;
     for (;;) {
         char character;
         uint64_t read_result;
+        const uint64_t viewport = editor_viewport_for_cursor(data, length, cursor);
 
-        if (set_viewer_content("EDIT NOTE", data, length) == 0) {
+        if (set_viewer_content("EDIT NOTE", data, length, MYOS_GUI_CONTENT_FLAG_EDITABLE, cursor, viewport) == 0) {
             return;
         }
         read_result = system_call(MYOS_SYS_READ, 0U, (uint64_t)(uintptr_t)&character, 1U);
@@ -145,16 +226,52 @@ static void edit_disk_note(void) {
             }
             return;
         }
-        if (character == '\b' || (uint8_t)character == UINT8_C(0x7F)) {
-            if (length != 0U) {
-                length--;
+        if ((uint8_t)character == MYOS_INPUT_KEY_LEFT) {
+            if (cursor != 0U) {
+                cursor--;
+            }
+        } else if ((uint8_t)character == MYOS_INPUT_KEY_RIGHT) {
+            if (cursor < length) {
+                cursor++;
+            }
+        } else if ((uint8_t)character == MYOS_INPUT_KEY_HOME) {
+            cursor = editor_line_start(data, length, cursor);
+        } else if ((uint8_t)character == MYOS_INPUT_KEY_END) {
+            cursor = editor_line_end(data, length, editor_line_start(data, length, cursor));
+        } else if ((uint8_t)character == MYOS_INPUT_KEY_UP) {
+            const uint64_t current_start = editor_line_start(data, length, cursor);
+
+            if (current_start != 0U) {
+                const uint64_t previous_start = editor_line_start(data, length, current_start - 1U);
+                const uint64_t previous_end = editor_line_end(data, length, previous_start);
+                const uint64_t column = cursor - current_start;
+                const uint64_t previous_length = previous_end - previous_start;
+
+                cursor = previous_start + (column < previous_length ? column : previous_length);
+            }
+        } else if ((uint8_t)character == MYOS_INPUT_KEY_DOWN) {
+            const uint64_t current_start = editor_line_start(data, length, cursor);
+            const uint64_t current_end = editor_line_end(data, length, current_start);
+
+            if (current_end < length) {
+                const uint64_t next_start = current_end + 1U;
+                const uint64_t next_end = editor_line_end(data, length, next_start);
+                const uint64_t column = cursor - current_start;
+                const uint64_t next_length = next_end - next_start;
+
+                cursor = next_start + (column < next_length ? column : next_length);
+            }
+        } else if ((uint8_t)character == MYOS_INPUT_KEY_DELETE) {
+            editor_delete_at_cursor(data, &length, cursor);
+        } else if (character == '\b' || (uint8_t)character == UINT8_C(0x7F)) {
+            if (cursor != 0U) {
+                cursor--;
+                editor_delete_at_cursor(data, &length, cursor);
             }
         } else if (character == '\r' || character == '\n') {
-            if (length < MYOS_GUI_CONTENT_MAX) {
-                data[length++] = (uint8_t)'\n';
-            }
-        } else if ((uint8_t)character >= 32U && (uint8_t)character <= 126U && length < MYOS_GUI_CONTENT_MAX) {
-            data[length++] = (uint8_t)character;
+            editor_insert_byte(data, &length, &cursor, (uint8_t)'\n');
+        } else if ((uint8_t)character >= 32U && (uint8_t)character <= 126U) {
+            editor_insert_byte(data, &length, &cursor, (uint8_t)character);
         }
     }
 }

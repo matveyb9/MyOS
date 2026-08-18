@@ -60,7 +60,7 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 | `[x]` | VFS viewer | Просмотр `motd.txt` или файла, переданного как `startgui [file]`, с ограничением контента ABI. |
 | `[x]` | Persistent note editor | Загрузка `disk/note`, редактирование, `Ctrl-S` save и `Esc` cancel. |
 | `[x]` | Boot UX integration | GUI branch содержит stage headers и clear перед normal user-shell entry; BIOS regression и `startgui` regression пройдены. |
-| `[~]` | Cross-firmware closure | Повторная UEFI/OVMF проверка текущего boot-presentation merge должна закрыть этот текущий change set. |
+| `[x]` | Cross-firmware closure | UEFI/OVMF normal boot подтвердил stage headers и чистый framebuffer перед user shell. |
 
 ## 4. Ближайшие GUI приоритеты
 
@@ -68,7 +68,7 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 
 | Приоритет | Статус | Работа | Критерий завершения |
 |---:|---|---|---|
-| 1 | `[ ]` | Cursor-aware editor with scrolling | Пользователь видит caret, может перемещаться в тексте, редактировать длинный content и пользоваться bounded scrolling без выхода за ABI limits. |
+| 1 | `[x]` | Cursor-aware editor with scrolling | Caret, `Left`/`Right`/`Up`/`Down`, `Home`/`End`, `Delete` и bounded 20-line viewport реализованы; BIOS и UEFI smoke tests пройдены. |
 | 2 | `[ ]` | Named persistent `disk/` files | GUI может выбирать и редактировать несколько именованных persistent files, а не только `disk/note`. |
 | 3 | `[ ]` | Hardware mouse/pointer support | Реальный PS/2 mouse input управляет pointer; keyboard controls остаются рабочим fallback. |
 | 4 | `[ ]` | GUI reliability pass | BIOS и UEFI regression matrix, проверка возврата в console, persistent data и отсутствие регрессии `startgui`. |
@@ -102,4 +102,4 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 
 ## Следующее действие
 
-Ближайшее практическое действие — закрыть **UEFI/OVMF regression** после последнего boot-presentation merge, затем перейти к **cursor-aware GUI editor with scrolling** в `gui/bringup`. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
+Ближайшее практическое действие — реализовать **named persistent `disk/` files** в `gui/bringup`, сохраняя текущие limits ABI и отдельную GUI branch. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.

@@ -37,7 +37,9 @@ startgui
 | File loading | `startgui [file]` читает первые 128 bytes указанного VFS file; без аргумента используется `motd.txt`. |
 | Persistent note | `D` загружает `disk/note`; если file ещё не создан, viewer отображает `UNABLE TO READ FILE`. |
 | Editor entry | `E` открывает bounded editor для `disk/note`; отсутствующий file начинает с пустого draft. |
-| Editor input | Printable ASCII добавляется в draft; `Enter` добавляет newline; `Backspace` удаляет последний byte. |
+| Editor input | Printable ASCII вставляется в позиции caret; `Enter` вставляет newline; `Backspace` удаляет byte слева, `Delete` — byte под caret. |
+| Caret и navigation | `Left`/`Right` перемещают caret на byte, `Up`/`Down` — по logical lines с сохранением column, `Home`/`End` переходят к границам строки. |
+| Bounded scrolling | Renderer отображает окно до 20 logical newline-separated lines; viewport автоматически следует за строкой caret. |
 | Save и cancel | `Ctrl-S` заменяет `disk/note`, записывает draft и возвращает к `FILE VIEWER`. `Esc` отменяет draft и перезагружает ранее сохранённое содержимое. |
 | Built-in choices | `M` или `m` повторно загружает `motd.txt`. |
 | Focus | `Tab`, `Enter` или `Space` вне editor переводят focus на следующее видимое окно. |
@@ -55,13 +57,13 @@ startgui
 |---|---:|---|
 | `MYOS_GUI_CONTENT_TITLE_MAX` | 16 bytes | NUL-terminated title для NOTES window. |
 | `MYOS_GUI_CONTENT_MAX` | 128 bytes | Максимальная длина viewer content и editor draft. |
-| `struct myos_gui_content_request` | 152 bytes | `length`, `title[16]`, `data[128]`; укладывается в syscall user-copy limit 256 bytes. |
+| `struct myos_gui_content_request` | 176 bytes | `length`, `flags`, `cursor`, `viewport`, `title[16]`, `data[128]`; укладывается в syscall user-copy limit 256 bytes. |
 | `struct myos_tmpfs_write_request` | 208 bytes | Reused bounded write request; также укладывается в limit 256 bytes. |
 | File read | До 128 bytes | Один bounded `MYOS_SYS_VFS_READ` request из ring 3. |
 | Persistent save | До 128 bytes | `PERSIST_REMOVE`, `PERSIST_CREATE`, затем `PERSIST_WRITE` для `disk/note`. |
-| Allocation | Static storage | Никаких heap allocations, scrolling, cursor positioning или фоновых операций. |
+| Allocation | Static storage | Нет heap allocations или background operations; cursor и viewport передаются как bounded scalar metadata. |
 
-Текст переносится в пределах внутренней поверхности NOTES. Символы вне printable ASCII заменяются renderer на `?`; newline начинает следующую строку. Обновление content вызывает redraw, но не запускает layout initialization, поэтому сохраняет текущие visibility, focus и z-order window manager. Draft, который достиг 128 bytes, больше не принимает новые bytes до удаления существующих через `Backspace`.
+Текст переносится в пределах внутренней поверхности NOTES. Символы вне printable ASCII заменяются renderer на `?`; newline начинает следующую logical line. В editor kernel рисует cyan caret по index, переданному ring-3 программой; viewport начинается на границе logical line и удерживает строку caret в окне до 20 строк. Обновление content вызывает redraw, но не запускает layout initialization, поэтому сохраняет текущие visibility, focus и z-order window manager. Draft, который достиг 128 bytes, больше не принимает новые bytes до удаления через `Backspace` или `Delete`.
 
 ## Границы архитектуры
 
@@ -70,7 +72,7 @@ startgui
 | Граница | Политика |
 |---|---|
 | Window records | Три статических bounded records. |
-| Input | Existing scheduler-safe console input path; в editor keys принадлежат draft, а не window manager. |
+| Input | Existing scheduler-safe console input path; PS/2 arrows, Home, End и Delete переводятся в internal bounded key bytes; в editor keys принадлежат draft, а не window manager. |
 | Rendering | Bounded full redraw после GUI input или content update. |
 | Files | Viewer читает любой доступный VFS file; editor изменяет только `disk/note`. |
 | Atomicity | Save удаляет и пересоздаёт file перед записью; power-loss-safe journal пока отсутствует. |
@@ -85,14 +87,13 @@ startgui
 |---|---|
 | `make all img` | Passed без compiler warnings и build errors. |
 | `git diff --check` | Passed. |
-| BIOS editor preview | Passed: `E` открыл `EDIT NOTE`, а multiline draft отрисовался в NOTES. |
-| BIOS save | Passed: `Ctrl-S` сохранил `BIOS NOTE` и `SECOND LINE` в `disk/note`, затем viewer показал те же lines. |
-| BIOS cancel | Passed: добавленный `UNSAVED` suffix был отменён `Esc` и отсутствовал после `D` reload. |
-| UEFI persistent readback | Passed: OVMF загрузил BIOS-created note через `startgui disk/note`. |
-| UEFI editor save | Passed: editor добавил `UEFI UPDATE`; `FILE VIEWER` отобразил все три lines. |
+| BIOS caret и scrolling | Passed: 24-line draft в focused `EDIT NOTE` отрисовал cyan caret; viewport ограничен 20 logical lines. |
+| BIOS navigation | Passed: пять PS/2 `Up`, затем `End` и `b` переместили caret в существующую строку и изменили `a` на `ab`. |
+| BIOS save | Passed: PS/2 `Ctrl-S` сохранил multiline note; `FILE VIEWER` показал тот же content с `ab`. |
+| UEFI editor smoke | Passed: OVMF загрузил persistent note, открыл `EDIT NOTE` и сохранил visible caret после PS/2 `Up`. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
-Screenshots и краткие test findings находятся вне source tree в локальном `/home/ubuntu/myos-note-validation/`; они не входят в Git commit.
+Screenshots и краткие test findings находятся вне source tree в локальном `/home/ubuntu/myos-editor-validation/`; они не входят в Git commit.
 
 ## Boot UX, унаследованный из main
 
@@ -100,11 +101,11 @@ Automatic user-space initialization теперь реализована и ин�
 
 | Сценарий после загрузки | Реализованное поведение |
 |---|---|
-| Обычная загрузка | Kernel выводит countdown и автоматически запускает `/init` через **3 секунды**. |
+| Обычная загрузка | Kernel группирует diagnostics в четыре stage headers, выводит countdown и автоматически запускает `/init` через **3 секунды**; перед user shell framebuffer очищается. |
 | Отмена | Нажатие `K` во время countdown отменяет auto-init; cancel key не передаётся user shell. |
 | Kernel shell | После `K` система остаётся в diagnostic kernel shell. Команда `init` вручную запускает ту же user shell. |
 | Неудача init | Если `/init` отсутствует или automatic loading не проходит, kernel выводит diagnostics и остаётся в kernel shell без retry loop. |
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
-| Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot прошли на QEMU Q35. |
+| Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-После boot UX milestone следующими GUI направлениями остаются cursor-aware editor with scrolling, named `disk/` files и аппаратная mouse/pointer support. Они должны сохранять отдельную GUI branch до отдельного решения о merge или release.
+После cursor-aware editor milestone следующими GUI направлениями остаются named `disk/` files и аппаратная mouse/pointer support. Они должны сохранять отдельную GUI branch до отдельного решения о merge или release.
