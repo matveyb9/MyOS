@@ -471,7 +471,7 @@ static void redraw_gui_desktop(void) {
         }
     }
     fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-    draw_gui_text(30U, console.height - 36U, "WASD MOVE TAB FOCUS 1-3 TOGGLE F POINTER X HIDE E EDIT ARROWS NAV HOME END DEL CTRL-S SAVE ESC CANCEL Q EXIT", text);
+    draw_gui_text(30U, console.height - 36U, "WASD MOVE TAB FOCUS 1-3 TOGGLE F POINTER X HIDE N NEXT DISK E EDIT ARROWS NAV HOME END DEL CTRL-S SAVE ESC CANCEL Q EXIT", text);
     draw_gui_pointer();
 }
 

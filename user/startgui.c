@@ -3,6 +3,10 @@
 #include <syscall.h>
 
 #define GUI_NOTE_PATH "disk/note"
+#define GUI_DISK_PATH_CAPACITY UINT64_C(40)
+#define GUI_VFS_ENTRY_SCAN_LIMIT UINT64_C(64)
+
+static char selected_disk_path[GUI_DISK_PATH_CAPACITY] = GUI_NOTE_PATH;
 
 static uint64_t system_call(uint64_t number, uint64_t argument1, uint64_t argument2, uint64_t argument3) {
     register uint64_t rax __asm__("rax") = number;
@@ -39,6 +43,66 @@ static int make_path(char *destination, const char *source) {
     }
     destination[index] = '\0';
     return index != 0U && source[index] == '\0';
+}
+
+static int text_equal(const char *left, const char *right) {
+    uint64_t index = 0U;
+
+    while (left[index] != '\0' && right[index] != '\0') {
+        if (left[index] != right[index]) {
+            return 0;
+        }
+        index++;
+    }
+    return left[index] == right[index];
+}
+
+static int disk_path_is_valid(const char *path) {
+    uint64_t index;
+
+    if (path == (const char *)0 || path[0] != 'd' || path[1] != 'i' || path[2] != 's' || path[3] != 'k'
+        || path[4] != '/') {
+        return 0;
+    }
+    for (index = 5U; index < GUI_DISK_PATH_CAPACITY; index++) {
+        const char character = path[index];
+
+        if (character == '\0') {
+            return index > 5U;
+        }
+        if (character == '/' || character < ' ' || character > '~') {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static int select_disk_path(const char *path) {
+    if (disk_path_is_valid(path) == 0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < GUI_DISK_PATH_CAPACITY; index++) {
+        selected_disk_path[index] = path[index];
+        if (path[index] == '\0') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void selected_disk_title(char *title) {
+    uint64_t destination = 0U;
+    uint64_t source = 5U;
+    static const char prefix[] = "DISK:";
+
+    while (prefix[destination] != '\0' && destination + 1U < MYOS_GUI_CONTENT_TITLE_MAX) {
+        title[destination] = prefix[destination];
+        destination++;
+    }
+    while (selected_disk_path[source] != '\0' && destination + 1U < MYOS_GUI_CONTENT_TITLE_MAX) {
+        title[destination++] = selected_disk_path[source++];
+    }
+    title[destination] = '\0';
 }
 
 static int set_viewer_content(const char *title, const uint8_t *data, uint64_t length, uint64_t flags,
@@ -85,24 +149,69 @@ static uint64_t read_viewer_file(const char *path, uint8_t *data) {
     return count;
 }
 
+static int read_vfs_entry(uint64_t index, struct myos_vfs_entry *entry) {
+    return system_call(MYOS_SYS_VFS_ENTRY, index, (uint64_t)(uintptr_t)entry, sizeof(*entry)) != UINT64_MAX;
+}
+
+static int select_next_disk_file(void) {
+    char first_path[GUI_DISK_PATH_CAPACITY] = { 0 };
+    int have_first = 0;
+    int select_following = 0;
+
+    for (uint64_t index = 0U; index < GUI_VFS_ENTRY_SCAN_LIMIT; index++) {
+        struct myos_vfs_entry entry = { 0U, { 0 } };
+
+        if (read_vfs_entry(index, &entry) == 0) {
+            break;
+        }
+        if (disk_path_is_valid(entry.name) == 0) {
+            continue;
+        }
+        if (have_first == 0) {
+            for (uint64_t character = 0U; character < GUI_DISK_PATH_CAPACITY; character++) {
+                first_path[character] = entry.name[character];
+                if (entry.name[character] == '\0') {
+                    break;
+                }
+            }
+            have_first = 1;
+        }
+        if (select_following != 0) {
+            return select_disk_path(entry.name);
+        }
+        if (text_equal(entry.name, selected_disk_path) != 0) {
+            select_following = 1;
+        }
+    }
+    return have_first != 0 ? select_disk_path(first_path) : 0;
+}
+
 static void load_viewer_file(const char *path) {
     uint8_t data[MYOS_GUI_CONTENT_MAX] = { 0 };
+    char title[MYOS_GUI_CONTENT_TITLE_MAX] = { 0 };
     const uint64_t count = read_viewer_file(path, data);
 
     if (count == UINT64_MAX) {
         set_viewer_status("UNABLE TO READ FILE");
         return;
     }
-    if (set_viewer_content("FILE VIEWER", data, count, 0U, 0U, 0U) == 0) {
+    if (disk_path_is_valid(path) != 0) {
+        (void)select_disk_path(path);
+        selected_disk_title(title);
+    } else {
+        copy_title(title, "FILE VIEWER");
+    }
+    if (set_viewer_content(title, data, count, 0U, 0U, 0U) == 0) {
         set_viewer_status("VIEWER UPDATE FAILED");
     }
 }
 
-static int save_disk_note(const uint8_t *data, uint64_t length) {
+static int save_selected_disk_file(const uint8_t *data, uint64_t length) {
     struct myos_tmpfs_path_request path_request = { { 0 } };
     struct myos_tmpfs_write_request write_request = { 0U, 0U, { 0 }, { 0 } };
 
-    if (make_path(path_request.path, GUI_NOTE_PATH) == 0 || make_path(write_request.path, GUI_NOTE_PATH) == 0) {
+    if (make_path(path_request.path, selected_disk_path) == 0
+        || make_path(write_request.path, selected_disk_path) == 0) {
         return 0;
     }
     for (uint64_t index = 0U; index < length; index++) {
@@ -193,9 +302,9 @@ static void editor_insert_byte(uint8_t *data, uint64_t *length, uint64_t *cursor
     (*cursor)++;
 }
 
-static void edit_disk_note(void) {
+static void edit_selected_disk_file(void) {
     uint8_t data[MYOS_GUI_CONTENT_MAX] = { 0 };
-    uint64_t length = read_viewer_file(GUI_NOTE_PATH, data);
+    uint64_t length = read_viewer_file(selected_disk_path, data);
     uint64_t cursor;
 
     if (length == UINT64_MAX) {
@@ -215,12 +324,12 @@ static void edit_disk_note(void) {
             continue;
         }
         if (character == '\x1b') {
-            load_viewer_file(GUI_NOTE_PATH);
+            load_viewer_file(selected_disk_path);
             return;
         }
         if ((uint8_t)character == UINT8_C(0x13)) {
-            if (save_disk_note(data, length) != 0) {
-                load_viewer_file(GUI_NOTE_PATH);
+            if (save_selected_disk_file(data, length) != 0) {
+                load_viewer_file(selected_disk_path);
             } else {
                 set_viewer_status("SAVE FAILED");
             }
@@ -284,6 +393,9 @@ void _start(uint64_t argc, const char *arguments) {
     if (system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_BEGIN, 0U, 0U) == UINT64_MAX) {
         status = 1U;
     } else {
+        if (disk_path_is_valid(initial_path) != 0) {
+            (void)select_disk_path(initial_path);
+        }
         load_viewer_file(initial_path);
         for (;;) {
             char character;
@@ -297,11 +409,18 @@ void _start(uint64_t argc, const char *arguments) {
                 break;
             }
             if (character == 'e' || character == 'E') {
-                edit_disk_note();
+                edit_selected_disk_file();
             } else if (character == 'm' || character == 'M') {
                 load_viewer_file("motd.txt");
             } else if (character == 'D') {
-                load_viewer_file(GUI_NOTE_PATH);
+                (void)select_disk_path(GUI_NOTE_PATH);
+                load_viewer_file(selected_disk_path);
+            } else if (character == 'n' || character == 'N') {
+                if (select_next_disk_file() != 0) {
+                    load_viewer_file(selected_disk_path);
+                } else {
+                    set_viewer_status("NO DISK FILES");
+                }
             } else {
                 (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_INPUT, (uint64_t)(uint8_t)character, 0U);
             }
