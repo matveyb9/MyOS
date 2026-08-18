@@ -834,33 +834,54 @@ static void command_pipe(char *argument) {
     write_char('\n');
 }
 
-static void command_run(char *argument) {
+static int run_foreground(char *argument, int verbose) {
     struct myos_spawn_request request = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
     uint64_t result;
     uint64_t status;
 
     if (make_spawn_request(&request, argument) == 0) {
-        write_text("Usage: run <program> [arguments]\n");
-        return;
+        if (verbose != 0) {
+            write_text("Usage: run <program> [arguments]\n");
+        } else {
+            write_text("calc: unable to prepare expression\n");
+        }
+        return 0;
     }
     result = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
     if (result == UINT64_MAX) {
-        write_text("Unable to start program.\n");
-        return;
+        if (verbose != 0) {
+            write_text("Unable to start program.\n");
+        } else {
+            write_text("calc: unable to start calculator\n");
+        }
+        return 0;
     }
-    write_text("Started process ");
-    write_number(result);
-    write_text("; waiting for exit...\n");
+    if (verbose != 0) {
+        write_text("Started process ");
+        write_number(result);
+        write_text("; waiting for exit...\n");
+    }
     status = system_call(MYOS_SYS_WAIT, result, 0U, 0U);
     if (status == UINT64_MAX) {
-        write_text("Wait failed.\n");
-        return;
+        if (verbose != 0) {
+            write_text("Wait failed.\n");
+        } else {
+            write_text("calc: wait failed\n");
+        }
+        return 0;
     }
-    write_text("Process ");
-    write_number(result);
-    write_text(" exited with status ");
-    write_number(status);
-    write_char('\n');
+    if (verbose != 0) {
+        write_text("Process ");
+        write_number(result);
+        write_text(" exited with status ");
+        write_number(status);
+        write_char('\n');
+    }
+    return 1;
+}
+
+static void command_run(char *argument) {
+    (void)run_foreground(argument, 1);
 }
 
 static void command_calc(const char *argument) {
@@ -884,7 +905,7 @@ static void command_calc(const char *argument) {
         program[length++] = argument[index];
     }
     program[length] = '\0';
-    command_run(program);
+    (void)run_foreground(program, 0);
 }
 
 static void command_poweroff(void) {
