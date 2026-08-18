@@ -395,9 +395,9 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
 
 static void command_help(const char *topic) {
     if (text_equal(topic, "calc")) {
-        write_text("calc <number> <+|-|*|/> <number>\n");
-        write_text("Examples: calc 7 * 6   calc 12 / 3\n");
-        write_text("Uses non-negative integers; division returns an integer result.\n");
+        write_text("calc <signed-integer> <+|-|*|/> <signed-integer>\n");
+        write_text("Examples: calc -5 + 2   calc -7 * -6\n");
+        write_text("Uses signed 64-bit integers; division truncates toward zero.\n");
         return;
     }
     if (topic[0] != '\0') {
