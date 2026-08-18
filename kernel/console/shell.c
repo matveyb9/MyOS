@@ -67,7 +67,7 @@ static const char *task_state_name(enum task_state state) {
 }
 
 static void print_prompt(void) {
-    serial_write("myos> ");
+    serial_write("kernel> ");
 }
 
 static int start_user_shell(void) {
@@ -470,20 +470,20 @@ void shell_run(const struct shell_context *context) {
     size_t length = 0U;
 
     if (initramfs_has_init() != 0) {
-        serial_write("\n[boot] Starting /init in 3 seconds; press K for kernel shell.\n");
+        serial_write("\n[boot] User shell starts in 3 seconds; press K for kernel shell.\n");
         if (auto_init_cancelled() == 0) {
-            serial_write("[boot] Starting /init now.\n");
+            serial_write("[boot] Starting user shell.\n");
             if (start_user_shell() == 0) {
-                serial_write("[boot] Automatic /init launch failed; entering kernel shell.\n");
+                serial_write("[boot] User shell failed to start; entering kernel shell.\n");
             }
         } else {
-            serial_write("[boot] Automatic /init cancelled; entering kernel shell.\n");
+            serial_write("[boot] Automatic startup cancelled; entering kernel shell.\n");
         }
     } else {
-        serial_write("[boot] /init is unavailable; entering kernel shell.\n");
+        serial_write("[boot] User shell is unavailable; entering kernel shell.\n");
     }
 
-    serial_write("MyOS serial shell ready. Type 'help' or 'init'.\n");
+    serial_write("MyOS kernel shell ready. Type 'help' for diagnostics or 'init' for user shell.\n");
     print_prompt();
 
     for (;;) {

@@ -60,7 +60,7 @@ qemu-system-x86_64 \
 Если до конца countdown нажать `K` (на PS/2 keyboard или в serial console), automatic startup отменяется и появляется diagnostic kernel shell:
 
 ```text
-myos>
+kernel>
 ```
 
 В этом режиме доступны kernel diagnostics, а пользовательскую оболочку можно запустить вручную командой:
