@@ -471,7 +471,7 @@ static void redraw_gui_desktop(void) {
         }
     }
     fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-    draw_gui_text(30U, console.height - 36U, "WASD MOVE TAB FOCUS 1-3 TOGGLE F POINTER X HIDE N NEXT DISK E EDIT ARROWS NAV HOME END DEL CTRL-S SAVE ESC CANCEL Q EXIT", text);
+    draw_gui_text(30U, console.height - 36U, "MOUSE MOVE/CLICK WASD FALLBACK TAB FOCUS 1-3 TOGGLE F POINTER X HIDE N NEXT DISK E EDIT ARROWS NAV HOME END DEL CTRL-S SAVE ESC CANCEL Q EXIT", text);
     draw_gui_pointer();
 }
 
@@ -735,6 +735,36 @@ void framebuffer_gui_handle_input(char character) {
         return;
     }
     redraw_gui_desktop();
+}
+
+static uint64_t gui_pointer_offset(uint64_t position, int64_t delta, uint64_t limit) {
+    if (delta < 0) {
+        const uint64_t distance = (uint64_t)(-(delta + 1)) + 1U;
+
+        return position > distance ? position - distance : 0U;
+    }
+    if ((uint64_t)delta > limit - position) {
+        return limit;
+    }
+    return position + (uint64_t)delta;
+}
+
+void framebuffer_gui_handle_mouse(int64_t delta_x, int64_t delta_y, int left_pressed, int left_was_pressed) {
+    const uint64_t previous_x = console.gui_pointer_x;
+    const uint64_t previous_y = console.gui_pointer_y;
+    const uint8_t previous_focus = console.gui_focus;
+
+    if (console.gui_active == 0) {
+        return;
+    }
+    console.gui_pointer_x = gui_pointer_offset(console.gui_pointer_x, delta_x, console.width - 11U);
+    console.gui_pointer_y = gui_pointer_offset(console.gui_pointer_y, delta_y, console.height - 11U);
+    if (left_pressed != 0 && left_was_pressed == 0) {
+        gui_focus_pointer_window();
+    }
+    if (console.gui_pointer_x != previous_x || console.gui_pointer_y != previous_y || console.gui_focus != previous_focus) {
+        redraw_gui_desktop();
+    }
 }
 
 uint64_t framebuffer_console_columns(void) {

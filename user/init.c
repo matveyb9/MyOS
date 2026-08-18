@@ -409,7 +409,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls cat touch write rm | Processes: ps run spawn wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; run <program> [arguments]; pipe <text>\n");
-    write_text("GUI: startgui [disk/name]; E edits selected disk file; N cycles disk files; Ctrl-S saves.\n");
+    write_text("GUI: startgui [disk/name]; mouse moves/clicks focus; WASD/F fallback; E edits; Ctrl-S saves.\n");
     write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
     write_text("Files: tmp/<name> is temporary; disk/<name> persists across reboots.\n");

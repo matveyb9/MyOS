@@ -70,7 +70,7 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 |---:|---|---|---|
 | 1 | `[x]` | Cursor-aware editor with scrolling | Caret, `Left`/`Right`/`Up`/`Down`, `Home`/`End`, `Delete` и bounded 20-line viewport реализованы; BIOS и UEFI smoke tests пройдены. |
 | 2 | `[x]` | Named persistent `disk/` files | `startgui disk/name` выбирает конкретный path, `N` циклически перебирает existing files, а editor сохраняет выбранный file; BIOS и UEFI readback пройдены. |
-| 3 | `[ ]` | Hardware mouse/pointer support | Реальный PS/2 mouse input управляет pointer; keyboard controls остаются рабочим fallback. |
+| 3 | `[x]` | Hardware mouse/pointer support | PS/2 IRQ12 packets перемещают pointer, left click фокусирует topmost window, а keyboard controls остаются fallback; BIOS и UEFI tests пройдены. |
 | 4 | `[ ]` | GUI reliability pass | BIOS и UEFI regression matrix, проверка возврата в console, persistent data и отсутствие регрессии `startgui`. |
 | 5 | `[ ]` | Решение о GUI release boundary | Отдельно оценить readiness GUI и только тогда решить, объединять ли GUI с `main` или выпускать отдельную experimental/stable ветку. |
 
@@ -102,4 +102,4 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 
 ## Следующее действие
 
-Ближайшее практическое действие — реализовать **hardware mouse/pointer support** в `gui/bringup`, сохраняя keyboard fallback, current ABI limits и отдельную GUI branch. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
+Ближайшее практическое действие — провести **GUI reliability pass** в `gui/bringup`: расширить BIOS/UEFI regression matrix, проверить return-to-console и persistent data без регрессии `startgui`. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.

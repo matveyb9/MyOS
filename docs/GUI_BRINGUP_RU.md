@@ -44,7 +44,8 @@ startgui
 | Save и cancel | `Ctrl-S` заменяет выбранный `disk/` file, записывает draft и возвращает к его viewer. `Esc` отменяет draft и перезагружает ранее сохранённое содержимое. |
 | Built-in choices | `M` или `m` повторно загружает `motd.txt`. |
 | Focus | `Tab`, `Enter` или `Space` вне editor переводят focus на следующее видимое окно. |
-| Pointer | Строчные `W`, `A`, `S`, `D` перемещают bounded crosshair pointer. `F` фокусирует верхнее видимое окно под pointer. |
+| Hardware pointer | PS/2 mouse relative motion перемещает bounded crosshair pointer; rising edge левой кнопки фокусирует верхнее видимое окно под pointer. |
+| Keyboard fallback | Строчные `W`, `A`, `S`, `D` перемещают pointer на 16 pixels; `F` сохраняет keyboard focus верхнего окна под pointer. |
 | Visibility | `1`, `2`, `3` переключают `SYSTEM`, `NOTES`, `MONITOR`; `X` скрывает focused window, не позволяя скрыть все окна. |
 | Reset и выход | `R` восстанавливает исходный layout и z-order. `Q` или `Esc` вне editor завершает session и возвращает framebuffer text console. |
 
@@ -70,16 +71,16 @@ startgui
 
 ## Границы архитектуры
 
-`kernel/console/framebuffer.c` владеет primitives отрисовки, статическими window records, z-order, pointer state и копией viewer content. `user/startgui.c` владеет ring-3 event loop, editor state, чтением VFS, отменой draft и последовательностью persistent save. `kernel/sys/syscall.c` владеет проверкой owner, user-memory copy и framebuffer setter. При завершении или принудительном уничтожении GUI owner dispatcher закрывает GUI session и очищает ownership.
+`kernel/console/framebuffer.c` владеет primitives отрисовки, статическими window records, z-order, pointer state и копией viewer content. `kernel/drivers/mouse.c` включает PS/2 auxiliary port, собирает bounded three-byte packets на IRQ12, отбрасывает overflow и передаёт relative movement с edge-triggered left click в framebuffer. `user/startgui.c` владеет ring-3 event loop, editor state, чтением VFS, отменой draft и последовательностью persistent save. `kernel/sys/syscall.c` владеет проверкой owner, user-memory copy и framebuffer setter. При завершении или принудительном уничтожении GUI owner dispatcher закрывает GUI session и очищает ownership.
 
 | Граница | Политика |
 |---|---|
 | Window records | Три статических bounded records. |
-| Input | Existing scheduler-safe console input path; PS/2 arrows, Home, End и Delete переводятся в internal bounded key bytes; в editor keys принадлежат draft, а не window manager. |
+| Input | Existing scheduler-safe console input path; PS/2 auxiliary port выдаёт three-byte packets через IRQ12. PS/2 arrows, Home, End и Delete переводятся в internal bounded key bytes; в editor keys принадлежат draft, а не window manager. |
 | Rendering | Bounded full redraw после GUI input или content update. |
 | Files | Viewer читает любой доступный VFS file; editor изменяет выбранный допустимый persistent `disk/` path. |
 | Atomicity | Save удаляет и пересоздаёт file перед записью; power-loss-safe journal пока отсутствует. |
-| Mouse hardware | Не реализован; keyboard управляет visual pointer. |
+| Mouse hardware | PS/2 relative motion и left-button focus реализованы; higher-level actions, dragging, wheel и multi-button semantics пока отсутствуют. |
 | General window API | Не реализован; records остаются внутренними для framebuffer renderer. |
 
 ## Проверка milestone
@@ -94,10 +95,11 @@ startgui
 | BIOS cycle | Passed: `N` переключил `DISK:TODO` на `DISK:LOG` и `beta` через existing VFS enumeration. |
 | BIOS create on save | Passed: `startgui disk/draft`, затем `E`, `x` и `Ctrl-S` создали отсутствующий selected path; viewer показал `DISK:DRAFT` и `X`. |
 | BIOS selected save | Passed: `E`, append `x` и `Ctrl-S` сохранили `disk/log`; title остался `DISK:LOG`, viewer показал `BETAX`. |
-| UEFI named readback | Passed: OVMF напрямую открыл `startgui disk/log` и показал сохранённые `DISK:LOG` и `BETAX`. |
+| BIOS PS/2 mouse | Passed: QEMU relative mouse motion moved crosshair; left-button edge over MONITOR raised that window to foreground. |
+| UEFI PS/2 mouse | Passed: OVMF reported IRQ12 enabled; identical QEMU movement and click moved crosshair and focused MONITOR. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
-Screenshots и краткие test findings находятся вне source tree в локальном `/home/ubuntu/myos-named-files-validation/`; они не входят в Git commit.
+Screenshots и краткие test findings находятся вне source tree в локальном `/home/ubuntu/myos-mouse-validation/`; они не входят в Git commit.
 
 ## Boot UX, унаследованный из main
 
@@ -112,4 +114,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-После named persistent files milestone следующими GUI направлениями остаются аппаратная mouse/pointer support и GUI reliability pass. Они должны сохранять отдельную GUI branch до отдельного решения о merge или release.
+После hardware mouse milestone следующим GUI направлением остаётся GUI reliability pass, затем отдельное решение о GUI release boundary. Они должны сохранять отдельную GUI branch до отдельного решения о merge или release.

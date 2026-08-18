@@ -14,6 +14,7 @@
 #include <initramfs.h>
 #include <irq.h>
 #include <keyboard.h>
+#include <mouse.h>
 #include <lapic.h>
 #include <paging.h>
 #include <pic.h>
@@ -279,11 +280,16 @@ void kmain(void) {
     pic_init();
     irq_register_handler(0U, pit_on_irq);
     irq_register_handler(1U, keyboard_on_irq);
+    irq_register_handler(12U, mouse_on_irq);
     pit_init(PIT_FREQUENCY_HZ);
     const int keyboard_ready = keyboard_init();
+    const int mouse_ready = mouse_init();
     pic_clear_mask(0U);
     if (keyboard_ready != 0) {
         pic_clear_mask(1U);
+    }
+    if (mouse_ready != 0) {
+        pic_clear_mask(12U);
     }
     arch_enable_interrupts();
 
@@ -361,6 +367,8 @@ void kmain(void) {
     serial_write("\n");
     serial_write("[ok] PS/2 keyboard IRQ: ");
     serial_write(keyboard_ready != 0 ? "enabled\n" : "unavailable; serial input remains active\n");
+    serial_write("[ok] PS/2 mouse IRQ12: ");
+    serial_write(mouse_ready != 0 ? "enabled\n" : "unavailable; keyboard pointer fallback remains active\n");
     serial_write("[ok] Bootstrap complete. IRQ0 timer is enabled.\n");
     serial_write("[ok] Framebuffer text console is active; COM1 remains mirrored.\n");
 
