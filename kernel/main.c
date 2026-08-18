@@ -281,7 +281,7 @@ void kmain(void) {
     }
     arch_enable_interrupts();
 
-    serial_write("\nMyOS 0.12.1 — x86_64 kernel\n");
+    serial_write("\nMyOS 0.12.2-dev — x86_64 kernel\n");
     serial_write("--------------------------------\n");
 
     report_boot_environment();

@@ -48,7 +48,7 @@ qemu-system-x86_64 \
   -boot c
 ```
 
-После boot введите `init`, чтобы открыть user shell, затем попробуйте:
+После boot MyOS автоматически откроет user shell через три секунды. Нажмите `K` во время countdown только если нужен diagnostic kernel shell; затем попробуйте:
 
 ```text
 help

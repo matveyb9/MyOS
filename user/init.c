@@ -958,7 +958,7 @@ static void execute_command(char *line) {
         write_text(argument);
         write_char('\n');
     } else if (text_equal(line, "uname")) {
-        write_text("MyOS 0.12.1 x86_64\n");
+        write_text("MyOS 0.12.2-dev x86_64\n");
     } else if (text_equal(line, "ps")) {
         command_ps();
     } else if (text_equal(line, "meminfo")) {
@@ -1022,7 +1022,7 @@ void _start(void) {
     char line[USER_LINE_CAPACITY];
 
     write_text("\n+----------------------------------------------+\n");
-    write_text("| MyOS user shell 0.12.1                      |\n");
+    write_text("| MyOS user shell 0.12.2-dev                  |\n");
     write_text("| help: commands  |  help calc: arithmetic    |\n");
     write_text("| Tab: complete   |  Up/Down: history          |\n");
     write_text("+----------------------------------------------+\n");
