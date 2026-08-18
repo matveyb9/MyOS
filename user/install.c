@@ -2,7 +2,7 @@
 
 #include <syscall.h>
 
-#define MYOS_INSTALL_FILE_MAX UINT64_C(65536)
+#define MYOS_INSTALL_FILE_MAX (UINT64_C(8) * UINT64_C(1024) * UINT64_C(1024))
 
 static uint64_t system_call(uint64_t number, uint64_t a, uint64_t b, uint64_t c) {
     uint64_t result;

@@ -1,6 +1,6 @@
-# Спецификация новой файловой системы MyOS
+# Спецификация файловой системы MyOS
 
-> **Статус:** утверждённая pre-implementation спецификация для ветки `gui/bringup`. Этот документ заменяет плоскую пользовательскую модель `disk/<name>` и `tmp/<name>` единым деревом путей. Реализация начинается только после фиксации настоящего документа; прежние данные MYPFS002 должны мигрировать без потери bytes.
+> **Статус:** MYPFS004 hierarchy и dynamic large-file storage реализованы в `gui/bringup`. Его on-disk format, limits и migration contract находятся в [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md). Этот документ остаётся источником правды для root tree, path policy, runtime projection и application layout.
 
 ## 1. Цель и границы
 
@@ -101,33 +101,35 @@ Linux `proc(5)` прямо определяет `proc` как pseudo-filesystem 
 
 `info` возвращает bounded textual snapshot. Process entries исчезают после exit, device entries отражают detected driver state текущей загрузки. `spawn`, `wait`, `kill` и driver-specific syscalls остаются единственным способом управлять process/device state. Raw sector writes, raw framebuffer writes и commands для AHCI из ring 3 не добавляются.
 
-## 6. MYPFS003: persistent format
+## 6. MYPFS004: текущий persistent format
 
-Текущий MYPFS002 использует 8 фиксированных records по 32 KiB и не умеет directories. MYPFS003 использует тот же третий GPT MyOS data partition, от LBA `67584` до `262110` включительно: 194527 sectors, 99597824 bytes, примерно 94.98 MiB. Новый format устраняет fixed eight-file model.
+MYPFS004 использует тот же третий GPT MyOS data partition, от LBA `67584` до `262110` включительно: 194527 sectors, 99597824 bytes, примерно 94.98 MiB. Format устраняет legacy flat eight-file model и MYPFS003 fixed 64 KiB per-file reservation.
 
 | Region relative to data start | Размер | Назначение |
 |---|---:|---|
-| Sector 0 | 1 sector | Primary MYPFS003 superblock, sequence, state и format constants. |
-| Sector 1 | 1 sector | Secondary superblock copy для recovery. |
-| Sectors 2–33 | 32 sectors | 128 object records по 128 bytes: object ID, parent ID, type, flags, preserved spelling, size и data extent. ASCII case folding выполняется при lookup, поэтому отдельная canonical name copy не хранится. |
+| Sector 0 | 1 sector | Primary MYPFS004 superblock и format constants. |
+| Sector 1 | 1 sector | Secondary MYPFS004 superblock copy. |
+| Sectors 2–33 | 32 sectors | 128 object records по 128 bytes: object ID, parent ID, type, flags, preserved spelling, size и до шести data extents. ASCII case folding выполняется при lookup, поэтому отдельная canonical name copy не хранится. |
 | Sectors 34–81 | 48 sectors | Allocation bitmap для data blocks. |
 | Sectors 82–(end−513) | remainder | Allocatable file payload blocks размером 512 bytes. |
 | Last 513–2 sectors | 512 sectors | Reserved migration staging area; не аллоцируется обычным VFS. Его ёмкость точно покрывает 8 legacy MYPFS002 files по 32 KiB. |
 | Last sector | 1 sector | Migration journal header и recovery state. |
 
-Persistent object types первой реализации: `directory` и `regular file`. Формат также резервирует values для `symbolic link`, `virtual` и `mount root`, чтобы расширение не требовало нового on-disk revision. Каждому regular file выделяется contiguous data extent. Это намеренно ограниченная первая allocator model: запись может выделить новый extent и atomically переключить metadata record после verify; расширенная multi-extent allocator рассматривается только после validation базовой ФС.
+Persistent object types текущей реализации: `directory` и `regular file`. Формат также резервирует values для `symbolic link`, `virtual` и `mount root`, чтобы расширение не требовало нового on-disk revision. Regular file получает storage лениво и растёт 64 KiB batches; запись сначала продлевает последний extent, иначе добавляет новый contiguous run. Один file имеет до шести extents и ceiling 8 MiB. Offset-based VFS I/O переводит logical sector через ordered extent table.
 
-## 7. Migration MYPFS002 → MYPFS003
+## 7. Migration в MYPFS004
 
-Migration запускается автоматически при first mount, если primary metadata содержит valid `MYPFS002`. Она не сохраняет legacy `disk/` как visible alias. До переключения на новую format VFS копирует legacy payload в reserved tail staging area и сверяет readback. Migration journal фиксирует проверенную stage mapping. Только после этого main metadata переформатируется в MYPFS003 и создаётся новое root tree.
+Mount автоматически обрабатывает MYPFS003 и legacy MYPFS001/MYPFS002. Переход MYPFS003 → MYPFS004 сохраняет hierarchy и data blocks: VFS копирует 32-sector old node table в reserved staging area, записывает journal `M4MG`, переводит single extent каждого file в `extent[0]`, обновляет оба superblocks и очищает journal. Если mount находит `M4MG`, он завершает conversion из staged metadata.
 
-| Legacy path | New path |
+Legacy flat format не сохраняет `disk/` как visible alias. Его payload сначала помещается в reserved tail staging area, затем MYPFS004 создаёт approved root tree и files по следующему mapping:
+
+| Legacy path | MYPFS004 path |
 |---|---|
 | `disk/bin/<name>` | `/apps/<name>/main.elf` |
 | `disk/note` | `/users/myos/files/notes/note` |
 | `disk/<name>` | `/users/myos/files/imported/<name>` |
 
-После переноса files и verify new superblock получает state `clean`; migration journal очищается. Если reboot или write failure произошли до `clean`, mount обнаруживает journal и повторяет/завершает migration из staging area. Если failure произошёл до verified staging, legacy MYPFS002 metadata остаётся authoritative и migration начинается заново. VFS никогда не объявляет success до readback всех migrated payload.
+Legacy migration journal `M3MG` фиксирует staged records. При следующем mount migration повторяется или завершается из staging area; после successful persistent write journal очищается.
 
 ## 8. Initramfs projection и SDK compatibility
 
@@ -154,7 +156,7 @@ The initial release exposes regular files and directories through bounded syscal
 
 ## 10. Deferred work
 
-Personal app installation, actual login/accounts and permissions, hard links, GUI shortcuts, multi-extent files, external mountable volumes, raw device access, writable runtime controls, Unicode naming and native compiler support are intentionally outside MYPFS003 first release.
+Personal app installation, actual login/accounts and permissions, hard links, GUI shortcuts, external mountable volumes, raw device access, writable runtime controls, Unicode naming and native compiler support remain intentionally outside the current hierarchy release. MYPFS004 multi-extent allocation is implemented; its limits, migration contract and validation record are in [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md).
 
 ## References
 

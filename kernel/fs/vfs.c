@@ -16,6 +16,7 @@
 #define PERSIST_DATA_LAST_LBA (PERSIST_STAGING_LBA - 1U)
 #define PERSIST_DATA_BLOCKS (PERSIST_DATA_LAST_LBA - PERSIST_DATA_LBA + 1U)
 #define PERSIST_RECORD_SIZE 128U
+#define PERSIST_GROW_BLOCKS 128U
 #define PERSIST_ROOT_INDEX UINT16_C(0)
 #define PERSIST_PARENT_ROOT UINT16_C(0xFFFF)
 #define PERSIST_PARENT_SYSTEM UINT16_C(0xFFFE)
@@ -43,6 +44,11 @@ struct vfs_target {
     uint16_t index;
 };
 
+struct persistent_extent {
+    uint32_t start_block;
+    uint32_t block_count;
+};
+
 struct persistent_node {
     uint8_t used;
     uint8_t type;
@@ -51,8 +57,7 @@ struct persistent_node {
     uint16_t parent;
     uint16_t reserved;
     uint64_t size;
-    uint32_t start_block;
-    uint32_t block_count;
+    struct persistent_extent extent[VFS_PERSIST_EXTENT_MAX];
     char name[VFS_NAME_MAX];
 };
 
@@ -80,7 +85,7 @@ static struct persistent_node persistent_nodes[VFS_PERSIST_MAX_FILES];
 static struct tmp_node tmp_nodes[VFS_TMPFS_MAX_FILES];
 static uint8_t persistent_bitmap[PERSIST_BITMAP_SECTORS * AHCI_SECTOR_SIZE];
 static uint8_t persistent_mounted;
-static uint8_t persistent_open_buffer[VFS_PERSIST_FILE_CAPACITY];
+static uint8_t persistent_open_buffer[VFS_PERSIST_OPEN_CAPACITY];
 static uint8_t sector_buffer[AHCI_SECTOR_SIZE];
 static uint8_t migration_buffer[AHCI_SECTOR_SIZE];
 static uint8_t live_buffer[512U];
@@ -380,10 +385,12 @@ static void encode_node(uint8_t *record, const struct persistent_node *node) {
     write_u16(record + 4U, node->parent);
     write_u16(record + 6U, node->reserved);
     write_u64(record + 8U, node->size);
-    write_u32(record + 16U, node->start_block);
-    write_u32(record + 20U, node->block_count);
+    for (uint64_t index = 0U; index < VFS_PERSIST_EXTENT_MAX; index++) {
+        write_u32(record + 16U + index * 8U, node->extent[index].start_block);
+        write_u32(record + 20U + index * 8U, node->extent[index].block_count);
+    }
     for (uint64_t index = 0U; index < VFS_NAME_MAX; index++) {
-        record[24U + index] = (uint8_t)node->name[index];
+        record[64U + index] = (uint8_t)node->name[index];
     }
 }
 
@@ -396,8 +403,26 @@ static void decode_node(struct persistent_node *node, const uint8_t *record) {
     node->parent = read_u16(record + 4U);
     node->reserved = read_u16(record + 6U);
     node->size = read_u64(record + 8U);
-    node->start_block = read_u32(record + 16U);
-    node->block_count = read_u32(record + 20U);
+    for (uint64_t index = 0U; index < VFS_PERSIST_EXTENT_MAX; index++) {
+        node->extent[index].start_block = read_u32(record + 16U + index * 8U);
+        node->extent[index].block_count = read_u32(record + 20U + index * 8U);
+    }
+    for (uint64_t index = 0U; index < VFS_NAME_MAX; index++) {
+        node->name[index] = (char)record[64U + index];
+    }
+}
+
+static void decode_node_mypfs003(struct persistent_node *node, const uint8_t *record) {
+    clear_node(node);
+    node->used = record[0];
+    node->type = record[1];
+    node->name_length = record[2];
+    node->flags = record[3];
+    node->parent = read_u16(record + 4U);
+    node->reserved = read_u16(record + 6U);
+    node->size = read_u64(record + 8U);
+    node->extent[0].start_block = read_u32(record + 16U);
+    node->extent[0].block_count = read_u32(record + 20U);
     for (uint64_t index = 0U; index < VFS_NAME_MAX; index++) {
         node->name[index] = (char)record[24U + index];
     }
@@ -441,37 +466,94 @@ static void bitmap_set(uint64_t block, int used) {
     }
 }
 
-static int allocate_extent(uint32_t *start_block, uint32_t *block_count) {
-    const uint64_t needed = VFS_PERSIST_FILE_CAPACITY / AHCI_SECTOR_SIZE;
+static uint64_t node_block_capacity(const struct persistent_node *node) {
+    uint64_t total = 0U;
 
-    if (start_block == (uint32_t *)0 || block_count == (uint32_t *)0) {
-        return 0;
+    if (node == (const struct persistent_node *)0) { return 0U; }
+    for (uint64_t index = 0U; index < VFS_PERSIST_EXTENT_MAX; index++) {
+        total += node->extent[index].block_count;
     }
-    for (uint64_t start = 0U; start + needed <= PERSIST_DATA_BLOCKS; start++) {
-        uint64_t count = 0U;
+    return total;
+}
 
-        while (count < needed && bitmap_is_set(start + count) == 0) {
-            count++;
-        }
-        if (count == needed) {
-            for (uint64_t block = 0U; block < needed; block++) {
-                bitmap_set(start + block, 1);
-            }
+static int blocks_are_free(uint64_t start, uint64_t count) {
+    if (start >= PERSIST_DATA_BLOCKS || count > PERSIST_DATA_BLOCKS - start) { return 0; }
+    for (uint64_t index = 0U; index < count; index++) {
+        if (bitmap_is_set(start + index) != 0) { return 0; }
+    }
+    return 1;
+}
+
+static int allocate_run(uint64_t needed, uint32_t *start_block) {
+    if (needed == 0U || start_block == (uint32_t *)0 || needed > PERSIST_DATA_BLOCKS) { return 0; }
+    for (uint64_t start = 0U; start + needed <= PERSIST_DATA_BLOCKS; start++) {
+        if (blocks_are_free(start, needed) != 0) {
+            for (uint64_t block = 0U; block < needed; block++) { bitmap_set(start + block, 1); }
             *start_block = (uint32_t)start;
-            *block_count = (uint32_t)needed;
             return persistent_store_bitmap();
         }
-        start += count;
+    }
+    return 0;
+}
+
+static int persistent_expand_file(struct persistent_node *node, uint64_t byte_count) {
+    uint64_t required;
+    uint64_t current;
+    uint64_t missing;
+    uint64_t reserve;
+    const uint64_t maximum = VFS_PERSIST_FILE_CAPACITY / AHCI_SECTOR_SIZE;
+    int last = -1;
+    int free_extent = -1;
+
+    if (node == (struct persistent_node *)0 || node->type != VFS_OBJECT_REGULAR
+        || byte_count > VFS_PERSIST_FILE_CAPACITY) { return 0; }
+    required = (byte_count + AHCI_SECTOR_SIZE - 1U) / AHCI_SECTOR_SIZE;
+    current = node_block_capacity(node);
+    if (required <= current) { return 1; }
+    missing = required - current;
+    reserve = missing < PERSIST_GROW_BLOCKS ? PERSIST_GROW_BLOCKS : missing;
+    if (reserve > maximum - current) { reserve = maximum - current; }
+    for (uint64_t index = 0U; index < VFS_PERSIST_EXTENT_MAX; index++) {
+        if (node->extent[index].block_count != 0U) { last = (int)index; }
+        else if (free_extent < 0) { free_extent = (int)index; }
+    }
+    if (last >= 0) {
+        const uint64_t next = (uint64_t)node->extent[last].start_block + node->extent[last].block_count;
+        if (blocks_are_free(next, reserve) != 0) {
+            for (uint64_t block = 0U; block < reserve; block++) { bitmap_set(next + block, 1); }
+            node->extent[last].block_count += (uint32_t)reserve;
+            return persistent_store_bitmap();
+        }
+    }
+    if (free_extent < 0 || reserve > UINT32_MAX || allocate_run(reserve, &node->extent[free_extent].start_block) == 0) {
+        return 0;
+    }
+    node->extent[free_extent].block_count = (uint32_t)reserve;
+    return 1;
+}
+
+static int logical_block_to_physical(const struct persistent_node *node, uint64_t logical, uint64_t *physical) {
+    uint64_t remaining = logical;
+
+    if (node == (const struct persistent_node *)0 || physical == (uint64_t *)0) { return 0; }
+    for (uint64_t index = 0U; index < VFS_PERSIST_EXTENT_MAX; index++) {
+        const uint64_t count = node->extent[index].block_count;
+        if (remaining < count) {
+            *physical = (uint64_t)node->extent[index].start_block + remaining;
+            return *physical < PERSIST_DATA_BLOCKS;
+        }
+        remaining -= count;
     }
     return 0;
 }
 
 static void release_extent(const struct persistent_node *node) {
-    if (node->type != VFS_OBJECT_REGULAR) {
-        return;
-    }
-    for (uint64_t block = 0U; block < node->block_count && node->start_block + block < PERSIST_DATA_BLOCKS; block++) {
-        bitmap_set((uint64_t)node->start_block + block, 0);
+    if (node == (const struct persistent_node *)0 || node->type != VFS_OBJECT_REGULAR) { return; }
+    for (uint64_t extent = 0U; extent < VFS_PERSIST_EXTENT_MAX; extent++) {
+        for (uint64_t block = 0U; block < node->extent[extent].block_count
+             && (uint64_t)node->extent[extent].start_block + block < PERSIST_DATA_BLOCKS; block++) {
+            bitmap_set((uint64_t)node->extent[extent].start_block + block, 0);
+        }
     }
 }
 
@@ -486,11 +568,12 @@ static int persistent_read_bytes(const struct persistent_node *node, uint64_t of
     while (copied < length) {
         const uint64_t position = offset + copied;
         const uint64_t sector_offset = position % AHCI_SECTOR_SIZE;
-        const uint64_t sector = (uint64_t)node->start_block + position / AHCI_SECTOR_SIZE;
+        uint64_t sector;
         const uint64_t chunk = length - copied < AHCI_SECTOR_SIZE - sector_offset
                                    ? length - copied : AHCI_SECTOR_SIZE - sector_offset;
 
-        if (sector >= PERSIST_DATA_BLOCKS || ahci_read_sector(PERSIST_DATA_LBA + sector, sector_buffer) == 0) {
+        if (logical_block_to_physical(node, position / AHCI_SECTOR_SIZE, &sector) == 0
+            || ahci_read_sector(PERSIST_DATA_LBA + sector, sector_buffer) == 0) {
             return 0;
         }
         for (uint64_t index = 0U; index < chunk; index++) {
@@ -501,23 +584,25 @@ static int persistent_read_bytes(const struct persistent_node *node, uint64_t of
     return 1;
 }
 
-static int persistent_write_bytes(const struct persistent_node *node, uint64_t offset,
+static int persistent_write_bytes(struct persistent_node *node, uint64_t offset,
                                   const uint8_t *data, uint64_t length) {
     uint64_t copied = 0U;
 
-    if (node == (const struct persistent_node *)0 || (data == (const uint8_t *)0 && length != 0U)
+    if (node == (struct persistent_node *)0 || (data == (const uint8_t *)0 && length != 0U)
         || node->type != VFS_OBJECT_REGULAR || offset > VFS_PERSIST_FILE_CAPACITY
-        || length > VFS_PERSIST_FILE_CAPACITY - offset) {
+        || length > VFS_PERSIST_FILE_CAPACITY - offset
+        || persistent_expand_file(node, offset + length) == 0) {
         return 0;
     }
     while (copied < length) {
         const uint64_t position = offset + copied;
         const uint64_t sector_offset = position % AHCI_SECTOR_SIZE;
-        const uint64_t sector = (uint64_t)node->start_block + position / AHCI_SECTOR_SIZE;
+        uint64_t sector;
         const uint64_t chunk = length - copied < AHCI_SECTOR_SIZE - sector_offset
                                    ? length - copied : AHCI_SECTOR_SIZE - sector_offset;
 
-        if (sector >= PERSIST_DATA_BLOCKS || ahci_read_sector(PERSIST_DATA_LBA + sector, sector_buffer) == 0) {
+        if (logical_block_to_physical(node, position / AHCI_SECTOR_SIZE, &sector) == 0
+            || ahci_read_sector(PERSIST_DATA_LBA + sector, sector_buffer) == 0) {
             return 0;
         }
         for (uint64_t index = 0U; index < chunk; index++) {
@@ -676,13 +761,7 @@ static int create_persistent_node(uint16_t parent, const char *name, uint8_t typ
     node->parent = parent;
     node->name_length = (uint8_t)text_length(name, VFS_NAME_MAX);
     text_copy(node->name, VFS_NAME_MAX, name);
-    if (type == VFS_OBJECT_REGULAR && allocate_extent(&node->start_block, &node->block_count) == 0) {
-        clear_node(node);
-        return 0;
-    }
     if (persistent_store_node((uint64_t)free_index) == 0) {
-        release_extent(node);
-        (void)persistent_store_bitmap();
         clear_node(node);
         return 0;
     }
@@ -713,16 +792,20 @@ static int create_tmp_node(uint16_t parent, const char *name, uint8_t type) {
     return 1;
 }
 
-static int persistent_format(void) {
+static int persistent_store_superblocks(uint8_t revision) {
     uint8_t superblock[AHCI_SECTOR_SIZE] = { 0U };
 
-    persistent_reset();
     superblock[0] = 'M'; superblock[1] = 'Y'; superblock[2] = 'P'; superblock[3] = 'F';
-    superblock[4] = 'S'; superblock[5] = '0'; superblock[6] = '0'; superblock[7] = '3';
+    superblock[4] = 'S'; superblock[5] = '0'; superblock[6] = '0'; superblock[7] = revision;
     write_u32(superblock + 8U, (uint32_t)VFS_PERSIST_MAX_FILES);
     write_u32(superblock + 12U, (uint32_t)PERSIST_DATA_BLOCKS);
-    if (ahci_write_data_sector(PERSIST_METADATA_LBA, superblock) == 0
-        || ahci_write_data_sector(PERSIST_METADATA_LBA + 1U, superblock) == 0) {
+    return ahci_write_data_sector(PERSIST_METADATA_LBA, superblock) != 0
+           && ahci_write_data_sector(PERSIST_METADATA_LBA + 1U, superblock) != 0;
+}
+
+static int persistent_format(void) {
+    persistent_reset();
+    if (persistent_store_superblocks('4') == 0) {
         return 0;
     }
     for (uint64_t sector = 0U; sector < PERSIST_RECORD_SECTORS; sector++) {
@@ -753,6 +836,11 @@ static int persistent_format(void) {
 
 static int journal_present(uint8_t *journal) {
     return journal[0] == 'M' && journal[1] == '3' && journal[2] == 'M' && journal[3] == 'G';
+}
+
+static int journal_mypfs004_present(const uint8_t *journal) {
+    return journal != (const uint8_t *)0 && journal[0] == 'M' && journal[1] == '4'
+           && journal[2] == 'M' && journal[3] == 'G';
 }
 
 static int legacy_path_to_new(const char *legacy, char *path, uint64_t capacity) {
@@ -884,6 +972,53 @@ static int stage_legacy_migration(void) {
     return migrate_legacy_records(journal);
 }
 
+static int finish_mypfs003_migration(void) {
+    uint8_t journal_clear[AHCI_SECTOR_SIZE] = { 0U };
+
+    persistent_reset();
+    for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
+        const uint64_t offset = record_offset(index);
+        if (ahci_read_sector(PERSIST_STAGING_LBA + (index * PERSIST_RECORD_SIZE) / AHCI_SECTOR_SIZE, sector_buffer) == 0) {
+            return 0;
+        }
+        decode_node_mypfs003(&persistent_nodes[index], sector_buffer + offset);
+        if (persistent_nodes[index].used > 1U
+            || (persistent_nodes[index].used != 0U && persistent_nodes[index].type != VFS_OBJECT_REGULAR
+                && persistent_nodes[index].type != VFS_OBJECT_DIRECTORY)
+            || (persistent_nodes[index].used != 0U && persistent_nodes[index].name_length >= VFS_NAME_MAX)) {
+            return 0;
+        }
+    }
+    for (uint64_t sector = 0U; sector < PERSIST_BITMAP_SECTORS; sector++) {
+        if (ahci_read_sector(PERSIST_BITMAP_LBA + sector, persistent_bitmap + sector * AHCI_SECTOR_SIZE) == 0) {
+            return 0;
+        }
+    }
+    for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
+        if (persistent_store_node(index) == 0) { return 0; }
+    }
+    if (persistent_store_superblocks('4') == 0
+        || ahci_write_data_sector(PERSIST_JOURNAL_LBA, journal_clear) == 0) {
+        return 0;
+    }
+    persistent_mounted = 1U;
+    return 1;
+}
+
+static int stage_mypfs003_migration(void) {
+    uint8_t journal[AHCI_SECTOR_SIZE] = { 0U };
+
+    for (uint64_t sector = 0U; sector < PERSIST_RECORD_SECTORS; sector++) {
+        if (ahci_read_sector(PERSIST_RECORD_LBA + sector, sector_buffer) == 0
+            || ahci_write_data_sector(PERSIST_STAGING_LBA + sector, sector_buffer) == 0) {
+            return 0;
+        }
+    }
+    journal[0] = 'M'; journal[1] = '4'; journal[2] = 'M'; journal[3] = 'G';
+    if (ahci_write_data_sector(PERSIST_JOURNAL_LBA, journal) == 0) { return 0; }
+    return finish_mypfs003_migration();
+}
+
 int vfs_mount_persistent(void) {
     uint8_t superblock[AHCI_SECTOR_SIZE];
     uint8_t journal[AHCI_SECTOR_SIZE];
@@ -893,11 +1028,14 @@ int vfs_mount_persistent(void) {
     if (ahci_read_sector(PERSIST_JOURNAL_LBA, journal) == 0 || ahci_read_sector(PERSIST_METADATA_LBA, superblock) == 0) {
         return 0;
     }
+    if (journal_mypfs004_present(journal) != 0) {
+        return finish_mypfs003_migration();
+    }
     if (journal_present(journal) != 0) {
         return migrate_legacy_records(journal);
     }
     if (superblock[0] == 'M' && superblock[1] == 'Y' && superblock[2] == 'P' && superblock[3] == 'F'
-        && superblock[4] == 'S' && superblock[5] == '0' && superblock[6] == '0' && superblock[7] == '3') {
+        && superblock[4] == 'S' && superblock[5] == '0' && superblock[6] == '0' && superblock[7] == '4') {
         for (uint64_t index = 0U; index < VFS_PERSIST_MAX_FILES; index++) {
             const uint64_t offset = record_offset(index);
             if (ahci_read_sector(record_lba(index), sector_buffer) == 0) { return 0; }
@@ -905,7 +1043,9 @@ int vfs_mount_persistent(void) {
             if (persistent_nodes[index].used > 1U
                 || (persistent_nodes[index].used != 0U && persistent_nodes[index].type != VFS_OBJECT_REGULAR
                     && persistent_nodes[index].type != VFS_OBJECT_DIRECTORY)
-                || (persistent_nodes[index].used != 0U && persistent_nodes[index].name_length >= VFS_NAME_MAX)) {
+                || (persistent_nodes[index].used != 0U && persistent_nodes[index].name_length >= VFS_NAME_MAX)
+                || (persistent_nodes[index].used != 0U && persistent_nodes[index].type == VFS_OBJECT_REGULAR
+                    && persistent_nodes[index].size > VFS_PERSIST_FILE_CAPACITY)) {
                 return 0;
             }
         }
@@ -916,6 +1056,10 @@ int vfs_mount_persistent(void) {
         }
         persistent_mounted = 1U;
         return 1;
+    }
+    if (superblock[0] == 'M' && superblock[1] == 'Y' && superblock[2] == 'P' && superblock[3] == 'F'
+        && superblock[4] == 'S' && superblock[5] == '0' && superblock[6] == '0' && superblock[7] == '3') {
+        return stage_mypfs003_migration();
     }
     if (superblock[0] == 'M' && superblock[1] == 'Y' && superblock[2] == 'P' && superblock[3] == 'F'
         && superblock[4] == 'S' && superblock[5] == '0' && superblock[6] == '0'

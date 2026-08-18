@@ -79,8 +79,8 @@ run sdk-hello external SDK validation
 
 | Ограничение | Текущее значение |
 |---|---:|
-| Persistent VFS objects | До 128 файлов и каталогов в MYPFS003. |
-| Максимальный размер одного persistent regular file | 64 KiB. |
+| Persistent VFS objects | До 128 файлов и каталогов в MYPFS004. |
+| Максимальный размер одного persistent regular file | 8 MiB. |
 | Persistent executable target | `/apps/<name>/main.elf`; короткое имя `<name>` разрешается shell в этот target. |
 | Длина absolute program path | До 111 visible ASCII bytes плюс NUL terminator. |
 | Длина передаваемой строки arguments | До 127 visible bytes плюс NUL terminator. |
@@ -90,7 +90,7 @@ run sdk-hello external SDK validation
 
 Путь `sdk/examples/hello.c` является обычным исходным файлом SDK. Его можно изменить или указать другой файл с `APP`; например, `make -C sdk APP=apps/status.c OUT=sdk/build/status.elf`. Для воспроизводимой проверки reference image собирает sample в `/system/core/examples/sdk/hello.elf`. Замените sample source, затем запустите `make img`, чтобы обновлённый ELF оказался по этому пути, после чего используйте `install /system/core/examples/sdk/hello.elf /apps/<name>/main.elf` и `run <name>`.
 
-MYPFS003 уже предоставляет настоящую файловую иерархию: исходники и local build outputs предназначены для `/users/myos/projects/`, global installed apps — для `/apps/`, а personal data и configuration — для `/users/myos/data/` и `/users/myos/config/`. Нативная сборка исходников прямо в MyOS остаётся следующим самостоятельным milestone.
+MYPFS004 предоставляет настоящую файловую иерархию и dynamic multi-extent regular files: исходники и local build outputs предназначены для `/users/myos/projects/`, global installed apps — для `/apps/`, а personal data и configuration — для `/users/myos/data/` и `/users/myos/config/`. Нативная сборка исходников прямо в MyOS остаётся следующим самостоятельным milestone.
 
 ## Проверка milestone
 
@@ -102,8 +102,9 @@ MYPFS003 уже предоставляет настоящую файловую �
 | ELF inspection | Получен statically linked `ELF64 ET_EXEC` для x86-64 с entry `0x40005f` и loadable text/rodata segments. |
 | Image build | `make img` добавляет SDK sample как `/system/core/examples/sdk/hello.elf`. |
 | Install and run | `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`, затем `run sdk-hello external SDK validation` вывели приветствие и полную строку аргументов; status `0`. |
-| Persistence | После fresh BIOS boot `run sdk-hello persisted` успешно запускает ранее установленный ELF из MYPFS003 application package. |
+| Persistence | После fresh BIOS boot `run sdk-hello persisted` успешно запускает ранее установленный ELF из MYPFS004 application package. |
+| UEFI execution | OVMF boot с тем же `myos.img` успешно запустил persisted app командой `run sdk-hello uefi`. |
 
 ## Не входит в данный этап
 
-SDK не добавляет 32-bit compatibility, native C compiler, dynamic linking, process `argv[]` или package manager. General hierarchical filesystem реализована отдельным MYPFS003 milestone; symbolic links, GUI shortcuts и личная установка приложений остаются последующими расширениями. Текущая GUI branch и immutable tags остаются без изменений.
+SDK не добавляет 32-bit compatibility, native C compiler, dynamic linking, process `argv[]` или package manager. Unified hierarchy и MYPFS004 large-file storage уже реализованы; symbolic links, GUI shortcuts и личная установка приложений остаются последующими расширениями. Текущая GUI branch и immutable tags остаются без изменений.

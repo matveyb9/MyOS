@@ -12,7 +12,7 @@
 | Kernel | GDT, IDT, TSS, PMM, paging, heap, PIT, PS/2 keyboard, RTC, ACPI, PCI и AHCI. |
 | Processes | Ring 3, ELF loader, scheduler, `wait`, `kill`, `sleep`, arguments и pipes. |
 | Console | Kernel shell, user shell, improved onboarding, history, Tab completion, signed `calc`, `clear` и environment variables. |
-| Files | Initramfs, временные `tmp/` files и persistent `disk/` files в isolated AHCI data partition. |
+| Files | Unified MYPFS004 root: read-only `/system/core`, persistent `/system/data`, `/apps`, `/users/myos`, RAM `/temp` и read-only runtime `/system/live`; regular files до 8 MiB. |
 | Utilities | `calc`, `wc`, `grep`, `edit`, `hello`, `sleeper`, `argshow` и другие. |
 
 ## Быстрый старт
@@ -35,7 +35,7 @@ make all img
 | Artifact | Для чего нужен |
 |---|---|
 | `myos.iso` | Быстрый BIOS/UEFI test как ISO/CD в QEMU. |
-| `myos.img` | Рекомендуемый disk/USB image с persistent `disk/` storage. |
+| `myos.img` | Рекомендуемый disk/USB image с persistent MYPFS004 storage и unified root `/`. |
 
 ### 3. Запустите в QEMU
 
@@ -53,9 +53,9 @@ qemu-system-x86_64 \
 ```text
 help
 uname
-touch disk/note
-write disk/note Hello MyOS
-cat disk/note
+ls /
+write /users/myos/files/note.txt Hello MyOS
+cat /users/myos/files/note.txt
 ```
 
 ## Платформы разработки и запуска
@@ -83,6 +83,9 @@ cat disk/note
 | [Releases and branches](docs/RELEASES_RU.md) | All readers | Meaning of `main`, `console-stable`, tags and GUI branch. |
 | [Documentation index](docs/README.md) | All readers | Current manuals versus historical development notes. |
 | [GUI bring-up manual](docs/GUI_BRINGUP_RU.md) | `gui/bringup` only | Experimental framebuffer desktop controls and validation. |
+| [Filesystem specification](docs/FILESYSTEM_SPEC_RU.md) | Users and contributors | Unified root layout, path contract and runtime projection. |
+| [MYPFS004 storage](docs/MYPFS004_STORAGE_RU.md) | Users and contributors | 8 MiB dynamic multi-extent persistent storage and migration contract. |
+| [MyOS SDK](docs/SDK_RU.md) | User-program authors | External freestanding C11 build and persistent ELF workflow. |
 
 ## Build and repository actions
 
@@ -97,7 +100,7 @@ cat disk/note
 | Clean generated files | `make clean` |
 | Deep-clean Limine dependency too | `make distclean` |
 
-`make img` intentionally recreates `myos.img`; any existing persistent `disk/` files inside the prior image are erased.
+`make img` intentionally recreates `myos.img`; any existing persistent MYPFS004 files and application packages inside the prior image are erased.
 
 ## Git model
 

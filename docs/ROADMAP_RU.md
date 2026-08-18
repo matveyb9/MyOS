@@ -17,7 +17,7 @@
 |---|---|---|
 | `console-stable` | Неподвижная опорная линия завершённой консольной ОС. | `[x]` `v0.12.1-console` на commit `b6914d4`. |
 | `main` | Основная линия консольной ОС и её поддерживаемой документации. | `[x]` boot UX refinement в `0dbcc25`: stage headers, three-second auto-init и очистка экрана перед user shell. |
-| `gui/bringup` | Изолированная разработка framebuffer GUI и user-program platform. | `[~]` GUI scope закрыт preview checkpoint `v0.12.2-gui-preview`; persistent disk ELF execution и внешний MyOS SDK реализованы, ветка остаётся отдельной от `main`. |
+| `gui/bringup` | Изолированная разработка framebuffer GUI и user-program platform. | `[~]` GUI scope закрыт preview checkpoint `v0.12.2-gui-preview`; MYPFS004 large-file storage, persistent ELF execution и внешний MyOS SDK реализованы, ветка остаётся отдельной от `main`. |
 
 Версия разработки — **MyOS 0.12.2-dev**. Теги `v0.12.0-console` и `v0.12.1-console` являются историческими неизменяемыми границами и не перемещаются.
 
@@ -69,7 +69,7 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 | Приоритет | Статус | Работа | Критерий завершения |
 |---:|---|---|---|
 | 1 | `[x]` | Cursor-aware editor with scrolling | Caret, `Left`/`Right`/`Up`/`Down`, `Home`/`End`, `Delete` и bounded 20-line viewport реализованы; BIOS и UEFI smoke tests пройдены. |
-| 2 | `[x]` | Named persistent `disk/` files | `startgui disk/name` выбирает конкретный path, `N` циклически перебирает existing files, а editor сохраняет выбранный file; BIOS и UEFI readback пройдены. |
+| 2 | `[x]` | Historical pre-MYPFS003 named `disk/` files | Это завершённая historical GUI validation stage: `startgui disk/name` выбирал конкретный legacy path, `N` перебирал files, а editor сохранял selected file. Current workflow использует absolute paths под `/users/myos/files/notes/`. |
 | 3 | `[x]` | Hardware mouse/pointer support | PS/2 IRQ12 packets перемещают pointer, left click фокусирует topmost window, а keyboard controls остаются fallback; BIOS и UEFI tests пройдены. |
 | 4 | `[x]` | GUI reliability pass | BIOS create/save/return/relaunch, UEFI readback/append/save/return и cross-firmware AHCI persistence прошли без регрессии `startgui`. |
 | 5 | `[x]` | Решение о GUI release boundary | Принято: immutable `v0.12.2-gui-preview` фиксирует tested GUI scope; `main` и `console-stable` не меняются, а `gui/bringup` продолжает следующий этап. |
@@ -83,8 +83,9 @@ GUI release decision принят: immutable preview tag фиксирует пр
 | 1 | `[x]` | Persistent ELF64 program execution | `install <absolute-source> /apps/<name>/main.elf` копирует bounded ELF в global application package; `run <name> [arguments]` создаёт отдельный user task. Loader проверяет x86_64 ELF64 `ET_EXEC`, load segments и entry. |
 | 2 | `[x]` | MyOS SDK для внешней сборки | Public header, startup code, linker script, build template и example app находятся в `sdk/`; host-built ELF устанавливается в `/apps/<name>/main.elf` и запускается без пересборки kernel. Подробности и validation — в [SDK_RU.md](SDK_RU.md). |
 | 3 | `[x]` | Developer filesystem workflow | Реализован MYPFS003: real directories, lower-case unified root, `/system/core`, `/system/data`, `/system/config`, `/apps`, `/users/myos`, `/temp` и read-only `/system/live`. Поддержаны absolute paths, ASCII case-preserving/case-insensitive lookup, `/apps` packages, shell `ls`/`mkdir`/`touch`/`write`/`rm`, MYPFS001/MYPFS002 migration и legacy disk namespace removal. [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md) фиксирует contract. |
-| 4 | `[ ]` | Первая нативная сборка в MyOS | В MyOS появляется компактный native assembler или ограниченный C compiler с командой build, создающей запускаемый MyOS ELF64 для учебных и практических user programs. |
-| 5 | `[ ]` | Расширение native toolchain | По мере готовности: более полное подмножество C, linker, базовая C-библиотека, build scripts и затем оценка портирования более крупного compiler. GCC/Clang не являются первым шагом. |
+| 4 | `[x]` | MYPFS004 dynamic large-file storage | Regular files растут лениво до 8 MiB, используют до шести extents и 64 KiB allocation batches; AHCI command DMA frames освобождаются на всех exit paths. Пройдены fragmented 1 MiB exact readback, fresh-boot streamed read, MYPFS003 `M4MG` migration, MYPFS002 migration и BIOS/UEFI SDK execution. [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md) фиксирует contract. |
+| 5 | `[ ]` | Первая нативная сборка в MyOS | В MyOS появляется компактный native assembler или ограниченный C compiler с командой build, создающей запускаемый MyOS ELF64 для учебных и практических user programs. |
+| 6 | `[ ]` | Расширение native toolchain | По мере готовности: более полное подмножество C, linker, базовая C-библиотека, build scripts и затем оценка портирования более крупного compiler. GCC/Clang не являются первым шагом. |
 
 > **Приоритет пользователя:** собственные программы и первый native build workflow не откладываются до сети, SMP, USB или собственного bootloader. После GUI release decision они образуют ближайшую линию функциональной разработки.
 
@@ -115,4 +116,4 @@ GUI release decision принят: immutable preview tag фиксирует пр
 
 ## Следующее действие
 
-Developer filesystem workflow завершён в `gui/bringup`: новая MYPFS003 VFS заменяет user-facing `disk/` prefixes на единый корень с `/system`, `/apps`, `/users/myos` и `/temp`. SDK example строится на хосте, устанавливается как `/apps/sdk-hello/main.elf` и запускается коротким именем `run sdk-hello`. Следующий практический milestone — первая нативная сборка в MyOS; личная установка приложений (`/users/myos/apps`) остаётся отдельным будущим расширением. Preview `v0.12.2-gui-preview` не сливается в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
+Developer filesystem workflow завершён в `gui/bringup`: MYPFS004 VFS предоставляет единый корень с `/system`, `/apps`, `/users/myos` и `/temp`, large files до 8 MiB, six-extent allocation и migration from MYPFS003/MYPFS002. SDK example строится на хосте, устанавливается как `/apps/sdk-hello/main.elf` и запускается коротким именем `run sdk-hello`; persistence подтверждена в BIOS и UEFI. Следующий практический milestone — первая нативная сборка в MyOS; личная установка приложений (`/users/myos/apps`) остаётся отдельным будущим расширением. Preview `v0.12.2-gui-preview` не сливается в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.

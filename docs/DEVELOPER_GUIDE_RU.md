@@ -1,8 +1,8 @@
-# Руководство разработчика MyOS Console 0.12.0-dev
+# Руководство разработчика MyOS
 
-Этот документ описывает завершённый **console release** MyOS. Он предназначен для разработчиков, системных программистов и читателей, которым нужна карта исходного кода и технические инварианты. Зафиксированная точка release — аннотированный tag `v0.12.0-console` на commit `1a454cb`.
+Этот документ описывает текущую development line **`gui/bringup`** MyOS. Он предназначен для разработчиков, системных программистов и читателей, которым нужна карта исходного кода и технические инварианты. Стабильная console boundary остаётся immutable тегом `v0.12.1-console`; текущие GUI, SDK и MYPFS004 changes не переносятся в неё без отдельного release decision.
 
-> `main` и `console-stable` указывают на console milestone. GUI experiments должны находиться только в отдельных ветках и не должны менять этот release без отдельного решения.
+> `main` и `console-stable` сохраняют console scope. GUI experiments, MYPFS004 и user-program platform развиваются только в `gui/bringup` и не должны менять console release автоматически.
 
 ## 1. Build и test contract
 
@@ -113,11 +113,11 @@ The release includes write/read, process lifecycle, task info, VFS read/enumerat
 
 | Limit | Value |
 |---|---:|
-| Generic write syscall payload | 256 bytes |
-| Spawn path | 16 bytes including terminator capacity |
+| Generic write syscall payload | 512 bytes |
+| Spawn path | 112 bytes including terminator capacity |
 | Spawn argument storage | 128 bytes |
-| VFS read chunk | 128 bytes |
-| tmpfs/persistent write chunk | 128 bytes |
+| Unified VFS read/write chunk | 256 bytes |
+| Legacy tmpfs/persistent compatibility write chunk | 128 bytes |
 | Pipe channels | 4 |
 | Pipe capacity per channel | 256 bytes |
 
@@ -131,11 +131,12 @@ The VFS lookup order and implementation are in `kernel/fs/vfs.c`.
 
 | Namespace | Backend | Lifetime |
 |---|---|---|
-| Initramfs entries such as `motd.txt` and programs | Read-only newc CPIO | Built into image. |
-| `tmp/<name>` | In-memory bounded tmpfs | Lost at reboot. |
-| `disk/<name>` | Bounded persistent backend over guarded AHCI data LBAs | Survives reboot of the same `myos.img`. |
+| `/system/core/` | Read-only newc CPIO | Built into image. |
+| `/system/data/`, `/system/config/`, `/apps/`, `/users/myos/` | MYPFS004 persistent hierarchy over guarded AHCI data LBAs | Survives reboot of the same `myos.img`. |
+| `/temp/` | In-memory bounded tmpfs | Lost at reboot. |
+| `/system/live/` | Kernel-generated virtual projection | Current boot only; read-only. |
 
-Both writable stores are intentionally bounded. The persistent backend uses one metadata sector and one guarded data sector per file. It supports at most 8 files, each up to 512 bytes. This is a demonstration filesystem, not a POSIX filesystem.
+MYPFS004 has 128 persistent object records, dynamic multi-extent regular-file allocation, six extents per file and an 8 MiB per-file ceiling. Empty files reserve no payload. Growth is batched at 128 sectors (64 KiB); offset-based VFS calls stream large files through 256-byte user ABI chunks. See [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md) and [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md) for the public and on-disk contracts.
 
 ### Raw image invariant
 
@@ -147,7 +148,7 @@ Both writable stores are intentionally bounded. The persistent backend uses one 
 | 2 | 2048–67583 | EFI FAT partition containing boot files. |
 | 3 | 67584–262110 | Isolated MyOS data partition. |
 
-`ahci_write_data_sector()` accepts only data-partition LBAs. The final data sector is reserved for write/readback diagnostics; the persistent VFS uses the remaining reserved layout. Any change to the image layout, AHCI guard constants or persistent metadata must update all three together and repeat BIOS/UEFI tests.
+`ahci_write_data_sector()` accepts only data-partition LBAs. MYPFS004 uses two superblocks, 32 record sectors, 48 bitmap sectors, data blocks, a 512-sector migration staging tail and final journal sector. AHCI commands allocate four DMA frames; every read and write exit path must release them. Any change to image layout, AHCI guard constants or persistent metadata must update all contracts together and repeat BIOS/UEFI tests.
 
 ## 6. Input, console and user shell
 
@@ -167,8 +168,10 @@ Before committing a console change, at minimum perform:
 | UEFI raw image | Equivalent automatic startup and user shell through OVMF. |
 | Fallback check | Missing or failed `/init` leaves diagnostic kernel shell without retry loop. |
 | Process check | `run hello`, `spawn sleeper 1`, `ps`, `wait` or `kill`. |
-| Filesystem check | Create/write/read/remove a `tmp/` file and a `disk/` file. |
-| Persistence check | Reboot the same `myos.img`, then read a previous `disk/` file. |
+| Filesystem check | Create/write/read/remove an absolute-path `/temp/` file and a persistent `/users/myos/...` file; list `/system/live/processes`. |
+| Persistence check | Reboot the same `myos.img`, then read a previous persistent absolute-path file or run an installed `/apps/<name>/main.elf`. |
+| Large-file check | Stream a fragmented multi-extent file; remount and read every byte through bounded VFS requests. |
+| Migration check | Boot deterministic MYPFS003 and MYPFS002 fixtures, then confirm durable `MYPFS004` superblock, cleared journal and second-mount payload readback. |
 | IPC check | `pipe sample`; run `wc` or `grep` against a file. |
 
 For storage code, test both firmware paths on **the same image**: write in BIOS, then read in UEFI. Never test raw AHCI writes on a host block device unless an isolated disposable test device is explicitly intended.
@@ -188,7 +191,7 @@ A normal GitHub publication should push `main`, `console-stable` and the annotat
 
 This is a console milestone, not a production OS. Current non-goals include networking, USB HID, SMP, IOAPIC routing, NVMe, demand paging, dynamic linker, Unix ABI compatibility, package management, full filesystem semantics, Secure Boot and production security hardening. AHCI is deliberately limited to one bounded sector operation and the known isolated data range.
 
-The next project phase, if resumed, is GUI work in a separate branch. Do not add GUI interfaces or GUI user commands to this console guide or console release branch.
+The next project phase is native build capability inside MyOS, starting with a compact assembler or restricted C compiler. Do not merge GUI, MYPFS004 or native-toolchain work into `main` or `console-stable` without an explicit release decision.
 
 ## 10. Documentation maintenance
 

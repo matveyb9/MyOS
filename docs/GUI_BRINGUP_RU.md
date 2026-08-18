@@ -38,10 +38,10 @@ run args alpha beta
 
 | Граница | Правило |
 |---|---|
-| Install source | Existing absolute VFS file до 64 KiB. |
+| Install source | Existing absolute VFS file до 8 MiB. |
 | Target | Только `/apps/<name>/main.elf`; `install` создаёт package directory. |
 | Loader | Принимает только little-endian x86_64 ELF64 `ET_EXEC` с valid load segments и entry внутри mapped load segment. |
-| Storage | MYPFS003 предоставляет до 128 persistent file/directory objects по 64 KiB regular-file capacity; `install` копирует по 128-byte syscall chunks. |
+| Storage | MYPFS004 предоставляет до 128 persistent file/directory objects, regular files до 8 MiB и до шести extents на file; `install` копирует по 256-byte VFS chunks. |
 | Failure | Invalid content, oversized source, invalid path или невозможный load безопасно отклоняются; shell остаётся usable. |
 
 ## MyOS SDK для внешней сборки
@@ -98,8 +98,8 @@ run sdk-hello external SDK validation
 | `MYOS_GUI_CONTENT_TITLE_MAX` | 16 bytes | NUL-terminated title для NOTES window. |
 | `MYOS_GUI_CONTENT_MAX` | 128 bytes | Максимальная длина viewer content и editor draft. |
 | `struct myos_gui_content_request` | 176 bytes | `length`, `flags`, `cursor`, `viewport`, `title[16]`, `data[128]`; укладывается в syscall user-copy limit 256 bytes. |
-| `struct myos_vfs_write_request` | 256 bytes | Unified bounded write request; укладывается в syscall user-copy limit. |
-| File read | До 128 bytes | Один bounded `MYOS_SYS_VFS_READ` request из ring 3. |
+| `struct myos_vfs_write_request` | 384 bytes | Unified bounded write request; укладывается в syscall user-copy limit 512 bytes. |
+| File read | До 256 bytes | Один bounded `MYOS_SYS_VFS_READ` request из ring 3; GUI viewer применяет собственный 128-byte content limit. |
 | Persistent selection | До 64 scanned directory indices | `N` использует `MYOS_SYS_VFS_LIST` только в notes directory. |
 | Selected path | До 111 ASCII bytes плюс NUL | GUI хранит absolute note path в `/users/myos/files/notes/`; `/apps/` предназначен для executable workflow. |
 | Persistent save | До 128 bytes за editor update | `VFS_REMOVE`, `VFS_CREATE_FILE`, затем bounded `VFS_WRITE`; GUI editor intentionally не редактирует binary ELF files. |
@@ -117,7 +117,7 @@ run sdk-hello external SDK validation
 | Input | Existing scheduler-safe console input path; PS/2 auxiliary port выдаёт three-byte packets через IRQ12. PS/2 arrows, Home, End и Delete переводятся в internal bounded key bytes; в editor keys принадлежат draft, а не window manager. |
 | Rendering | Bounded full redraw после GUI input или content update. |
 | Files | Viewer читает любой доступный absolute VFS file; editor изменяет выбранную note в `/users/myos/files/notes/`. |
-| Atomicity | Save удаляет и пересоздаёт file перед записью; MYPFS003 сохраняет bounded metadata and allocation state, а полная application-level atomic replace пока не реализована. |
+| Atomicity | Save удаляет и пересоздаёт file перед записью; MYPFS004 сохраняет bounded metadata and allocation state, а полная application-level atomic replace пока не реализована. |
 | Mouse hardware | PS/2 relative motion и left-button focus реализованы; higher-level actions, dragging, wheel и multi-button semantics пока отсутствуют. |
 | General window API | Не реализован; records остаются внутренними для framebuffer renderer. |
 
@@ -145,7 +145,9 @@ run sdk-hello external SDK validation
 | MYPFS003 root and runtime | Passed (BIOS): `/system`, `/apps`, `/users/myos`, `/temp`, `/system/live/processes` and `cat /system/live/processes/3/info` returned expected virtual state. |
 | MYPFS003 user workflow | Passed (BIOS): `mkdir /users/myos/projects/demo`, persistent write/read, mixed-case `/UsErS/MyOs` lookup, and `/apps` package installation all worked. |
 | SDK install, arguments and persistence | Passed: `/system/core/examples/sdk/hello.elf` installed as `/apps/sdk-hello/main.elf`, `run sdk-hello external SDK validation` printed its argument string; fresh BIOS boot ran the persisted app again. |
-| MYPFS002 migration | Passed (BIOS): fixture preserved `disk/note`, `disk/bin/oldapp` and `disk/plain` as `/users/myos/files/notes/note`, `/apps/oldapp/main.elf` and `/users/myos/files/imported/plain`. |
+| MYPFS003 → MYPFS004 migration | Passed (BIOS): fixture hierarchy and payload migrated through durable `M4MG` recovery marker; `MYPFS004` superblock и cleared journal confirmed before second clean mount. |
+| MYPFS002 legacy migration | Passed (BIOS): `disk/note` fixture migrated to `/users/myos/files/notes/note`; `MYPFS004` superblock, cleared journal and second-mount readback confirmed. |
+| MYPFS004 large-file I/O | Passed (BIOS): 1 MiB fragmented two-extent pattern write/readback, fresh-mount `wc` of all 1,048,576 bytes, SDK install/run after reboot и UEFI persisted SDK execution. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
 Screenshots и краткие test findings находятся вне source tree в локальных `/home/ubuntu/myos-mouse-validation/`, `/home/ubuntu/myos-reliability-validation/` и `/home/ubuntu/myos-disk-elf-validation/`; они не входят в Git commit.
@@ -163,4 +165,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`. Текущая ветка `gui/bringup` теперь содержит MYPFS003 hierarchy, `/apps` ELF execution и MyOS SDK для внешней сборки. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); следующий milestone — native build workflow.
+GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`. Текущая ветка `gui/bringup` теперь содержит MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution и MyOS SDK для внешней сборки. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); следующий milestone — native build workflow.

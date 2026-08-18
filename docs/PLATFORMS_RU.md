@@ -38,7 +38,7 @@ For every verified path, the main build command is:
 make all img
 ```
 
-This creates `myos.iso` and `myos.img`. The raw `myos.img` is the required artifact for persistent `disk/` file testing.
+This creates `myos.iso` and `myos.img`. The raw `myos.img` is the required artifact for persistent MYPFS004 testing through `/system`, `/apps`, `/users/myos` and `/temp`.
 
 ## Linux: Ubuntu and Debian
 
@@ -131,7 +131,7 @@ qemu-system-x86_64 \
   -boot c -serial stdio -display none
 ```
 
-Use `init` after boot. QEMU display-window support depends on your WSL/Windows graphics configuration; if it is unavailable, the serial route above remains sufficient for the console OS.
+MyOS enters `[myos]$` automatically after the three-second countdown. Press `K` only when the diagnostic `kernel>` shell is needed, then use `init` for manual user-shell entry. QEMU display-window support depends on your WSL/Windows graphics configuration; if it is unavailable, the serial route above remains sufficient for the console OS.
 
 ## Windows native: MSYS2 path
 

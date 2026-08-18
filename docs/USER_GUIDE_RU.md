@@ -1,29 +1,27 @@
-# Руководство пользователя MyOS Console 0.12.0-dev
+# Руководство пользователя MyOS
 
-Это руководство предназначено для человека, который хочет **собрать, запустить и попробовать MyOS**, не изучая устройство ядра. MyOS — экспериментальная учебная ОС для x86_64. Используйте QEMU в первую очередь; запуск на физическом компьютере выполняйте только с отдельной тестовой флешкой.
+Это руководство предназначено для человека, который хочет **собрать, запустить и попробовать MyOS**, не изучая устройство ядра. MyOS — экспериментальная учебно-практическая ОС для `x86_64`, написанная с нуля на freestanding C11 и x86_64 NASM. Используйте QEMU в первую очередь; запуск на физическом компьютере выполняйте только с отдельной тестовой флешкой.
 
-> В этом release нет готового графического интерфейса. После загрузки доступна консольная оболочка с командами и небольшим набором программ.
->
-> Для установки toolchain на Windows, WSL, macOS и другие host-платформы сначала откройте [руководство по платформам](PLATFORMS_RU.md). Ниже описано использование MyOS после того, как build environment уже готов.
+> **Текущая линия разработки:** `gui/bringup`, версия `0.12.2-dev`. Стабильная консольная граница сохранена immutable тегом `v0.12.1-console`; GUI и MYPFS004 пока не переносятся в эту границу автоматически.
+
+Для установки toolchain на Windows, WSL, macOS и другие host-платформы сначала откройте [руководство по платформам](PLATFORMS_RU.md). Ниже описано использование MyOS после подготовки build environment.
 
 ## 1. Что понадобится
 
-Для запуска в QEMU нужны GNU-compatible build tools, NASM, image utilities и QEMU. Точный installation path зависит от host platform; используйте [руководство по платформам](PLATFORMS_RU.md) для Linux, Windows/WSL, native Windows/MSYS2 и macOS.
-
-На Ubuntu/Debian набор обычно устанавливается так:
+Для сборки и запуска в QEMU нужны GNU-compatible build tools, NASM, utilities для image creation и QEMU. На Ubuntu/Debian рабочий набор устанавливается так:
 
 ```bash
 sudo apt update
 sudo apt install build-essential nasm xorriso mtools gdisk qemu-system-x86 ovmf
 ```
 
-Исходники должны находиться в каталоге проекта. Во всех следующих примерах предполагается:
+Во всех примерах предполагается, что терминал открыт в корне исходного дерева:
 
 ```bash
 cd /home/ubuntu/myos
 ```
 
-## 2. Сборка
+## 2. Сборка artifacts
 
 Выполните:
 
@@ -31,18 +29,16 @@ cd /home/ubuntu/myos
 make all img
 ```
 
-При первой сборке Make автоматически скачает пакет Limine и соберёт два файла в корне проекта.
-
 | Файл | Когда использовать |
 |---|---|
-| `myos.iso` | Быстрый запуск как CD/ISO в QEMU. |
-| `myos.img` | Рекомендуемый raw disk image для QEMU, USB-флешки и проверки persistent files. |
+| `myos.iso` | Быстрый boot test как ISO/CD в QEMU. |
+| `myos.img` | Рекомендуемый raw disk/USB image с GPT, BIOS boot partition, EFI partition и постоянным разделом данных MyOS. |
 
-> `make img` пересоздаёт `myos.img`. Все файлы, которые были сохранены в `disk/` внутри старого образа, при этом удаляются.
+> `make img` намеренно пересоздаёт `myos.img`. Все данные из persistent MYPFS004 раздела предыдущего образа при этом удаляются. Если нужны тестовые файлы, скопируйте образ до повторной сборки.
 
 ## 3. Рекомендуемый запуск в QEMU
 
-Для полной console версии с постоянными файлами используйте `myos.img`:
+Для полного сценария, включая persistent files и приложения, подключайте raw image именно как IDE drive:
 
 ```bash
 qemu-system-x86_64 \
@@ -51,27 +47,20 @@ qemu-system-x86_64 \
   -boot c
 ```
 
-Откроется окно QEMU. Boot diagnostics отображаются в отдельных блоках `BOOT ENVIRONMENT`, `KERNEL SERVICES`, `STORAGE AND RUNTIME` и `USER ENVIRONMENT`. При обычной загрузке MyOS покажет сообщение о трёхсекундном countdown и **автоматически** запустит `/init`; перед user shell экран очищается, поэтому она открывается без предыдущих boot строк:
+После загрузки MyOS показывает diagnostics в блоках `BOOT ENVIRONMENT`, `KERNEL SERVICES`, `STORAGE AND RUNTIME` и `USER ENVIRONMENT`. Затем начинается трёхсекундный countdown, после которого автоматически запускается user shell. Перед переходом framebuffer очищается:
 
 ```text
 [myos]$
 ```
 
-Если до конца countdown нажать `K` (на PS/2 keyboard или в serial console), automatic startup отменяется и появляется diagnostic kernel shell:
+Нажмите `K` во время countdown, если нужен diagnostic kernel shell. В этом режиме boot log остаётся на экране, а user shell запускается вручную:
 
 ```text
 kernel>
-```
-
-В этом режиме boot diagnostics остаются на экране для troubleshooting, а пользовательскую оболочку можно запустить вручную командой:
-
-```text
 init
 ```
 
-При первом входе shell выводит компактную стартовую карточку с подсказками по `help`, `help calc`, Tab completion и command history.
-
-Для запуска с serial output в терминале добавьте `-serial stdio`. Если нужен только терминал без QEMU window, добавьте также `-display none`:
+Для serial output в терминале добавьте `-serial stdio`. Если окно QEMU не нужно, добавьте `-display none`:
 
 ```bash
 qemu-system-x86_64 \
@@ -80,155 +69,150 @@ qemu-system-x86_64 \
   -boot c -serial stdio -display none
 ```
 
-## 4. Быстрая проверка системы
+## 4. Быстрая проверка
 
-После automatic startup или ручной команды `init` попробуйте эти команды по очереди:
+После automatic startup или ручного `init` попробуйте:
 
 ```text
 help
-help calc
-calc 7 * 6
 uname
 ps
 meminfo
 date
 uptime
-ls
-cat motd.txt
+ls /
+ls /system/live/processes
+cat /system/core/resources/motd.txt
 ```
 
-Это подтвердит, что user shell, scheduler, память, часы, initramfs и файловая система запустились.
+Эти команды проверяют user shell, scheduler, память, часы, initramfs, root hierarchy и read-only runtime projection.
 
-## 5. Работа с файлами
+## 5. Файлы и каталоги
 
-В MyOS есть два простых типа файлов.
+MyOS предоставляет единый логический корень `/`. Путь сохраняет оригинальное написание имени, но ASCII lookup не различает регистр: `Notes`, `NOTES` и `notes` обозначают один объект в одном каталоге. Подробная спецификация дерева приведена в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md).
 
-| Путь | Смысл | Что происходит после restart |
-|---|---|---|
-| `tmp/<имя>` | Временный файл в памяти | Исчезает. |
-| `disk/<имя>` | Постоянный файл на data partition `myos.img` | Сохраняется, если не пересоздавать image. |
+| Путь | Назначение | Сохраняется после reboot |
+|---|---|---:|
+| `/system/core/` | Read-only initramfs: встроенные программы, resources и SDK example. | Да, как часть boot image. |
+| `/system/data/`, `/system/config/` | Общие изменяемые machine-wide data и configuration. | Да. |
+| `/system/live/` | Read-only snapshot процессов и устройств текущей загрузки. | Нет. |
+| `/apps/` | Глобальные persistent application packages. | Да. |
+| `/users/myos/files/` | Личные обычные files, notes и imported legacy files. | Да. |
+| `/users/myos/projects/` | Проекты, исходники и будущие build outputs. | Да. |
+| `/users/myos/data/`, `/users/myos/config/` | Личные data и configuration. | Да. |
+| `/temp/` | Временные RAM files. | Нет. |
 
-Пример временного файла:
+### Обычная работа с файлами
+
+Создайте каталог и текстовый файл в личном profile:
 
 ```text
-touch tmp/test
-write tmp/test Hello
-cat tmp/test
-rm tmp/test
+mkdir /users/myos/projects/demo
+write /users/myos/projects/demo/readme.txt My first MyOS project
+ls /users/myos/projects/demo
+cat /users/myos/projects/demo/readme.txt
 ```
 
-Пример постоянного файла:
+Для временного файла используйте `/temp/`:
 
 ```text
-touch disk/note
-write disk/note My first persistent file
-cat disk/note
-ls
+write /temp/session.txt temporary text
+cat /temp/session.txt
+rm /temp/session.txt
 ```
 
-Закройте QEMU, затем снова загрузите **тот же** `myos.img` и выполните:
+После закрытия QEMU снова загрузите **тот же** `myos.img` и прочитайте persistent file по тому же absolute path. Не запускайте перед этим `make img`, потому что команда создаёт новый пустой data partition.
 
-```text
-init
-cat disk/note
-```
+### Практические limits MYPFS004
 
-Текст должен сохраниться. Persistent filesystem намеренно небольшой: до 8 файлов, каждый до 512 bytes; одна команда `write` передаёт до 128 bytes текста.
+| Граница | Значение |
+|---|---:|
+| Persistent object records | До 128 файлов и каталогов суммарно. |
+| Regular file | До 8 MiB. |
+| Extents regular file | До 6 non-contiguous extents. |
+| Interactive `write` command | До 256 ASCII bytes за одну command line. |
+| Path | До 111 visible ASCII bytes плюс NUL. |
+| Name | До 63 visible ASCII bytes. |
+| Path depth | До 8 components ниже `/`. |
 
-## 6. Самые полезные команды shell
+MYPFS004 выделяет storage лениво и растит file по мере записи. Большие программы и tools должны читать и писать файл offset-based chunks, а не ожидать, что весь файл будет одновременно открыт в непрерывном kernel buffer.
+
+## 6. Наиболее полезные команды shell
 
 | Команда | Пример | Назначение |
 |---|---|---|
 | `help` | `help` | Краткая карта возможностей shell. |
-| `help calc` | `help calc` | Синтаксис, examples и ограничения calculator. |
-| `ls` | `ls` | Список файлов initramfs, `tmp/` и `disk/`. |
-| `cat` | `cat motd.txt` | Показать файл. |
-| `touch` | `touch disk/note` | Создать пустой файл. |
-| `write` | `write disk/note Hello` | Перезаписать файл одной строкой. |
-| `rm` | `rm disk/note` | Удалить файл. |
-| `edit` | `run edit disk/note` | Открыть простой однострочный editor. |
+| `ls` | `ls /users/myos` | Показать содержимое каталога. |
+| `cat` | `cat /system/core/resources/motd.txt` | Показать file. |
+| `touch` | `touch /users/myos/files/note.txt` | Создать пустой persistent file. |
+| `mkdir` | `mkdir /users/myos/projects/demo` | Создать каталог. |
+| `write` | `write /users/myos/files/note.txt Hello` | Перезаписать file одной строкой. |
+| `rm` | `rm /users/myos/files/note.txt` | Удалить file или пустой каталог. |
+| `edit` | `run edit /users/myos/files/note.txt` | Открыть простой text editor. |
 | `ps` | `ps` | Показать процессы. |
-| `sleep` | `sleep 2` | Подождать указанное число секунд. |
-| `calc` | `calc 7 * 6` | Быстро выполнить простую арифметику; выводит только результат или ошибку. |
-| `run` | `run hello` | Запустить произвольную программу с diagnostic сообщениями о start и exit процесса. |
-| `spawn` | `spawn sleeper 3` | Запустить программу в фоне. |
-| `wait` | `wait 4` | Дождаться процесса по PID. |
-| `kill` | `kill 4` | Остановить дочерний процесс. |
-| `pipe` | `pipe hello` | Передать текст через встроенный pipe workflow. |
-| `set` / `get` / `env` | `set NAME Ada` | Работать с environment variables shell. |
-| `reboot` | `reboot` | Перезапустить виртуальную машину. |
-| `poweroff` | `poweroff` | Запросить корректное выключение через ACPI. |
-| `clear` | `clear` | Очистить serial terminal и framebuffer text console. |
+| `calc` | `calc -5 + 2` | Выполнить signed 64-bit арифметику. |
+| `run` | `run hello` | Запустить foreground user program. |
+| `spawn` | `spawn sleeper 3` | Запустить program в фоне. |
+| `wait` / `kill` | `wait 4`, `kill 4` | Ждать или остановить дочерний процесс. |
+| `set` / `get` / `env` | `set NAME MyOS` | Работать с environment variables. |
+| `startgui` | `startgui` | Запустить experimental framebuffer GUI. |
+| `reboot` / `poweroff` | `reboot` | Перезагрузить или выключить виртуальную машину. |
+| `clear` | `clear` | Очистить text console. |
 
-### Программы из initramfs
-
-Большинство программ запускаются через `run` или `spawn`; `calc` также доступен как прямой shell command.
+Большинство встроенных programs запускаются через `run` или `spawn`. Примеры:
 
 ```text
 run hello
-calc 12 / 3
-run wc motd.txt
-run grep MyOS motd.txt
+run wc /system/core/resources/motd.txt
+run grep MyOS /system/core/resources/motd.txt
 run argshow one two three
-run edit disk/note
+calc 12 / 3
 ```
 
-| Программа | Назначение |
-|---|---|
-| `hello` | Минимальная ring-3 demo program. |
-| `sleeper` | Спит заданное время; удобна для `ps`, `wait` и `kill`. |
-| `orphaner` | Демонстрирует orphan handling. |
-| `safety` | Проверяет user/kernel safety boundary. |
-| `argshow` | Показывает полученные arguments. |
-| `calc` | Выполняет простую арифметику; доступна напрямую как shell command или через `run calc ...`. |
-| `pipewrite`, `piperead` | Служебные programs для bounded pipes. |
-| `wc` | Считает строки, слова и bytes файла. |
-| `grep` | Ищет строку в файле. |
-| `edit` | Меняет одну строку в `tmp/` или `disk/` файле. |
+`calc` принимает два signed 64-bit целых числа и оператор `+`, `-`, `*` или `/`. Деление является целочисленным; деление на ноль и overflow безопасно отклоняются.
 
-### Calculator `calc`
+## 7. Свои user programs и MyOS SDK
 
-`calc` принимает два **signed 64-bit целых числа** и один оператор: `+`, `-`, `*` или `/`. Числа могут начинаться со знака `+` или `-`. Рекомендуемый формат — прямой shell command, поэтому `run` писать не требуется. В этом режиме calculator выводит только результат или собственную ошибку. Если нужны PID, lifecycle и exit status для диагностики, используйте явную форму `run calc <expression>`.
-
-| Ввод | Результат |
-|---|---|
-| `calc 7 * 6` | `42` |
-| `calc -5 + 2` | `-3` |
-| `calc 5 - 8` | `-3` |
-| `calc -7 * -6` | `42` |
-| `calc 9 / 2` | `4`: деление является целочисленным и отбрасывает дробную часть в сторону нуля. |
-| `calc 1 / 0` | Ошибка деления на ноль. |
-
-Диапазон результата — от `-9223372036854775808` до `9223372036854775807`. Если забыли синтаксис, введите `help calc`. Calculator проверяет переполнение signed 64-bit integer для каждого оператора, включая особый случай `-9223372036854775808 / -1`, и сообщает об ошибке вместо выдачи неверного результата.
-
-## 7. Удобства ввода
-
-В user shell работают следующие упрощения.
-
-| Ввод | Результат |
-|---|---|
-| Up / Down | Переход по ограниченной истории команд. |
-| Tab | Завершение уникальной команды или уникального пути файла. |
-| `$NAME` | Подстановка ранее установленной переменной environment. |
-| `clear` | Очищает экран без печати множества пустых строк. |
-
-Пример:
+Встроенный reference ELF находится в `/system/core/examples/sdk/hello.elf`. Он копируется в global application package и затем запускается коротким именем:
 
 ```text
-set NAME MyOS
-write tmp/greeting Hello $NAME
-cat tmp/greeting
+install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf
+run sdk-hello external SDK validation
 ```
 
-## 8. Запуск ISO и UEFI
+После reboot повторная установка не нужна:
 
-ISO подходит для простого boot test, но не содержит отдельного data partition для persistent files:
+```text
+run sdk-hello persisted
+```
+
+SDK собирает собственные freestanding C11 programs на host computer. Подробный workflow, ABI и linker contract приведены в [SDK_RU.md](SDK_RU.md). Нативная сборка непосредственно внутри MyOS является следующим отдельным milestone.
+
+## 8. Experimental GUI
+
+GUI доступен только в ветке `gui/bringup` и запускается из console, а не автоматически:
+
+```text
+startgui
+```
+
+Без аргумента viewer открывает `/system/core/resources/motd.txt`. Для personal note можно передать absolute path:
+
+```text
+startgui /users/myos/files/notes/note
+```
+
+`Q` или `Esc` вне editor закрывает GUI session и возвращает в тот же user shell. Полное описание controls, notes editor и известных границ находится в [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md).
+
+## 9. UEFI и ISO
+
+ISO подходит для простого boot test, но не предназначен для persistent data workflow:
 
 ```bash
 qemu-system-x86_64 -machine q35 -m 256M -cdrom myos.iso -boot d
 ```
 
-Для UEFI с raw image:
+Для UEFI с raw image на Linux используйте OVMF:
 
 ```bash
 cp /usr/share/OVMF/OVMF_VARS_4M.fd /tmp/myos-vars.fd
@@ -240,18 +224,13 @@ qemu-system-x86_64 \
   -boot c
 ```
 
-## 9. Запись на USB-флешку
+## 10. Запись на USB-флешку
 
-Для физического ПК используйте **`myos.img`**, а не ISO. Этот image содержит GPT, BIOS boot partition, EFI partition и отдельный data partition для `disk/`.
+Для физического компьютера используйте **`myos.img`**, а не ISO. Образ содержит GPT, BIOS boot partition, EFI partition и MYPFS004 data partition.
 
 1. Подключите отдельную флешку без важных данных.
-2. Найдите её имя:
-
-   ```bash
-   lsblk
-   ```
-
-3. Убедитесь, что выбрали диск целиком, например `/dev/sdb`, а не раздел `/dev/sdb1`.
+2. Найдите её имя, например через `lsblk`.
+3. Убедитесь, что выбран диск целиком, например `/dev/sdb`, а не раздел `/dev/sdb1`.
 4. Запишите образ:
 
    ```bash
@@ -259,10 +238,10 @@ qemu-system-x86_64 \
    sync
    ```
 
-> Команда `dd` полностью удаляет содержимое выбранного диска. Неверный `/dev/sdX` может уничтожить данные на системном или внешнем диске. Не выполняйте команду, если не уверены в имени устройства.
+> `dd` полностью удаляет содержимое выбранного устройства. Неверный `/dev/sdX` может уничтожить данные на системном или внешнем диске. Не выполняйте эту команду, если не уверены в имени носителя.
 
-## 10. Ограничения release
+## 11. Ограничения текущей линии
 
-MyOS Console 0.12.0-dev — не замена Linux, Windows или BSD. В текущем состоянии нет сети, USB HID keyboard/mouse, SMP, Secure Boot, полноценной многооконной GUI среды, general-purpose filesystem, package manager или compatibility layer для Unix programs. Используйте ОС как учебный и экспериментальный проект.
+MyOS не является заменой Linux, Windows или BSD. В `gui/bringup` пока нет сети, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, полноценного native compiler или production security hardening. GUI остаётся bounded framebuffer environment, а не general-purpose desktop.
 
-Если сборка или запуск не работают, сначала выполните `make clean`, затем `make all img` и повторите QEMU command из раздела 3. Для технической диагностики и разработки обратитесь к [руководству разработчика](DEVELOPER_GUIDE_RU.md).
+Если сборка или запуск не работают, выполните `make clean`, затем `make all img` и повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).
