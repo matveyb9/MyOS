@@ -127,6 +127,12 @@ static int cpio_hex8(const uint8_t *text, uint64_t *value) {
     return 1;
 }
 
+static int disk_program_path_is_valid(const char *path) {
+    return path != (const char *)0 && path[0] == 'd' && path[1] == 'i' && path[2] == 's'
+           && path[3] == 'k' && path[4] == '/' && path[5] == 'b' && path[6] == 'i'
+           && path[7] == 'n' && path[8] == '/' && path[9] != '\0';
+}
+
 static int cpio_find(const char *path, const uint8_t **data, uint64_t *size) {
     uint64_t offset = 0U;
 
@@ -233,6 +239,7 @@ static int copy_user_arguments(const char *arguments, uint64_t *argument_address
 
 static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *entry) {
     const struct elf64_header *header;
+    int entry_mapped = 0;
 
     if (image == (const uint8_t *)0 || entry == (uint64_t *)0 || image_size < ELF64_HEADER_SIZE) {
         return 0;
@@ -241,7 +248,9 @@ static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *en
     if (header->identification[0] != 0x7FU || header->identification[1] != 'E'
         || header->identification[2] != 'L' || header->identification[3] != 'F'
         || header->identification[4] != 2U || header->identification[5] != 1U
-        || header->machine != ELF64_MACHINE_X86_64 || header->program_header_size != ELF64_PROGRAM_HEADER_SIZE
+        || header->identification[6] != 1U || header->type != UINT16_C(2)
+        || header->machine != ELF64_MACHINE_X86_64 || header->version != UINT32_C(1)
+        || header->program_header_size != ELF64_PROGRAM_HEADER_SIZE || header->program_header_count == 0U
         || header->program_header_offset > image_size
         || header->program_header_count > (image_size - header->program_header_offset) / ELF64_PROGRAM_HEADER_SIZE
         || header->entry < PAGING_USER_SPACE_START || header->entry > PAGING_USER_SPACE_END) {
@@ -265,6 +274,10 @@ static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *en
             unload_pages();
             return 0;
         }
+        if (header->entry >= program->virtual_address
+            && header->entry < program->virtual_address + program->memory_size) {
+            entry_mapped = 1;
+        }
         page_flags = (program->flags & ELF64_PF_WRITE) != 0U ? PAGING_FLAG_WRITABLE : 0U;
         for (uint64_t page = align_down_page(program->virtual_address);
              page < align_up_page(program->virtual_address + program->memory_size);
@@ -277,6 +290,10 @@ static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *en
         for (uint64_t byte = 0U; byte < program->file_size; byte++) {
             ((uint8_t *)(uintptr_t)program->virtual_address)[byte] = image[program->offset + byte];
         }
+    }
+    if (entry_mapped == 0) {
+        unload_pages();
+        return 0;
     }
     for (uint64_t index = 0U; index < loaded_page_count; index++) {
         if (paging_map_page(loaded_pages[index].virtual_address, loaded_pages[index].physical_address,
@@ -388,6 +405,7 @@ int initramfs_spawn(const char *path, const char *arguments, uint64_t input_pipe
                     uint64_t output_pipe_id, uint64_t pipe_owner_task_id) {
     const uint8_t *image;
     uint64_t image_size;
+    struct vfs_file disk_file;
     uint64_t entry;
     uint64_t argument_address;
     uint64_t stack_frame = PMM_INVALID_ADDRESS;
@@ -398,9 +416,15 @@ int initramfs_spawn(const char *path, const char *arguments, uint64_t input_pipe
         || (input_pipe_id != PIPE_INVALID_ID
             && pipe_can_attach_reader(pipe_owner_task_id, input_pipe_id) == 0)
         || (output_pipe_id != PIPE_INVALID_ID
-            && pipe_can_attach_writer(pipe_owner_task_id, output_pipe_id) == 0)
-        || cpio_find(path, &image, &image_size) == 0) {
+            && pipe_can_attach_writer(pipe_owner_task_id, output_pipe_id) == 0)) {
         return -1;
+    }
+    if (cpio_find(path, &image, &image_size) == 0) {
+        if (disk_program_path_is_valid(path) == 0 || vfs_open(path, &disk_file) == 0) {
+            return -1;
+        }
+        image = disk_file.data;
+        image_size = disk_file.size;
     }
     arch_disable_interrupts();
     /* The running init task owns the previous pages; new pages are tracked only for this spawn attempt. */

@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "ps", "meminfo", "date", "uptime", "ls", "cat", "touch", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "pipe", "wait", "kill", "stress", "calc", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -407,8 +407,8 @@ static void command_help(const char *topic) {
         return;
     }
     write_text("MYOS SHELL QUICK START\n");
-    write_text("Files: ls cat touch write rm | Processes: ps run spawn wait kill sleep\n");
-    write_text("Tools: calc <a> <op> <b>; run <program> [arguments]; pipe <text>\n");
+    write_text("Files: ls cat touch write rm | Processes: ps run spawn install wait kill sleep\n");
+    write_text("Tools: calc <a> <op> <b>; run <program> [arguments]; install <source> <disk/bin/name>\n");
     write_text("GUI: startgui [disk/name]; mouse moves/clicks focus; WASD/F fallback; E edits; Ctrl-S saves.\n");
     write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -885,6 +885,30 @@ static void command_run(char *argument) {
     (void)run_foreground(argument, 1);
 }
 
+static void command_install(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "install";
+    uint64_t length = 7U;
+
+    if (argument[0] == '\0') {
+        write_text("Usage: install <source> <disk/bin/name>\n");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Install command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Install command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 1);
+}
+
 static void command_calc(const char *argument) {
     char program[USER_LINE_CAPACITY] = "calc";
     uint64_t length = 4U;
@@ -1010,6 +1034,8 @@ static void execute_command(char *line) {
         command_run(argument);
     } else if (text_equal(line, "spawn")) {
         command_spawn(argument);
+    } else if (text_equal(line, "install")) {
+        command_install(argument);
     } else if (text_equal(line, "pipe")) {
         command_pipe(argument);
     } else if (text_equal(line, "wait")) {

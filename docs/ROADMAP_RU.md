@@ -17,7 +17,7 @@
 |---|---|---|
 | `console-stable` | Неподвижная опорная линия завершённой консольной ОС. | `[x]` `v0.12.1-console` на commit `b6914d4`. |
 | `main` | Основная линия консольной ОС и её поддерживаемой документации. | `[x]` boot UX refinement в `0dbcc25`: stage headers, three-second auto-init и очистка экрана перед user shell. |
-| `gui/bringup` | Изолированная разработка framebuffer GUI и дальнейшей user-program platform. | `[~]` GUI scope закрыт preview checkpoint `v0.12.2-gui-preview`; ветка остаётся отдельной от `main` для следующего этапа. |
+| `gui/bringup` | Изолированная разработка framebuffer GUI и user-program platform. | `[~]` GUI scope закрыт preview checkpoint `v0.12.2-gui-preview`; persistent disk ELF execution реализован, ветка остаётся отдельной от `main` для SDK этапа. |
 
 Версия разработки — **MyOS 0.12.2-dev**. Теги `v0.12.0-console` и `v0.12.1-console` являются историческими неизменяемыми границами и не перемещаются.
 
@@ -80,7 +80,7 @@ GUI release decision принят: immutable preview tag фиксирует пр
 
 | Приоритет | Статус | Работа | Критерий завершения |
 |---:|---|---|---|
-| 1 | `[ ]` | Persistent ELF64 program execution | Валидный MyOS x86_64 ELF64 из `disk/bin/<name>` загружается в отдельное user address space, получает arguments и запускается из shell; loader отклоняет неверные headers, segments, размеры и ABI. |
+| 1 | `[x]` | Persistent ELF64 program execution | `install <source> <disk/bin/name>` копирует bounded ELF в persistent slot; `run disk/bin/name [arguments]` создаёт отдельный user task. Loader проверяет x86_64 ELF64 `ET_EXEC`, load segments и entry; BIOS/UEFI persistence regressions пройдены. |
 | 2 | `[ ]` | MyOS SDK для внешней сборки | Репозиторий содержит public syscall headers, startup code, linker script, build template и example app; пользователь собирает программу на ПК и запускает её в MyOS без пересборки kernel. |
 | 3 | `[ ]` | Developer filesystem workflow | `disk/src/` и `disk/bin/`, увеличенные безопасные limits persistent storage, console editor и shell-команды позволяют хранить, редактировать, копировать и запускать исходники/бинарники прямо в MyOS. |
 | 4 | `[ ]` | Первая нативная сборка в MyOS | В MyOS появляется компактный native assembler или ограниченный C compiler с командой build, создающей запускаемый MyOS ELF64 для учебных и практических user programs. |
@@ -115,4 +115,4 @@ GUI release decision принят: immutable preview tag фиксирует пр
 
 ## Следующее действие
 
-Ближайшее практическое действие — начать priority 1: **persistent ELF64 program execution** из `disk/bin/` в `gui/bringup`, затем подготовить MyOS SDK и первый native build workflow. Preview `v0.12.2-gui-preview` не сливается в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
+Ближайшее практическое действие — начать priority 2: **MyOS SDK для внешней сборки**. Он предоставит public headers, startup code, linker script, build template и example app, который пользователь сможет собрать на ПК, установить в `disk/bin/` и запустить без пересборки kernel. Preview `v0.12.2-gui-preview` не сливается в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.

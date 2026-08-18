@@ -24,6 +24,26 @@ startgui
 
 `startgui` является обычной ring-3 программой. Она создаёт ограниченную GUI session через существующую syscall boundary, читает и редактирует только bounded user-space payload, а kernel получает лишь проверенные syscall requests. `startgui disk/<name>` выбирает persistent file ещё до его создания: viewer сообщит об отсутствии, а `E` откроет пустой draft, который `Ctrl-S` создаст. `Q` или `Esc` за пределами editor завершает graphical session и возвращает в тот же user shell.
 
+## Persistent user programs
+
+GUI branch теперь может запускать отдельные MyOS ELF64 из persistent namespace `disk/bin/<name>`. Сначала встроенная программа initramfs копируется в выбранный disk slot, затем она запускается обычной shell command `run` как отдельный ring-3 process.
+
+```text
+install hello disk/bin/hello
+run disk/bin/hello
+
+install argshow disk/bin/args
+run disk/bin/args alpha beta
+```
+
+| Граница | Правило |
+|---|---|
+| Install source | Existing initramfs или VFS file до 32 KiB. |
+| Target | Только `disk/bin/<name>`; это explicit executable namespace, а не general-purpose nested directory model. |
+| Loader | Принимает только little-endian x86_64 ELF64 `ET_EXEC` с valid load segments и entry внутри mapped load segment. |
+| Storage | До 8 persistent records по 32 KiB; `install` копирует по 128-byte syscall chunks, а VFS записывает только затронутые AHCI sectors. |
+| Failure | Invalid content, oversized source, invalid path или невозможный load безопасно отклоняются; shell остаётся usable. |
+
 ## Текущее поведение
 
 | Компонент | Реализованное поведение |
@@ -62,9 +82,9 @@ startgui
 | `struct myos_gui_content_request` | 176 bytes | `length`, `flags`, `cursor`, `viewport`, `title[16]`, `data[128]`; укладывается в syscall user-copy limit 256 bytes. |
 | `struct myos_tmpfs_write_request` | 208 bytes | Reused bounded write request; также укладывается в limit 256 bytes. |
 | File read | До 128 bytes | Один bounded `MYOS_SYS_VFS_READ` request из ring 3. |
-| Persistent selection | До 8 persistent records | `N` сканирует не более 64 VFS entry indices, выбирая только допустимые existing `disk/` paths. |
-| Selected path | 40 bytes | Статическая копия ограничена persistent VFS path contract; имя после `disk/` не содержит `/` или control bytes. |
-| Persistent save | До 128 bytes | `PERSIST_REMOVE`, `PERSIST_CREATE`, затем `PERSIST_WRITE` для выбранного `disk/` file. |
+| Persistent selection | До 8 persistent records по 32 KiB | `N` сканирует не более 64 VFS entry indices, выбирая только допустимые existing GUI `disk/` paths. |
+| Selected path | 40 bytes | GUI selected path остаётся плоским `disk/<name>`; `disk/bin/<name>` зарезервирован для executable workflow. |
+| Persistent save | До 128 bytes за editor update | `PERSIST_REMOVE`, `PERSIST_CREATE`, затем bounded `PERSIST_WRITE`; GUI editor intentionally не редактирует binary ELF files. |
 | Allocation | Static storage | Нет heap allocations или background operations; selected path, cursor и viewport остаются bounded state. |
 
 Текст переносится в пределах внутренней поверхности NOTES. Символы вне printable ASCII заменяются renderer на `?`; newline начинает следующую logical line. В editor kernel рисует cyan caret по index, переданному ring-3 программой; viewport начинается на границе logical line и удерживает строку caret в окне до 20 строк. Обновление content вызывает redraw, но не запускает layout initialization, поэтому сохраняет текущие visibility, focus и z-order window manager. Draft, который достиг 128 bytes, больше не принимает новые bytes до удаления через `Backspace` или `Delete`.
@@ -100,9 +120,13 @@ startgui
 | BIOS reliability lifecycle | Passed: `startgui disk/reliability` created and saved `BIOSOK`; `Q` returned with status `0`; user shell `cat` read the file; the same path was relaunched and exited again. |
 | UEFI persistent continuity | Passed: OVMF directly read BIOS-created `BIOSOK`, appended and saved `UEFIOK`, then user-shell `cat` read both lines after GUI exit. |
 | Reliability outcome | Passed: no regression observed in GUI owner cleanup, repeatable `startgui`, keyboard input, PS/2 mouse input, return-to-console or AHCI-backed persistence. |
+| BIOS persistent ELF | Passed: `install hello disk/bin/hello` stored 10,840 bytes; `run disk/bin/hello` printed its user-space message and exited with status 42. `argshow` also received `alpha beta`. |
+| UEFI persistent ELF | Passed: OVMF boot read BIOS-installed `hello` and `args`; both executed with expected output and arguments. |
+| Invalid persistent ELF | Passed: `disk/bin/bad` with text content was rejected by the loader without disrupting the user shell. |
+| Legacy persistent migration | Passed: a valid MYPFS001 fixture preserved `disk/legacy = legacy-data` during automatic MYPFS002 layout migration; a new `disk/bin/hello` then installed and ran. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
-Screenshots и краткие test findings находятся вне source tree в локальных `/home/ubuntu/myos-mouse-validation/` и `/home/ubuntu/myos-reliability-validation/`; они не входят в Git commit.
+Screenshots и краткие test findings находятся вне source tree в локальных `/home/ubuntu/myos-mouse-validation/`, `/home/ubuntu/myos-reliability-validation/` и `/home/ubuntu/myos-disk-elf-validation/`; они не входят в Git commit.
 
 ## Boot UX, унаследованный из main
 
@@ -117,4 +141,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-GUI reliability pass завершён. Следующим GUI направлением является отдельное решение о release boundary: GUI остаётся в `gui/bringup` до явной оценки scope и readiness; merge в `main` или release не выполняется автоматически.
+GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`. Текущая ветка `gui/bringup` продолжает persistent user-program platform: disk ELF execution реализован; следующим priority является MyOS SDK для внешней сборки.
