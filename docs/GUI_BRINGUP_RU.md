@@ -44,6 +44,24 @@ run disk/bin/args alpha beta
 | Storage | До 8 persistent records по 32 KiB; `install` копирует по 128-byte syscall chunks, а VFS записывает только затронутые AHCI sectors. |
 | Failure | Invalid content, oversized source, invalid path или невозможный load безопасно отклоняются; shell остаётся usable. |
 
+## MyOS SDK для внешней сборки
+
+В `sdk/` теперь находится компактный public SDK для freestanding C11 user programs. Он содержит `include/myos.h`, startup object, linker script, GNU Make template и проверочный source `sdk/examples/hello.c`. Программа определяет `myos_main(uint64_t argc, const char *arguments)` вместо обычного `main`; startup object вызывает её и передаёт return code в `MYOS_SYS_EXIT`. В текущем ABI `argc` всегда равен `1`, а `arguments` — одна NUL-terminated строка после program path.
+
+```bash
+make -C sdk APP=sdk/examples/hello.c OUT=sdk/build/sdk-hello.elf
+make img
+```
+
+Image build добавляет этот reference ELF в initramfs под именем `sdk/hello`. Поэтому complete regression не нуждается в ручной модификации disk image:
+
+```text
+install sdk/hello disk/bin/sdk-hello
+run disk/bin/sdk-hello external SDK validation
+```
+
+Проверочный program выводит приветствие и принятую строку аргументов. После fresh BIOS boot сохранённый `disk/bin/sdk-hello` снова запускается командой `run`, что проверяет внешнюю сборку, loader и AHCI-backed persistent storage как единый путь. Подробный публичный contract, limits и host workflow приведены в [SDK_RU.md](SDK_RU.md).
+
 ## Текущее поведение
 
 | Компонент | Реализованное поведение |
@@ -124,6 +142,8 @@ run disk/bin/args alpha beta
 | UEFI persistent ELF | Passed: OVMF boot read BIOS-installed `hello` and `args`; both executed with expected output and arguments. |
 | Invalid persistent ELF | Passed: `disk/bin/bad` with text content was rejected by the loader without disrupting the user shell. |
 | Legacy persistent migration | Passed: a valid MYPFS001 fixture preserved `disk/legacy = legacy-data` during automatic MYPFS002 layout migration; a new `disk/bin/hello` then installed and ran. |
+| External MyOS SDK host build | Passed: `make -C sdk APP=sdk/examples/hello.c OUT=sdk/build/sdk-hello.elf` produced a static x86_64 `ELF64 ET_EXEC` with valid loadable segments. |
+| SDK install, arguments and persistence | Passed: image-staged `sdk/hello` installed as `disk/bin/sdk-hello`, printed `external SDK validation`, then ran again after a fresh BIOS boot with `persisted`. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
 Screenshots и краткие test findings находятся вне source tree в локальных `/home/ubuntu/myos-mouse-validation/`, `/home/ubuntu/myos-reliability-validation/` и `/home/ubuntu/myos-disk-elf-validation/`; они не входят в Git commit.
@@ -141,4 +161,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`. Текущая ветка `gui/bringup` продолжает persistent user-program platform: disk ELF execution реализован; следующим priority является MyOS SDK для внешней сборки.
+GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`. Текущая ветка `gui/bringup` теперь содержит persistent disk ELF execution и MyOS SDK для внешней сборки. **Следующий Developer filesystem workflow не начинается автоматически:** перед проектированием или реализацией каталожной структуры проект обязан остановиться и совместно согласовать с пользователем имена, namespace и layout.

@@ -17,7 +17,7 @@
 |---|---|---|
 | `console-stable` | Неподвижная опорная линия завершённой консольной ОС. | `[x]` `v0.12.1-console` на commit `b6914d4`. |
 | `main` | Основная линия консольной ОС и её поддерживаемой документации. | `[x]` boot UX refinement в `0dbcc25`: stage headers, three-second auto-init и очистка экрана перед user shell. |
-| `gui/bringup` | Изолированная разработка framebuffer GUI и user-program platform. | `[~]` GUI scope закрыт preview checkpoint `v0.12.2-gui-preview`; persistent disk ELF execution реализован, ветка остаётся отдельной от `main` для SDK этапа. |
+| `gui/bringup` | Изолированная разработка framebuffer GUI и user-program platform. | `[~]` GUI scope закрыт preview checkpoint `v0.12.2-gui-preview`; persistent disk ELF execution и внешний MyOS SDK реализованы, ветка остаётся отдельной от `main`. |
 
 Версия разработки — **MyOS 0.12.2-dev**. Теги `v0.12.0-console` и `v0.12.1-console` являются историческими неизменяемыми границами и не перемещаются.
 
@@ -81,8 +81,8 @@ GUI release decision принят: immutable preview tag фиксирует пр
 | Приоритет | Статус | Работа | Критерий завершения |
 |---:|---|---|---|
 | 1 | `[x]` | Persistent ELF64 program execution | `install <source> <disk/bin/name>` копирует bounded ELF в persistent slot; `run disk/bin/name [arguments]` создаёт отдельный user task. Loader проверяет x86_64 ELF64 `ET_EXEC`, load segments и entry; BIOS/UEFI persistence regressions пройдены. |
-| 2 | `[ ]` | MyOS SDK для внешней сборки | Репозиторий содержит public syscall headers, startup code, linker script, build template и example app; пользователь собирает программу на ПК и запускает её в MyOS без пересборки kernel. |
-| 3 | `[ ]` | Developer filesystem workflow | `disk/src/` и `disk/bin/`, увеличенные безопасные limits persistent storage, console editor и shell-команды позволяют хранить, редактировать, копировать и запускать исходники/бинарники прямо в MyOS. |
+| 2 | `[x]` | MyOS SDK для внешней сборки | Public header, startup code, linker script, build template и example app находятся в `sdk/`; host-built ELF устанавливается в `disk/bin/` и запускается без пересборки kernel. Подробности и validation — в [SDK_RU.md](SDK_RU.md). |
+| 3 | `[ ]` | Developer filesystem workflow | Будущие source/executable namespaces, limits storage, console editor и shell-команды для исходников и бинарников. **До проектирования или реализации этапа работа остановлена: имена и структура каталогов должны быть совместно согласованы с пользователем.** |
 | 4 | `[ ]` | Первая нативная сборка в MyOS | В MyOS появляется компактный native assembler или ограниченный C compiler с командой build, создающей запускаемый MyOS ELF64 для учебных и практических user programs. |
 | 5 | `[ ]` | Расширение native toolchain | По мере готовности: более полное подмножество C, linker, базовая C-библиотека, build scripts и затем оценка портирования более крупного compiler. GCC/Clang не являются первым шагом. |
 
@@ -115,4 +115,4 @@ GUI release decision принят: immutable preview tag фиксирует пр
 
 ## Следующее действие
 
-Ближайшее практическое действие — начать priority 2: **MyOS SDK для внешней сборки**. Он предоставит public headers, startup code, linker script, build template и example app, который пользователь сможет собрать на ПК, установить в `disk/bin/` и запустить без пересборки kernel. Preview `v0.12.2-gui-preview` не сливается в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
+MyOS SDK завершён и проверен: пример собирается на хосте, устанавливается в `disk/bin/` и повторно запускается после fresh BIOS boot. **Следующий шаг намеренно поставлен на паузу:** до проектирования Developer filesystem workflow необходимо совместно согласовать названия и структуру будущих каталогов. Никакая иерархия (`disk/src/`, package layout или иные namespace) не будет реализована до явного решения пользователя. Preview `v0.12.2-gui-preview` не сливается в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.

@@ -1,5 +1,6 @@
 # Generated build products
 /build/
+/sdk/build/
 /*.iso
 /*.hdd
 /*.img

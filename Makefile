@@ -18,6 +18,7 @@ USER_GREP      := $(USER_BUILD_DIR)/grep
 USER_EDIT      := $(USER_BUILD_DIR)/edit
 USER_STARTGUI  := $(USER_BUILD_DIR)/startgui
 USER_INSTALL   := $(USER_BUILD_DIR)/install
+SDK_HELLO      := $(BUILD_DIR)/sdk/sdk-hello.elf
 USER_MOTD      := user/motd.txt
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
@@ -46,7 +47,7 @@ ASM_SOURCES    := $(shell find kernel -name '*.asm' | sort)
 OBJECTS        := $(patsubst %.c,$(BUILD_DIR)/obj/%.c.o,$(C_SOURCES)) \
                   $(patsubst %.asm,$(BUILD_DIR)/obj/%.asm.o,$(ASM_SOURCES))
 
-.PHONY: all kernel initramfs iso img run run-graphic run-uefi run-uefi-graphic debug clean distclean inspect help
+.PHONY: all kernel initramfs iso img run run-graphic run-uefi run-uefi-graphic debug clean distclean inspect help sdk-stage
 
 all: iso
 kernel: $(KERNEL)
@@ -136,8 +137,13 @@ $(USER_INSTALL): user/install.c user/linker.ld include/syscall.h
 	$(CC) $(USER_CFLAGS) -c user/install.c -o $(USER_BUILD_DIR)/install.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/install.o -o $@
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_STARTGUI) $(USER_INSTALL) $(USER_MOTD) tools/mkcpio.py
-	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) argshow $(USER_ARGSHOW) calc $(USER_CALC) pipewrite $(USER_PIPEWRITE) piperead $(USER_PIPEREAD) wc $(USER_WC) grep $(USER_GREP) edit $(USER_EDIT) startgui $(USER_STARTGUI) install $(USER_INSTALL) motd.txt $(USER_MOTD)
+$(SDK_HELLO): sdk/examples/hello.c sdk/Makefile sdk/lib/crt0.c sdk/include/myos.h sdk/myos-user.ld
+	$(MAKE) -C sdk APP=$(abspath sdk/examples/hello.c) OUT=$(abspath $@)
+
+sdk-stage: $(SDK_HELLO)
+
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_STARTGUI) $(USER_INSTALL) $(SDK_HELLO) $(USER_MOTD) tools/mkcpio.py
+	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) argshow $(USER_ARGSHOW) calc $(USER_CALC) pipewrite $(USER_PIPEWRITE) piperead $(USER_PIPEREAD) wc $(USER_WC) grep $(USER_GREP) edit $(USER_EDIT) startgui $(USER_STARTGUI) install $(USER_INSTALL) sdk/hello $(SDK_HELLO) motd.txt $(USER_MOTD)
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)
