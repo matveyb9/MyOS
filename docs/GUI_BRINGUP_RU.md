@@ -93,4 +93,21 @@ startgui
 | UEFI editor save | Passed: editor добавил `UEFI UPDATE`; `FILE VIEWER` отобразил все три lines. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
-Screenshots и краткие test findings находятся вне source tree в локальном `/home/ubuntu/myos-note-validation/`; они не входят в Git commit. Следующим логичным GUI milestone является cursor-aware editor with scrolling и named `disk/` files либо аппаратная mouse/pointer support. Оба направления должны сохранить отдельную GUI branch до отдельного решения о merge или release.
+Screenshots и краткие test findings находятся вне source tree в локальном `/home/ubuntu/myos-note-validation/`; они не входят в Git commit.
+
+## Ближайшая roadmap: automatic user-space initialization
+
+В текущем bring-up варианте пользователь вручную вводит `init`, чтобы запустить `/init`. Это полезно для ранней диагностики, но не является удобным нормальным startup path. Следующий boot UX milestone добавит automatic user-space initialization после короткого обратного отсчёта, сохранив явный и безопасный путь в kernel shell.
+
+| Сценарий после загрузки | Запланированное поведение |
+|---|---|
+| Обычная загрузка | Kernel выводит заметный countdown и автоматически запускает `/init` через **3 секунды**. |
+| Отмена | Нажатие `K` во время countdown отменяет auto-init; введённый символ не передаётся будущей user shell. |
+| Kernel shell | После `K` система остаётся в диагностической kernel shell. Команда `init` сохраняется как ручной запуск `/init`. |
+| Неудача init | Если automatic spawn `/init` недоступен или завершается ошибкой, kernel печатает diagnostics и остаётся в kernel shell без цикла повторных запусков. |
+| Input source | Cancel key должен работать через существующие PS/2 keyboard и serial console input paths. |
+| Проверка | BIOS и UEFI должны подтвердить auto-init, `K` cancellation, ручной `init` после cancellation и fallback при ошибке. |
+
+> Клавиша `K` выбрана как явный, отображаемый и доступный в нынешнем character-based input path способ перейти к kernel shell. При реализации можно добавить `Esc` как эквивалентную удобную альтернативу, только если это не ухудшит надёжность обработки escape sequences.
+
+После этого boot milestone следующими GUI направлениями останутся cursor-aware editor with scrolling, named `disk/` files и аппаратная mouse/pointer support. Все они должны сохранить отдельную GUI branch до отдельного решения о merge или release.
