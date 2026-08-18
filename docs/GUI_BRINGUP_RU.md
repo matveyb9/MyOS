@@ -97,9 +97,12 @@ startgui
 | BIOS selected save | Passed: `E`, append `x` и `Ctrl-S` сохранили `disk/log`; title остался `DISK:LOG`, viewer показал `BETAX`. |
 | BIOS PS/2 mouse | Passed: QEMU relative mouse motion moved crosshair; left-button edge over MONITOR raised that window to foreground. |
 | UEFI PS/2 mouse | Passed: OVMF reported IRQ12 enabled; identical QEMU movement and click moved crosshair and focused MONITOR. |
+| BIOS reliability lifecycle | Passed: `startgui disk/reliability` created and saved `BIOSOK`; `Q` returned with status `0`; user shell `cat` read the file; the same path was relaunched and exited again. |
+| UEFI persistent continuity | Passed: OVMF directly read BIOS-created `BIOSOK`, appended and saved `UEFIOK`, then user-shell `cat` read both lines after GUI exit. |
+| Reliability outcome | Passed: no regression observed in GUI owner cleanup, repeatable `startgui`, keyboard input, PS/2 mouse input, return-to-console or AHCI-backed persistence. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
-Screenshots и краткие test findings находятся вне source tree в локальном `/home/ubuntu/myos-mouse-validation/`; они не входят в Git commit.
+Screenshots и краткие test findings находятся вне source tree в локальных `/home/ubuntu/myos-mouse-validation/` и `/home/ubuntu/myos-reliability-validation/`; они не входят в Git commit.
 
 ## Boot UX, унаследованный из main
 
@@ -114,4 +117,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-После hardware mouse milestone следующим GUI направлением остаётся GUI reliability pass, затем отдельное решение о GUI release boundary. Они должны сохранять отдельную GUI branch до отдельного решения о merge или release.
+GUI reliability pass завершён. Следующим GUI направлением является отдельное решение о release boundary: GUI остаётся в `gui/bringup` до явной оценки scope и readiness; merge в `main` или release не выполняется автоматически.
