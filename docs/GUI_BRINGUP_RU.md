@@ -15,33 +15,33 @@ qemu-system-x86_64 \
   -boot c
 ```
 
-После kernel bootstrap MyOS автоматически запускает user shell через три секунды. Нажмите `K` во время countdown, если нужна diagnostic kernel shell; в этом случае `init` сохраняется как ручной запуск user shell. Затем запустите graphical viewer. Без аргумента viewer загружает `motd.txt`; необязательный аргумент задаёт путь к читаемому VFS file.
+После kernel bootstrap MyOS автоматически запускает user shell через три секунды. Нажмите `K` во время countdown, если нужна diagnostic kernel shell; в этом случае `init` сохраняется как ручной запуск user shell. Затем запустите graphical viewer. Без аргумента viewer загружает `/system/core/resources/motd.txt`; необязательный аргумент задаёт absolute path к читаемому VFS file.
 
 ```text
 startgui
-# либо: startgui disk/note
+# либо: startgui /users/myos/files/notes/note
 ```
 
-`startgui` является обычной ring-3 программой. Она создаёт ограниченную GUI session через существующую syscall boundary, читает и редактирует только bounded user-space payload, а kernel получает лишь проверенные syscall requests. `startgui disk/<name>` выбирает persistent file ещё до его создания: viewer сообщит об отсутствии, а `E` откроет пустой draft, который `Ctrl-S` создаст. `Q` или `Esc` за пределами editor завершает graphical session и возвращает в тот же user shell.
+`startgui` является обычной ring-3 программой. Она создаёт ограниченную GUI session через существующую syscall boundary, читает и редактирует только bounded user-space payload, а kernel получает лишь проверенные syscall requests. `startgui /users/myos/files/notes/<name>` выбирает persistent note ещё до его создания: viewer сообщит об отсутствии, а `E` откроет пустой draft, который `Ctrl-S` создаст. `Q` или `Esc` за пределами editor завершает graphical session и возвращает в тот же user shell.
 
 ## Persistent user programs
 
-GUI branch теперь может запускать отдельные MyOS ELF64 из persistent namespace `disk/bin/<name>`. Сначала встроенная программа initramfs копируется в выбранный disk slot, затем она запускается обычной shell command `run` как отдельный ring-3 process.
+GUI branch теперь может запускать отдельные MyOS ELF64 из global persistent application packages `/apps/<name>/main.elf`. Сначала встроенная программа initramfs копируется в package, затем она запускается коротким shell name или абсолютным path как отдельный ring-3 process.
 
 ```text
-install hello disk/bin/hello
-run disk/bin/hello
+install /system/core/apps/hello.elf /apps/hello/main.elf
+run hello
 
-install argshow disk/bin/args
-run disk/bin/args alpha beta
+install /system/core/apps/argshow.elf /apps/args/main.elf
+run args alpha beta
 ```
 
 | Граница | Правило |
 |---|---|
-| Install source | Existing initramfs или VFS file до 32 KiB. |
-| Target | Только `disk/bin/<name>`; это explicit executable namespace, а не general-purpose nested directory model. |
+| Install source | Existing absolute VFS file до 64 KiB. |
+| Target | Только `/apps/<name>/main.elf`; `install` создаёт package directory. |
 | Loader | Принимает только little-endian x86_64 ELF64 `ET_EXEC` с valid load segments и entry внутри mapped load segment. |
-| Storage | До 8 persistent records по 32 KiB; `install` копирует по 128-byte syscall chunks, а VFS записывает только затронутые AHCI sectors. |
+| Storage | MYPFS003 предоставляет до 128 persistent file/directory objects по 64 KiB regular-file capacity; `install` копирует по 128-byte syscall chunks. |
 | Failure | Invalid content, oversized source, invalid path или невозможный load безопасно отклоняются; shell остаётся usable. |
 
 ## MyOS SDK для внешней сборки
@@ -53,14 +53,14 @@ make -C sdk APP=sdk/examples/hello.c OUT=sdk/build/sdk-hello.elf
 make img
 ```
 
-Image build добавляет этот reference ELF в initramfs под именем `sdk/hello`. Поэтому complete regression не нуждается в ручной модификации disk image:
+Image build добавляет этот reference ELF в initramfs как `/system/core/examples/sdk/hello.elf`. Поэтому complete regression не нуждается в ручной модификации disk image:
 
 ```text
-install sdk/hello disk/bin/sdk-hello
-run disk/bin/sdk-hello external SDK validation
+install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf
+run sdk-hello external SDK validation
 ```
 
-Проверочный program выводит приветствие и принятую строку аргументов. После fresh BIOS boot сохранённый `disk/bin/sdk-hello` снова запускается командой `run`, что проверяет внешнюю сборку, loader и AHCI-backed persistent storage как единый путь. Подробный публичный contract, limits и host workflow приведены в [SDK_RU.md](SDK_RU.md).
+Проверочный program выводит приветствие и принятую строку аргументов. После fresh BIOS boot сохранённый `/apps/sdk-hello/main.elf` снова запускается командой `run sdk-hello`, что проверяет внешнюю сборку, loader и AHCI-backed persistent storage как единый путь. Подробный публичный contract, limits и host workflow приведены в [SDK_RU.md](SDK_RU.md).
 
 ## Текущее поведение
 
@@ -72,37 +72,37 @@ run disk/bin/sdk-hello external SDK validation
 | Windows | Три статические bounded window records: `SYSTEM`, `NOTES` и `MONITOR`. |
 | Z-order | Focused window поднимается на передний план; каждый event вызывает bounded full redraw композиции. |
 | Viewer | `NOTES` отображает до 128 bytes выбранного VFS file. |
-| File loading | `startgui [file]` читает первые 128 bytes указанного VFS file; без аргумента используется `motd.txt`. |
-| Persistent selection | `D` выбирает стандартный `disk/note`; `N` циклически выбирает следующий существующий persistent `disk/` file через existing VFS enumeration. |
-| Named launch | `startgui disk/<name>` выбирает конкретный допустимый persistent path; title NOTES показывает `DISK:<name>`. |
-| Editor entry | `E` открывает bounded editor для выбранного persistent file; отсутствующий selected path начинает с пустого draft. |
+| File loading | `startgui [absolute-path]` читает первые 128 bytes указанного VFS file; без аргумента используется `/system/core/resources/motd.txt`. |
+| Persistent selection | `D` выбирает стандартный `/users/myos/files/notes/note`; `N` циклически выбирает следующую existing note через directory-scoped VFS enumeration. |
+| Named launch | `startgui /users/myos/files/notes/<name>` выбирает конкретную personal note; title NOTES показывает basename выбранного file. |
+| Editor entry | `E` открывает bounded editor для выбранной personal note; отсутствующий selected path начинает с пустого draft. |
 | Editor input | Printable ASCII вставляется в позиции caret; `Enter` вставляет newline; `Backspace` удаляет byte слева, `Delete` — byte под caret. |
 | Caret и navigation | `Left`/`Right` перемещают caret на byte, `Up`/`Down` — по logical lines с сохранением column, `Home`/`End` переходят к границам строки. |
 | Bounded scrolling | Renderer отображает окно до 20 logical newline-separated lines; viewport автоматически следует за строкой caret. |
-| Save и cancel | `Ctrl-S` заменяет выбранный `disk/` file, записывает draft и возвращает к его viewer. `Esc` отменяет draft и перезагружает ранее сохранённое содержимое. |
-| Built-in choices | `M` или `m` повторно загружает `motd.txt`. |
+| Save и cancel | `Ctrl-S` заменяет выбранный file в `/users/myos/files/notes/`, записывает draft и возвращает к его viewer. `Esc` отменяет draft и перезагружает ранее сохранённое содержимое. |
+| Built-in choices | `M` или `m` повторно загружает `/system/core/resources/motd.txt`. |
 | Focus | `Tab`, `Enter` или `Space` вне editor переводят focus на следующее видимое окно. |
 | Hardware pointer | PS/2 mouse relative motion перемещает bounded crosshair pointer; rising edge левой кнопки фокусирует верхнее видимое окно под pointer. |
 | Keyboard fallback | Строчные `W`, `A`, `S`, `D` перемещают pointer на 16 pixels; `F` сохраняет keyboard focus верхнего окна под pointer. |
 | Visibility | `1`, `2`, `3` переключают `SYSTEM`, `NOTES`, `MONITOR`; `X` скрывает focused window, не позволяя скрыть все окна. |
 | Reset и выход | `R` восстанавливает исходный layout и z-order. `Q` или `Esc` вне editor завершает session и возвращает framebuffer text console. |
 
-Буква `D` используется только в верхнем регистре для выбора `disk/note`; `N` или `n` циклически выбирает следующий существующий `disk/` file. Это сохраняет строчную `d` как перемещение pointer вправо. В editor обычные printable keys становятся текстом draft и не передаются window manager, поэтому `D`, `N`, `Q` и другие символы можно вводить как часть заметки.
+Буква `D` используется только в верхнем регистре для выбора `/users/myos/files/notes/note`; `N` или `n` циклически выбирает следующую existing note внутри `/users/myos/files/notes/`. Это сохраняет строчную `d` как перемещение pointer вправо. В editor обычные printable keys становятся текстом draft и не передаются window manager, поэтому `D`, `N`, `Q` и другие символы можно вводить как часть заметки.
 
 ## Ограничения editor и граница ABI
 
-`NOTES` использует дескриптор `MYOS_GUI_SET_CONTENT = 3` в `MYOS_SYS_GUI_SESSION`. Kernel принимает content request лишь от текущего GUI owner при активной session, копирует request после проверки отображения user buffer и не хранит user pointers. Framebuffer владеет собственными статическими copies title и data. GUI циклически читает existing `MYOS_SYS_VFS_ENTRY` records, фильтрует допустимые `disk/` paths и держит выбранный path в static 40-byte storage. Editor использует уже существующие persistent VFS syscalls: удаляет выбранный file, создаёт его снова и записывает один bounded payload с offset `0`.
+`NOTES` использует дескриптор `MYOS_GUI_SET_CONTENT = 3` в `MYOS_SYS_GUI_SESSION`. Kernel принимает content request лишь от текущего GUI owner при активной session, копирует request после проверки отображения user buffer и не хранит user pointers. Framebuffer владеет собственными статическими copies title и data. GUI циклически использует directory-scoped `MYOS_SYS_VFS_LIST` для `/users/myos/files/notes/` и держит выбранный absolute path в bounded static storage. Editor удаляет выбранный file, создаёт его через unified VFS и записывает один bounded payload с offset `0`.
 
 | Поле или операция | Ограничение | Назначение |
 |---|---:|---|
 | `MYOS_GUI_CONTENT_TITLE_MAX` | 16 bytes | NUL-terminated title для NOTES window. |
 | `MYOS_GUI_CONTENT_MAX` | 128 bytes | Максимальная длина viewer content и editor draft. |
 | `struct myos_gui_content_request` | 176 bytes | `length`, `flags`, `cursor`, `viewport`, `title[16]`, `data[128]`; укладывается в syscall user-copy limit 256 bytes. |
-| `struct myos_tmpfs_write_request` | 208 bytes | Reused bounded write request; также укладывается в limit 256 bytes. |
+| `struct myos_vfs_write_request` | 256 bytes | Unified bounded write request; укладывается в syscall user-copy limit. |
 | File read | До 128 bytes | Один bounded `MYOS_SYS_VFS_READ` request из ring 3. |
-| Persistent selection | До 8 persistent records по 32 KiB | `N` сканирует не более 64 VFS entry indices, выбирая только допустимые existing GUI `disk/` paths. |
-| Selected path | 40 bytes | GUI selected path остаётся плоским `disk/<name>`; `disk/bin/<name>` зарезервирован для executable workflow. |
-| Persistent save | До 128 bytes за editor update | `PERSIST_REMOVE`, `PERSIST_CREATE`, затем bounded `PERSIST_WRITE`; GUI editor intentionally не редактирует binary ELF files. |
+| Persistent selection | До 64 scanned directory indices | `N` использует `MYOS_SYS_VFS_LIST` только в notes directory. |
+| Selected path | До 111 ASCII bytes плюс NUL | GUI хранит absolute note path в `/users/myos/files/notes/`; `/apps/` предназначен для executable workflow. |
+| Persistent save | До 128 bytes за editor update | `VFS_REMOVE`, `VFS_CREATE_FILE`, затем bounded `VFS_WRITE`; GUI editor intentionally не редактирует binary ELF files. |
 | Allocation | Static storage | Нет heap allocations или background operations; selected path, cursor и viewport остаются bounded state. |
 
 Текст переносится в пределах внутренней поверхности NOTES. Символы вне printable ASCII заменяются renderer на `?`; newline начинает следующую logical line. В editor kernel рисует cyan caret по index, переданному ring-3 программой; viewport начинается на границе logical line и удерживает строку caret в окне до 20 строк. Обновление content вызывает redraw, но не запускает layout initialization, поэтому сохраняет текущие visibility, focus и z-order window manager. Draft, который достиг 128 bytes, больше не принимает новые bytes до удаления через `Backspace` или `Delete`.
@@ -116,8 +116,8 @@ run disk/bin/sdk-hello external SDK validation
 | Window records | Три статических bounded records. |
 | Input | Existing scheduler-safe console input path; PS/2 auxiliary port выдаёт three-byte packets через IRQ12. PS/2 arrows, Home, End и Delete переводятся в internal bounded key bytes; в editor keys принадлежат draft, а не window manager. |
 | Rendering | Bounded full redraw после GUI input или content update. |
-| Files | Viewer читает любой доступный VFS file; editor изменяет выбранный допустимый persistent `disk/` path. |
-| Atomicity | Save удаляет и пересоздаёт file перед записью; power-loss-safe journal пока отсутствует. |
+| Files | Viewer читает любой доступный absolute VFS file; editor изменяет выбранную note в `/users/myos/files/notes/`. |
+| Atomicity | Save удаляет и пересоздаёт file перед записью; MYPFS003 сохраняет bounded metadata and allocation state, а полная application-level atomic replace пока не реализована. |
 | Mouse hardware | PS/2 relative motion и left-button focus реализованы; higher-level actions, dragging, wheel и multi-button semantics пока отсутствуют. |
 | General window API | Не реализован; records остаются внутренними для framebuffer renderer. |
 
@@ -138,12 +138,14 @@ run disk/bin/sdk-hello external SDK validation
 | BIOS reliability lifecycle | Passed: `startgui disk/reliability` created and saved `BIOSOK`; `Q` returned with status `0`; user shell `cat` read the file; the same path was relaunched and exited again. |
 | UEFI persistent continuity | Passed: OVMF directly read BIOS-created `BIOSOK`, appended and saved `UEFIOK`, then user-shell `cat` read both lines after GUI exit. |
 | Reliability outcome | Passed: no regression observed in GUI owner cleanup, repeatable `startgui`, keyboard input, PS/2 mouse input, return-to-console or AHCI-backed persistence. |
-| BIOS persistent ELF | Passed: `install hello disk/bin/hello` stored 10,840 bytes; `run disk/bin/hello` printed its user-space message and exited with status 42. `argshow` also received `alpha beta`. |
-| UEFI persistent ELF | Passed: OVMF boot read BIOS-installed `hello` and `args`; both executed with expected output and arguments. |
-| Invalid persistent ELF | Passed: `disk/bin/bad` with text content was rejected by the loader without disrupting the user shell. |
-| Legacy persistent migration | Passed: a valid MYPFS001 fixture preserved `disk/legacy = legacy-data` during automatic MYPFS002 layout migration; a new `disk/bin/hello` then installed and ran. |
+| Legacy persistent ELF baseline | Superseded by MYPFS003: disk/bin ELF workflow was migrated into `/apps/<name>/main.elf`; loader validation remains unchanged. |
+| Invalid persistent ELF | Passed: text content at an application `main.elf` target is rejected by the loader without disrupting the user shell. |
+| Legacy persistent migration | Passed: prior MYPFS001→MYPFS002 migration remains historical; current MYPFS002→MYPFS003 fixture preservation is recorded below. |
 | External MyOS SDK host build | Passed: `make -C sdk APP=sdk/examples/hello.c OUT=sdk/build/sdk-hello.elf` produced a static x86_64 `ELF64 ET_EXEC` with valid loadable segments. |
-| SDK install, arguments and persistence | Passed: image-staged `sdk/hello` installed as `disk/bin/sdk-hello`, printed `external SDK validation`, then ran again after a fresh BIOS boot with `persisted`. |
+| MYPFS003 root and runtime | Passed (BIOS): `/system`, `/apps`, `/users/myos`, `/temp`, `/system/live/processes` and `cat /system/live/processes/3/info` returned expected virtual state. |
+| MYPFS003 user workflow | Passed (BIOS): `mkdir /users/myos/projects/demo`, persistent write/read, mixed-case `/UsErS/MyOs` lookup, and `/apps` package installation all worked. |
+| SDK install, arguments and persistence | Passed: `/system/core/examples/sdk/hello.elf` installed as `/apps/sdk-hello/main.elf`, `run sdk-hello external SDK validation` printed its argument string; fresh BIOS boot ran the persisted app again. |
+| MYPFS002 migration | Passed (BIOS): fixture preserved `disk/note`, `disk/bin/oldapp` and `disk/plain` as `/users/myos/files/notes/note`, `/apps/oldapp/main.elf` and `/users/myos/files/imported/plain`. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
 Screenshots и краткие test findings находятся вне source tree в локальных `/home/ubuntu/myos-mouse-validation/`, `/home/ubuntu/myos-reliability-validation/` и `/home/ubuntu/myos-disk-elf-validation/`; они не входят в Git commit.
@@ -161,4 +163,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`. Текущая ветка `gui/bringup` теперь содержит persistent disk ELF execution и MyOS SDK для внешней сборки. **Следующий Developer filesystem workflow не начинается автоматически:** перед проектированием или реализацией каталожной структуры проект обязан остановиться и совместно согласовать с пользователем имена, namespace и layout.
+GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`. Текущая ветка `gui/bringup` теперь содержит MYPFS003 hierarchy, `/apps` ELF execution и MyOS SDK для внешней сборки. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); следующий milestone — native build workflow.

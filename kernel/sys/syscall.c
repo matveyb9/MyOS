@@ -303,32 +303,65 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     }
     if (number == MYOS_SYS_VFS_READ) {
         struct myos_vfs_read_request request;
-        struct vfs_file file;
-        uint64_t name_length = 0U;
-        uint64_t remaining;
-        uint64_t copy_length;
+        uint64_t read_length;
         uint64_t data_address;
 
         if (descriptor != 0U || buffer == 0U || length != sizeof(request)
-            || copy_from_user(&request, buffer, sizeof(request)) == 0) {
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.path, MYOS_VFS_PATH_MAX, 1) == 0
+            || vfs_read(request.path, request.offset, request.data, MYOS_VFS_READ_CHUNK, &read_length) == 0) {
             return UINT64_MAX;
         }
-        while (name_length < MYOS_VFS_NAME_MAX && request.path[name_length] != '\0') {
-            name_length++;
-        }
-        if (name_length == 0U || name_length == MYOS_VFS_NAME_MAX || vfs_open(request.path, &file) == 0) {
-            return UINT64_MAX;
-        }
-        if (request.offset >= file.size) {
-            return 0U;
-        }
-        remaining = file.size - request.offset;
-        copy_length = remaining < MYOS_VFS_READ_CHUNK ? remaining : MYOS_VFS_READ_CHUNK;
         data_address = buffer + offsetof(struct myos_vfs_read_request, data);
-        if (copy_to_user(data_address, file.data + request.offset, copy_length) == 0) {
+        return read_length == 0U || copy_to_user(data_address, request.data, read_length) != 0 ? read_length : UINT64_MAX;
+    }
+    if (number == MYOS_SYS_VFS_LIST) {
+        struct myos_vfs_list_request request;
+        struct vfs_directory_entry entry;
+        uint64_t entry_address;
+
+        if (descriptor != 0U || buffer == 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.path, MYOS_VFS_PATH_MAX, 1) == 0
+            || vfs_list(request.path, request.index, &entry) == 0) {
             return UINT64_MAX;
         }
-        return copy_length;
+        for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) { request.entry.name[index] = entry.name[index]; }
+        request.entry.size = entry.size;
+        request.entry.type = entry.type;
+        entry_address = buffer + offsetof(struct myos_vfs_list_request, entry);
+        return copy_to_user(entry_address, &request.entry, sizeof(request.entry)) != 0 ? 0U : UINT64_MAX;
+    }
+    if (number == MYOS_SYS_VFS_CREATE_FILE || number == MYOS_SYS_VFS_CREATE_DIRECTORY
+        || number == MYOS_SYS_VFS_REMOVE) {
+        struct myos_vfs_path_request request;
+        int result;
+
+        if (descriptor != 0U || buffer == 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.path, MYOS_VFS_PATH_MAX, 1) == 0) {
+            return UINT64_MAX;
+        }
+        if (number == MYOS_SYS_VFS_CREATE_FILE) {
+            result = vfs_create_file(request.path);
+        } else if (number == MYOS_SYS_VFS_CREATE_DIRECTORY) {
+            result = vfs_create_directory(request.path);
+        } else {
+            result = vfs_remove_object(request.path);
+        }
+        return result != 0 ? 0U : UINT64_MAX;
+    }
+    if (number == MYOS_SYS_VFS_WRITE) {
+        struct myos_vfs_write_request request;
+
+        if (descriptor != 0U || buffer == 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.path, MYOS_VFS_PATH_MAX, 1) == 0
+            || request.length > MYOS_VFS_READ_CHUNK
+            || vfs_write_file(request.path, request.offset, request.data, request.length) == 0) {
+            return UINT64_MAX;
+        }
+        return request.length;
     }
     if (number == MYOS_SYS_TMPFS_CREATE || number == MYOS_SYS_TMPFS_REMOVE
         || number == MYOS_SYS_PERSIST_CREATE || number == MYOS_SYS_PERSIST_REMOVE) {

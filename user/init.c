@@ -19,7 +19,7 @@ static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
 static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
-    "help", "echo", "uname", "ps", "meminfo", "date", "uptime", "ls", "cat", "touch", "write", "rm",
+    "help", "echo", "uname", "ps", "meminfo", "date", "uptime", "ls", "cat", "touch", "mkdir", "write", "rm",
     "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
@@ -362,6 +362,28 @@ static void environment_expand(const char *source, char *destination, uint64_t c
     destination[write_index] = '\0';
 }
 
+static int built_in_program(const char *name) {
+    static const char *const names[] = {
+        "init", "hello", "sleeper", "orphaner", "safety", "argshow", "calc", "pipewrite",
+        "piperead", "wc", "grep", "edit", "startgui", "install"
+    };
+
+    for (uint64_t index = 0U; index < sizeof(names) / sizeof(names[0]); index++) {
+        if (text_equal(name, names[index]) != 0) { return 1; }
+    }
+    return 0;
+}
+
+static int append_text(char *destination, uint64_t capacity, uint64_t *length, const char *source) {
+    if (destination == (char *)0 || length == (uint64_t *)0 || source == (const char *)0) { return 0; }
+    while (*source != '\0') {
+        if (*length + 1U >= capacity) { return 0; }
+        destination[(*length)++] = *source++;
+    }
+    destination[*length] = '\0';
+    return 1;
+}
+
 static int make_spawn_request(struct myos_spawn_request *request, char *line) {
     char *arguments;
     uint64_t path_length = 0U;
@@ -373,14 +395,17 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
     request->input_pipe_id = UINT64_MAX;
     request->output_pipe_id = UINT64_MAX;
     arguments = first_argument(line);
-    while (line[path_length] != '\0' && path_length + 1U < MYOS_SPAWN_PATH_MAX) {
-        request->path[path_length] = line[path_length];
-        path_length++;
+    if (line[0] == '/') {
+        if (append_text(request->path, sizeof(request->path), &path_length, line) == 0) { return 0; }
+    } else if (built_in_program(line) != 0) {
+        if (append_text(request->path, sizeof(request->path), &path_length, "/system/core/apps/") == 0
+            || append_text(request->path, sizeof(request->path), &path_length, line) == 0
+            || append_text(request->path, sizeof(request->path), &path_length, ".elf") == 0) { return 0; }
+    } else {
+        if (append_text(request->path, sizeof(request->path), &path_length, "/apps/") == 0
+            || append_text(request->path, sizeof(request->path), &path_length, line) == 0
+            || append_text(request->path, sizeof(request->path), &path_length, "/main.elf") == 0) { return 0; }
     }
-    if (path_length == 0U || line[path_length] != '\0') {
-        return 0;
-    }
-    request->path[path_length] = '\0';
     while (arguments[arguments_length] != '\0'
            && arguments_length + 1U < MYOS_SPAWN_ARGUMENTS_MAX) {
         request->arguments[arguments_length] = arguments[arguments_length];
@@ -407,12 +432,12 @@ static void command_help(const char *topic) {
         return;
     }
     write_text("MYOS SHELL QUICK START\n");
-    write_text("Files: ls cat touch write rm | Processes: ps run spawn install wait kill sleep\n");
-    write_text("Tools: calc <a> <op> <b>; run <program> [arguments]; install <source> <disk/bin/name>\n");
-    write_text("GUI: startgui [disk/name]; mouse moves/clicks focus; WASD/F fallback; E edits; Ctrl-S saves.\n");
+    write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
+    write_text("Tools: calc <a> <op> <b>; run <program-or-absolute-path> [arguments]\n");
+    write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
-    write_text("Files: tmp/<name> is temporary; disk/<name> persists across reboots.\n");
+    write_text("Root: /system /apps /users/myos /temp; paths are case-insensitive.\n");
     write_text("For calculator details, type: help calc\n");
 }
 
@@ -518,17 +543,44 @@ static void command_uptime(void) {
     write_text(" ticks)\n");
 }
 
-static void command_ls(void) {
-    for (uint64_t index = 0U; index < UINT64_C(64); index++) {
-        struct myos_vfs_entry entry;
+static int copy_vfs_path(char *destination, const char *path) {
+    uint64_t length = 0U;
 
-        if (system_call(MYOS_SYS_VFS_ENTRY, index, (uint64_t)(uintptr_t)&entry, sizeof(entry))
-            == UINT64_MAX) {
+    if (destination == (char *)0 || path == (const char *)0) { return 0; }
+    while (path[length] != '\0' && length + 1U < MYOS_VFS_PATH_MAX) {
+        destination[length] = path[length];
+        length++;
+    }
+    if (length == 0U || path[length] != '\0') { return 0; }
+    destination[length] = '\0';
+    return 1;
+}
+
+static int make_vfs_path_request(struct myos_vfs_path_request *request, const char *path) {
+    return request != (struct myos_vfs_path_request *)0 && copy_vfs_path(request->path, path) != 0;
+}
+
+static void command_ls(const char *argument) {
+    struct myos_vfs_list_request request;
+    const char *path = argument[0] == '\0' ? "/" : argument;
+
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        if (copy_vfs_path(request.path, path) == 0) {
+            write_text("Usage: ls [absolute-directory]\n");
             return;
         }
-        write_text(entry.name);
-        write_text("  ");
-        write_number(entry.size);
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            return;
+        }
+        if (request.entry.type == MYOS_VFS_OBJECT_DIRECTORY) { write_text("[dir] "); }
+        else if (request.entry.type == MYOS_VFS_OBJECT_VIRTUAL) { write_text("[live] "); }
+        else { write_text("[file] "); }
+        write_text(request.entry.name);
+        if (request.entry.type == MYOS_VFS_OBJECT_REGULAR) {
+            write_text("  ");
+            write_number(request.entry.size);
+        }
         write_char('\n');
     }
 }
@@ -537,12 +589,12 @@ static void command_cat(const char *argument) {
     struct myos_vfs_read_request request;
     uint64_t path_length = 0U;
 
-    while (argument[path_length] != '\0' && path_length + 1U < MYOS_VFS_NAME_MAX) {
+    while (argument[path_length] != '\0' && path_length + 1U < MYOS_VFS_PATH_MAX) {
         request.path[path_length] = argument[path_length];
         path_length++;
     }
-    if (path_length == 0U || argument[path_length] != '\0') {
-        write_text("Usage: cat <file>\n");
+    if (path_length == 0U || argument[path_length] != '\0' || argument[0] != '/') {
+        write_text("Usage: cat <absolute-file>\n");
         return;
     }
     request.path[path_length] = '\0';
@@ -567,108 +619,72 @@ static void command_cat(const char *argument) {
     }
 }
 
-static int make_tmpfs_path_request(struct myos_tmpfs_path_request *request, const char *argument) {
-    uint64_t length = 0U;
-
-    if (request == (struct myos_tmpfs_path_request *)0 || argument == (const char *)0) {
-        return 0;
-    }
-    for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) {
-        request->path[index] = '\0';
-    }
-    while (argument[length] != '\0' && length + 1U < MYOS_VFS_NAME_MAX) {
-        request->path[length] = argument[length];
-        length++;
-    }
-    return length != 0U && argument[length] == '\0';
-}
-
-static int persistent_path_requested(const char *path) {
-    return path != (const char *)0 && path[0] == 'd' && path[1] == 'i' && path[2] == 's'
-        && path[3] == 'k' && path[4] == '/';
-}
-
 static void command_touch(const char *argument) {
-    struct myos_tmpfs_path_request request;
-    uint64_t create_number;
+    struct myos_vfs_path_request request;
 
-    if (make_tmpfs_path_request(&request, argument) == 0) {
-        write_text("Usage: touch tmp/<name> | disk/<name>\n");
+    if (make_vfs_path_request(&request, argument) == 0 || argument[0] != '/') {
+        write_text("Usage: touch <absolute-file>\n");
         return;
     }
-    create_number = persistent_path_requested(request.path) != 0 ? MYOS_SYS_PERSIST_CREATE : MYOS_SYS_TMPFS_CREATE;
-    if (system_call(create_number, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
-        == UINT64_MAX) {
+    if (system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
         write_text("Unable to create file.\n");
         return;
     }
-    write_text("Created ");
-    write_text(request.path);
-    write_char('\n');
+    write_text("Created "); write_text(request.path); write_char('\n');
+}
+
+static void command_mkdir(const char *argument) {
+    struct myos_vfs_path_request request;
+
+    if (make_vfs_path_request(&request, argument) == 0 || argument[0] != '/') {
+        write_text("Usage: mkdir <absolute-directory>\n");
+        return;
+    }
+    if (system_call(MYOS_SYS_VFS_CREATE_DIRECTORY, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+        write_text("Unable to create directory.\n");
+        return;
+    }
+    write_text("Created directory "); write_text(request.path); write_char('\n');
 }
 
 static void command_write(char *argument) {
-    struct myos_tmpfs_path_request path_request;
-    struct myos_tmpfs_write_request request;
+    struct myos_vfs_path_request path_request;
+    struct myos_vfs_write_request request;
     char *text = first_argument(argument);
     uint64_t text_length_value;
-    uint64_t create_number;
-    uint64_t remove_number;
-    uint64_t write_number_value;
 
-    if (make_tmpfs_path_request(&path_request, argument) == 0 || text[0] == '\0') {
-        write_text("Usage: write tmp/<name> | disk/<name> <text>\n");
+    if (make_vfs_path_request(&path_request, argument) == 0 || argument[0] != '/' || text[0] == '\0') {
+        write_text("Usage: write <absolute-file> <text>\n");
         return;
     }
     text_length_value = text_length(text);
-    if (text_length_value > MYOS_TMPFS_WRITE_CHUNK) {
-        write_text("Text is too long.\n");
-        return;
-    }
-    for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) {
-        request.path[index] = path_request.path[index];
-    }
-    for (uint64_t index = 0U; index < MYOS_TMPFS_WRITE_CHUNK; index++) {
-        request.data[index] = 0U;
-    }
-    for (uint64_t index = 0U; index < text_length_value; index++) {
-        request.data[index] = (uint8_t)text[index];
-    }
+    if (text_length_value > MYOS_VFS_READ_CHUNK) { write_text("Text is too long.\n"); return; }
+    for (uint64_t index = 0U; index < MYOS_VFS_PATH_MAX; index++) { request.path[index] = path_request.path[index]; }
+    for (uint64_t index = 0U; index < MYOS_VFS_READ_CHUNK; index++) { request.data[index] = 0U; }
+    for (uint64_t index = 0U; index < text_length_value; index++) { request.data[index] = (uint8_t)text[index]; }
     request.offset = 0U;
     request.length = text_length_value;
-    remove_number = persistent_path_requested(path_request.path) != 0 ? MYOS_SYS_PERSIST_REMOVE : MYOS_SYS_TMPFS_REMOVE;
-    create_number = persistent_path_requested(path_request.path) != 0 ? MYOS_SYS_PERSIST_CREATE : MYOS_SYS_TMPFS_CREATE;
-    write_number_value = persistent_path_requested(path_request.path) != 0 ? MYOS_SYS_PERSIST_WRITE : MYOS_SYS_TMPFS_WRITE;
-    (void)system_call(remove_number, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request));
-    if (system_call(create_number, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request)) == UINT64_MAX
-        || system_call(write_number_value, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+    (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request));
+    if (system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request)) == UINT64_MAX
+        || system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
         write_text("Unable to write file.\n");
         return;
     }
-    write_text("Wrote ");
-    write_number(text_length_value);
-    write_text(" byte(s) to ");
-    write_text(request.path);
-    write_char('\n');
+    write_text("Wrote "); write_number(text_length_value); write_text(" byte(s) to "); write_text(request.path); write_char('\n');
 }
 
 static void command_rm(const char *argument) {
-    struct myos_tmpfs_path_request request;
-    uint64_t remove_number;
+    struct myos_vfs_path_request request;
 
-    if (make_tmpfs_path_request(&request, argument) == 0) {
-        write_text("Usage: rm tmp/<name> | disk/<name>\n");
+    if (make_vfs_path_request(&request, argument) == 0 || argument[0] != '/') {
+        write_text("Usage: rm <absolute-file-or-empty-directory>\n");
         return;
     }
-    remove_number = persistent_path_requested(request.path) != 0 ? MYOS_SYS_PERSIST_REMOVE : MYOS_SYS_TMPFS_REMOVE;
-    if (system_call(remove_number, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
-        == UINT64_MAX) {
-        write_text("Unable to remove file.\n");
+    if (system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+        write_text("Unable to remove object.\n");
         return;
     }
-    write_text("Removed ");
-    write_text(request.path);
-    write_char('\n');
+    write_text("Removed "); write_text(request.path); write_char('\n');
 }
 
 static void command_meminfo(void) {
@@ -801,12 +817,12 @@ static void command_pipe(char *argument) {
         write_text("Usage: pipe <text up to 127 bytes>\n");
         return;
     }
-    writer.path[0] = 'p'; writer.path[1] = 'i'; writer.path[2] = 'p'; writer.path[3] = 'e';
-    writer.path[4] = 'w'; writer.path[5] = 'r'; writer.path[6] = 'i'; writer.path[7] = 't';
-    writer.path[8] = 'e'; writer.path[9] = '\0';
-    reader.path[0] = 'p'; reader.path[1] = 'i'; reader.path[2] = 'p'; reader.path[3] = 'e';
-    reader.path[4] = 'r'; reader.path[5] = 'e'; reader.path[6] = 'a'; reader.path[7] = 'd';
-    reader.path[8] = '\0';
+    {
+        uint64_t writer_length = 0U;
+        uint64_t reader_length = 0U;
+        (void)append_text(writer.path, sizeof(writer.path), &writer_length, "/system/core/apps/pipewrite.elf");
+        (void)append_text(reader.path, sizeof(reader.path), &reader_length, "/system/core/apps/piperead.elf");
+    }
     for (uint64_t index = 0U; index <= length; index++) {
         writer.arguments[index] = argument[index];
     }
@@ -890,7 +906,7 @@ static void command_install(const char *argument) {
     uint64_t length = 7U;
 
     if (argument[0] == '\0') {
-        write_text("Usage: install <source> <disk/bin/name>\n");
+        write_text("Usage: install <source> </apps/name/main.elf>\n");
         return;
     }
     if (length + 1U >= sizeof(program)) {
@@ -1015,11 +1031,13 @@ static void execute_command(char *line) {
     } else if (text_equal(line, "uptime")) {
         command_uptime();
     } else if (text_equal(line, "ls")) {
-        command_ls();
+        command_ls(argument);
     } else if (text_equal(line, "cat")) {
         command_cat(argument);
     } else if (text_equal(line, "touch")) {
         command_touch(argument);
+    } else if (text_equal(line, "mkdir")) {
+        command_mkdir(argument);
     } else if (text_equal(line, "write")) {
         command_write(argument);
     } else if (text_equal(line, "rm")) {

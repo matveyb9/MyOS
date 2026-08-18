@@ -2,11 +2,12 @@
 
 #include <syscall.h>
 
-#define GUI_NOTE_PATH "disk/note"
-#define GUI_DISK_PATH_CAPACITY UINT64_C(40)
+#define GUI_NOTE_PATH "/users/myos/files/notes/note"
+#define GUI_NOTE_DIRECTORY "/users/myos/files/notes"
+#define GUI_NOTE_PATH_CAPACITY MYOS_VFS_PATH_MAX
 #define GUI_VFS_ENTRY_SCAN_LIMIT UINT64_C(64)
 
-static char selected_disk_path[GUI_DISK_PATH_CAPACITY] = GUI_NOTE_PATH;
+static char selected_disk_path[GUI_NOTE_PATH_CAPACITY] = GUI_NOTE_PATH;
 
 static uint64_t system_call(uint64_t number, uint64_t argument1, uint64_t argument2, uint64_t argument3) {
     register uint64_t rax __asm__("rax") = number;
@@ -37,7 +38,7 @@ static void copy_title(char *destination, const char *source) {
 static int make_path(char *destination, const char *source) {
     uint64_t index = 0U;
 
-    while (index + 1U < MYOS_VFS_NAME_MAX && source[index] != '\0') {
+    while (index + 1U < MYOS_VFS_PATH_MAX && source[index] != '\0') {
         destination[index] = source[index];
         index++;
     }
@@ -58,21 +59,20 @@ static int text_equal(const char *left, const char *right) {
 }
 
 static int disk_path_is_valid(const char *path) {
-    uint64_t index;
+    uint64_t index = 0U;
+    const uint64_t prefix_length = sizeof(GUI_NOTE_DIRECTORY) - 1U;
 
-    if (path == (const char *)0 || path[0] != 'd' || path[1] != 'i' || path[2] != 's' || path[3] != 'k'
-        || path[4] != '/') {
-        return 0;
+    if (path == (const char *)0) { return 0; }
+    while (index < prefix_length) {
+        if (path[index] != GUI_NOTE_DIRECTORY[index]) { return 0; }
+        index++;
     }
-    for (index = 5U; index < GUI_DISK_PATH_CAPACITY; index++) {
+    if (path[index++] != '/') { return 0; }
+    while (index < GUI_NOTE_PATH_CAPACITY) {
         const char character = path[index];
-
-        if (character == '\0') {
-            return index > 5U;
-        }
-        if (character == '/' || character < ' ' || character > '~') {
-            return 0;
-        }
+        if (character == '\0') { return index > prefix_length + 1U; }
+        if (character == '/' || character < ' ' || character > '~') { return 0; }
+        index++;
     }
     return 0;
 }
@@ -81,7 +81,7 @@ static int select_disk_path(const char *path) {
     if (disk_path_is_valid(path) == 0) {
         return 0;
     }
-    for (uint64_t index = 0U; index < GUI_DISK_PATH_CAPACITY; index++) {
+    for (uint64_t index = 0U; index < GUI_NOTE_PATH_CAPACITY; index++) {
         selected_disk_path[index] = path[index];
         if (path[index] == '\0') {
             return 1;
@@ -91,14 +91,15 @@ static int select_disk_path(const char *path) {
 }
 
 static void selected_disk_title(char *title) {
+    uint64_t source = 0U;
     uint64_t destination = 0U;
-    uint64_t source = 5U;
-    static const char prefix[] = "DISK:";
 
-    while (prefix[destination] != '\0' && destination + 1U < MYOS_GUI_CONTENT_TITLE_MAX) {
-        title[destination] = prefix[destination];
-        destination++;
+    while (selected_disk_path[source] != '\0') {
+        if (selected_disk_path[source] == '/') { destination = source + 1U; }
+        source++;
     }
+    source = destination;
+    destination = 0U;
     while (selected_disk_path[source] != '\0' && destination + 1U < MYOS_GUI_CONTENT_TITLE_MAX) {
         title[destination++] = selected_disk_path[source++];
     }
@@ -149,39 +150,44 @@ static uint64_t read_viewer_file(const char *path, uint8_t *data) {
     return count;
 }
 
-static int read_vfs_entry(uint64_t index, struct myos_vfs_entry *entry) {
-    return system_call(MYOS_SYS_VFS_ENTRY, index, (uint64_t)(uintptr_t)entry, sizeof(*entry)) != UINT64_MAX;
+static int make_note_path(char *destination, const char *name) {
+    uint64_t offset = 0U;
+
+    while (GUI_NOTE_DIRECTORY[offset] != '\0') { destination[offset] = GUI_NOTE_DIRECTORY[offset]; offset++; }
+    destination[offset++] = '/';
+    for (uint64_t index = 0U; name[index] != '\0' && offset + 1U < GUI_NOTE_PATH_CAPACITY; index++) {
+        destination[offset++] = name[index];
+    }
+    destination[offset] = '\0';
+    return disk_path_is_valid(destination);
 }
 
 static int select_next_disk_file(void) {
-    char first_path[GUI_DISK_PATH_CAPACITY] = { 0 };
+    char first_path[GUI_NOTE_PATH_CAPACITY] = { 0 };
     int have_first = 0;
     int select_following = 0;
 
     for (uint64_t index = 0U; index < GUI_VFS_ENTRY_SCAN_LIMIT; index++) {
-        struct myos_vfs_entry entry = { 0U, { 0 } };
+        struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+        char candidate[GUI_NOTE_PATH_CAPACITY] = { 0 };
 
-        if (read_vfs_entry(index, &entry) == 0) {
+        if (make_path(request.path, GUI_NOTE_DIRECTORY) == 0) { return 0; }
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
             break;
         }
-        if (disk_path_is_valid(entry.name) == 0) {
+        if (request.entry.type != MYOS_VFS_OBJECT_REGULAR || make_note_path(candidate, request.entry.name) == 0) {
             continue;
         }
         if (have_first == 0) {
-            for (uint64_t character = 0U; character < GUI_DISK_PATH_CAPACITY; character++) {
-                first_path[character] = entry.name[character];
-                if (entry.name[character] == '\0') {
-                    break;
-                }
+            for (uint64_t character = 0U; character < GUI_NOTE_PATH_CAPACITY; character++) {
+                first_path[character] = candidate[character];
+                if (candidate[character] == '\0') { break; }
             }
             have_first = 1;
         }
-        if (select_following != 0) {
-            return select_disk_path(entry.name);
-        }
-        if (text_equal(entry.name, selected_disk_path) != 0) {
-            select_following = 1;
-        }
+        if (select_following != 0) { return select_disk_path(candidate); }
+        if (text_equal(candidate, selected_disk_path) != 0) { select_following = 1; }
     }
     return have_first != 0 ? select_disk_path(first_path) : 0;
 }
@@ -207,22 +213,18 @@ static void load_viewer_file(const char *path) {
 }
 
 static int save_selected_disk_file(const uint8_t *data, uint64_t length) {
-    struct myos_tmpfs_path_request path_request = { { 0 } };
-    struct myos_tmpfs_write_request write_request = { 0U, 0U, { 0 }, { 0 } };
+    struct myos_vfs_path_request path_request = { { 0 } };
+    struct myos_vfs_write_request write_request = { 0U, 0U, { 0 }, { 0 } };
 
-    if (make_path(path_request.path, selected_disk_path) == 0
+    if (length > MYOS_VFS_READ_CHUNK || make_path(path_request.path, selected_disk_path) == 0
         || make_path(write_request.path, selected_disk_path) == 0) {
         return 0;
     }
-    for (uint64_t index = 0U; index < length; index++) {
-        write_request.data[index] = data[index];
-    }
+    for (uint64_t index = 0U; index < length; index++) { write_request.data[index] = data[index]; }
     write_request.length = length;
-    (void)system_call(MYOS_SYS_PERSIST_REMOVE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request));
-    if (system_call(MYOS_SYS_PERSIST_CREATE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request))
-            == UINT64_MAX
-        || system_call(MYOS_SYS_PERSIST_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request))
-            == UINT64_MAX) {
+    (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request));
+    if (system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request)) == UINT64_MAX
+        || system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request)) == UINT64_MAX) {
         return 0;
     }
     return 1;
@@ -387,7 +389,7 @@ static void edit_selected_disk_file(void) {
 
 void _start(uint64_t argc, const char *arguments) {
     uint64_t status = 0U;
-    const char *initial_path = arguments[0] == '\0' ? "motd.txt" : arguments;
+    const char *initial_path = arguments[0] == '\0' ? "/system/core/resources/motd.txt" : arguments;
 
     (void)argc;
     if (system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_BEGIN, 0U, 0U) == UINT64_MAX) {
@@ -411,7 +413,7 @@ void _start(uint64_t argc, const char *arguments) {
             if (character == 'e' || character == 'E') {
                 edit_selected_disk_file();
             } else if (character == 'm' || character == 'M') {
-                load_viewer_file("motd.txt");
+                load_viewer_file("/system/core/resources/motd.txt");
             } else if (character == 'D') {
                 (void)select_disk_path(GUI_NOTE_PATH);
                 load_viewer_file(selected_disk_path);
@@ -419,7 +421,7 @@ void _start(uint64_t argc, const char *arguments) {
                 if (select_next_disk_file() != 0) {
                     load_viewer_file(selected_disk_path);
                 } else {
-                    set_viewer_status("NO DISK FILES");
+                    set_viewer_status("NO NOTES");
                 }
             } else {
                 (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_INPUT, (uint64_t)(uint8_t)character, 0U);

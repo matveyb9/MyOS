@@ -1,0 +1,163 @@
+# Спецификация новой файловой системы MyOS
+
+> **Статус:** утверждённая pre-implementation спецификация для ветки `gui/bringup`. Этот документ заменяет плоскую пользовательскую модель `disk/<name>` и `tmp/<name>` единым деревом путей. Реализация начинается только после фиксации настоящего документа; прежние данные MYPFS002 должны мигрировать без потери bytes.
+
+## 1. Цель и границы
+
+Новая файловая система MyOS предоставляет один логический корень `/` с настоящими каталогами, файлами и path resolution. Внутренние носители — read-only initramfs, persistent MyOS data partition и RAM — не должны превращаться в пользовательские префиксы пути. Поэтому пути `disk/...` и `tmp/...` больше не являются частью нового интерфейса.
+
+Первая реализация намеренно ограничена. В неё входят обычные файлы, каталоги, case-preserving/case-insensitive ASCII lookup, read-only virtual runtime view и безопасная миграция. В неё не входят многопользовательская аутентификация, права uid/gid, raw device access, запись в runtime-объекты, hard links, GUI shortcuts, external filesystems и mountable чужие диски. Symbolic links являются следующим компактным расширением после стабилизации базовой иерархии; тип объекта резервируется форматом сразу, но не активируется в первом filesystem release.
+
+## 2. Единое видимое дерево
+
+Все системные имена задаются в нижнем регистре. Внутри любой user-visible path VFS сохраняет оригинальное написание имени, но сравнивает ASCII `A–Z` и `a–z` без различия регистра. Поэтому `README`, `Readme` и `readme` обозначают один объект и не могут сосуществовать в одном каталоге. Listing возвращает сохранённое canonical spelling объекта.
+
+```text
+/
+├── system/
+│   ├── core/
+│   │   ├── apps/
+│   │   ├── resources/
+│   │   └── examples/
+│   ├── data/
+│   ├── config/
+│   └── live/
+│       ├── processes/
+│       └── devices/
+├── apps/
+│   └── <application>/
+│       ├── main.elf
+│       └── resources/
+├── users/
+│   └── myos/
+│       ├── files/
+│       │   ├── notes/
+│       │   └── imported/
+│       ├── projects/
+│       ├── data/
+│       └── config/
+└── temp/
+```
+
+| Путь | Носитель | Persistent | Назначение |
+|---|---|---:|---|
+| `/system/core/` | Initramfs | Да, как часть boot image | Read-only базовая среда ОС: встроенные программы, resources и examples. |
+| `/system/data/` | MyOS data partition | Да | Общие изменяемые данные всей машины. |
+| `/system/config/` | MyOS data partition | Да | Общие конфигурации ОС, future system components и shared application defaults. |
+| `/system/live/` | Kernel memory, generated on lookup | Нет | Read-only snapshot текущего запуска: processes и detected devices. |
+| `/apps/` | MyOS data partition | Да | Глобально установленные приложения: ELF и неизменяемые resources пакета. |
+| `/users/myos/files/` | MyOS data partition | Да | Обычные личные files, включая notes и imported legacy files. |
+| `/users/myos/projects/` | MyOS data partition | Да | Исходники, проекты и local build outputs. |
+| `/users/myos/data/` | MyOS data partition | Да | Любые изменяемые данные главного profile. |
+| `/users/myos/config/` | MyOS data partition | Да | Все конфигурации главного profile: shell, GUI, editor, preferences и application settings. |
+| `/temp/` | RAM tmpfs | Нет | Temporary files, automatically cleared on reboot. |
+
+Boot-компоненты Limine, `kernel.elf`, boot configuration и raw initramfs не дублируются в видимом дереве: они остаются на EFI/FAT boot partition и не являются обычными user files. Их read-only runtime content проецируется под `/system/core/`.
+
+## 3. Приложения и данные
+
+Глобальное приложение — каталог `/apps/<application>/`. Обязательным executable entry является `/apps/<application>/main.elf`; дополнительные неизменяемые app resources размещаются в `/apps/<application>/resources/`. Shell сначала ищет команду среди `/system/core/apps/`, затем ищет `/apps/<application>/main.elf`. Явный absolute path всегда имеет приоритет над поиском по имени.
+
+Изменяемые данные не хранятся внутри пакета приложения. Для главного profile его состояние располагается в `/users/myos/data/<application>/` и `/users/myos/config/<application>/`. Machine-wide system service или shared application использует `/system/data/<application>/` и `/system/config/<application>/`. Это обеспечивает обновление или замену `/apps/<application>/` без потери личных files и settings.
+
+Будущий отдельный milestone может добавить personal application installation в `/users/myos/apps/<application>/`; этот путь не создаётся и не участвует в command lookup первой реализации.
+
+## 4. Path contract
+
+| Правило | Контракт первой реализации |
+|---|---|
+| Path form | User-facing API принимает absolute path, начинающийся с `/`. |
+| Maximum path | 111 visible ASCII bytes плюс terminating NUL; этот предел сохраняет VFS read/write/spawn request в существующем bounded syscall-copy budget. |
+| Component length | До 63 visible ASCII bytes; NUL, `/`, control characters, `.` и `..` не могут быть именем объекта. |
+| Depth | Не более 8 directory components ниже `/`. |
+| Lookup | ASCII case-insensitive, case-preserving. Unicode case folding не входит в первый release. |
+| Navigation tokens | `.` и `..` допустимы только как элементы path resolution; `..` никогда не выходит выше `/`. |
+| Type collision | Нельзя создать файл и каталог с одинаковым именем в одном parent; имена, отличающиеся только ASCII case, конфликтуют. |
+| Core writes | Любая create/write/remove/rename операция под `/system/core/` отклоняется. |
+| Runtime writes | Любая write/create/remove операция под `/system/live/` отклоняется. |
+| Temp lifetime | Все `/temp/` objects находятся в RAM и исчезают после reboot. |
+
+## 5. Runtime processes и devices
+
+Processes и devices не являются persistent files. Они остаются kernel objects; `/system/live/` — только диагностическая VFS projection, генерируемая при read/list operation. Это следует общей идее pseudo-filesystem: Linux `procfs` показывает interface к kernel data structures и содержит PID-related virtual entries, а Windows driver model оставляет смысл «files» в device namespace конкретному driver. [1] [2]
+
+Linux `proc(5)` прямо определяет `proc` как pseudo-filesystem interface to kernel data structures и описывает PID subdirectories как virtual process information. Microsoft Windows driver documentation указывает, что device object имеет namespace, а поддержка «file» names внутри него определяется конкретным driver. Эти модели подтверждают выбранную границу MyOS: runtime entries допускаются для read-only inspection, но процесс или устройство не становятся persistent files, и рискованные control writes не входят в первый release. [1] [2]
+
+```text
+/system/live/
+├── processes/
+│   ├── self/
+│   │   ├── info
+│   │   └── command
+│   └── <pid>/
+│       ├── info
+│       └── command
+└── devices/
+    ├── storage/info
+    ├── display/info
+    ├── input/info
+    └── clock/info
+```
+
+`info` возвращает bounded textual snapshot. Process entries исчезают после exit, device entries отражают detected driver state текущей загрузки. `spawn`, `wait`, `kill` и driver-specific syscalls остаются единственным способом управлять process/device state. Raw sector writes, raw framebuffer writes и commands для AHCI из ring 3 не добавляются.
+
+## 6. MYPFS003: persistent format
+
+Текущий MYPFS002 использует 8 фиксированных records по 32 KiB и не умеет directories. MYPFS003 использует тот же третий GPT MyOS data partition, от LBA `67584` до `262110` включительно: 194527 sectors, 99597824 bytes, примерно 94.98 MiB. Новый format устраняет fixed eight-file model.
+
+| Region relative to data start | Размер | Назначение |
+|---|---:|---|
+| Sector 0 | 1 sector | Primary MYPFS003 superblock, sequence, state и format constants. |
+| Sector 1 | 1 sector | Secondary superblock copy для recovery. |
+| Sectors 2–33 | 32 sectors | 128 object records по 128 bytes: object ID, parent ID, type, flags, preserved spelling, size и data extent. ASCII case folding выполняется при lookup, поэтому отдельная canonical name copy не хранится. |
+| Sectors 34–81 | 48 sectors | Allocation bitmap для data blocks. |
+| Sectors 82–(end−513) | remainder | Allocatable file payload blocks размером 512 bytes. |
+| Last 513–2 sectors | 512 sectors | Reserved migration staging area; не аллоцируется обычным VFS. Его ёмкость точно покрывает 8 legacy MYPFS002 files по 32 KiB. |
+| Last sector | 1 sector | Migration journal header и recovery state. |
+
+Persistent object types первой реализации: `directory` и `regular file`. Формат также резервирует values для `symbolic link`, `virtual` и `mount root`, чтобы расширение не требовало нового on-disk revision. Каждому regular file выделяется contiguous data extent. Это намеренно ограниченная первая allocator model: запись может выделить новый extent и atomically переключить metadata record после verify; расширенная multi-extent allocator рассматривается только после validation базовой ФС.
+
+## 7. Migration MYPFS002 → MYPFS003
+
+Migration запускается автоматически при first mount, если primary metadata содержит valid `MYPFS002`. Она не сохраняет legacy `disk/` как visible alias. До переключения на новую format VFS копирует legacy payload в reserved tail staging area и сверяет readback. Migration journal фиксирует проверенную stage mapping. Только после этого main metadata переформатируется в MYPFS003 и создаётся новое root tree.
+
+| Legacy path | New path |
+|---|---|
+| `disk/bin/<name>` | `/apps/<name>/main.elf` |
+| `disk/note` | `/users/myos/files/notes/note` |
+| `disk/<name>` | `/users/myos/files/imported/<name>` |
+
+После переноса files и verify new superblock получает state `clean`; migration journal очищается. Если reboot или write failure произошли до `clean`, mount обнаруживает journal и повторяет/завершает migration из staging area. Если failure произошёл до verified staging, legacy MYPFS002 metadata остаётся authoritative и migration начинается заново. VFS никогда не объявляет success до readback всех migrated payload.
+
+## 8. Initramfs projection и SDK compatibility
+
+Build system продолжает помещать base user programs в initramfs, но CPIO names меняются на logical `/system/core/` paths. Ожидаемые mappings:
+
+| Current initramfs name | New logical path |
+|---|---|
+| `init` | `/system/core/apps/init.elf` |
+| `hello` | `/system/core/apps/hello.elf` |
+| `calc` | `/system/core/apps/calc.elf` |
+| `edit` | `/system/core/apps/edit.elf` |
+| `startgui` | `/system/core/apps/startgui.elf` |
+| `install` | `/system/core/apps/install.elf` |
+| `motd.txt` | `/system/core/resources/motd.txt` |
+| `sdk/hello` | `/system/core/examples/sdk/hello.elf` |
+
+Текущий внешний SDK остаётся поддержанным: `make -C sdk` по-прежнему создаёт static x86_64 ELF64 ET_EXEC. Workflow установки меняется с `install sdk/hello disk/bin/sdk-hello` на `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`; запуск меняется на `run /apps/sdk-hello/main.elf` или short command lookup `sdk-hello`.
+
+## 9. Required API changes
+
+Current separate persistent/tmpfs syscall families are replaced by unified path operations: lookup/stat, list directory, create file, create directory, write file, remove object and rename object. The current `vfs_get_entry(index)` flat enumeration becomes directory-scoped list semantics. Kernel owns source selection, read-only mount policy and object-type validation; user programs must not choose an underlying storage provider based on a `disk/` or `tmp/` prefix.
+
+The initial release exposes regular files and directories through bounded syscalls. Symbolic-link creation/readlink is postponed; runtime objects are read-only. New shell commands must use ordinary absolute paths: `list`, `make-dir`, `touch`, `write`, `remove`, `run`, `install`, `startgui` and `edit`. Their final spellings remain a shell UX decision, but all must route through the unified VFS API.
+
+## 10. Deferred work
+
+Personal app installation, actual login/accounts and permissions, hard links, GUI shortcuts, multi-extent files, external mountable volumes, raw device access, writable runtime controls, Unicode naming and native compiler support are intentionally outside MYPFS003 first release.
+
+## References
+
+[1] [Linux proc(5): process and system information pseudo-filesystem](https://man7.org/linux/man-pages/man5/proc.5.html)
+
+[2] [Microsoft: controlling access to a device namespace](https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/controlling-device-namespace-access)

@@ -142,8 +142,8 @@ $(SDK_HELLO): sdk/examples/hello.c sdk/Makefile sdk/lib/crt0.c sdk/include/myos.
 
 sdk-stage: $(SDK_HELLO)
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_STARTGUI) $(USER_INSTALL) $(SDK_HELLO) $(USER_MOTD) tools/mkcpio.py
-	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) argshow $(USER_ARGSHOW) calc $(USER_CALC) pipewrite $(USER_PIPEWRITE) piperead $(USER_PIPEREAD) wc $(USER_WC) grep $(USER_GREP) edit $(USER_EDIT) startgui $(USER_STARTGUI) install $(USER_INSTALL) sdk/hello $(SDK_HELLO) motd.txt $(USER_MOTD)
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_STARTGUI) $(USER_INSTALL) $(SDK_HELLO) $(USER_MOTD) tools/mkcpio.py Makefile
+	python3 tools/mkcpio.py $@ system/core/apps/init.elf $(USER_INIT) system/core/apps/hello.elf $(USER_HELLO) system/core/apps/sleeper.elf $(USER_SLEEPER) system/core/apps/orphaner.elf $(USER_ORPHANER) system/core/apps/safety.elf $(USER_SAFETY) system/core/apps/argshow.elf $(USER_ARGSHOW) system/core/apps/calc.elf $(USER_CALC) system/core/apps/pipewrite.elf $(USER_PIPEWRITE) system/core/apps/piperead.elf $(USER_PIPEREAD) system/core/apps/wc.elf $(USER_WC) system/core/apps/grep.elf $(USER_GREP) system/core/apps/edit.elf $(USER_EDIT) system/core/apps/startgui.elf $(USER_STARTGUI) system/core/apps/install.elf $(USER_INSTALL) system/core/examples/sdk/hello.elf $(SDK_HELLO) system/core/resources/motd.txt $(USER_MOTD)
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)

@@ -127,13 +127,43 @@ static int cpio_hex8(const uint8_t *text, uint64_t *value) {
     return 1;
 }
 
-static int disk_program_path_is_valid(const char *path) {
-    return path != (const char *)0 && path[0] == 'd' && path[1] == 'i' && path[2] == 's'
-           && path[3] == 'k' && path[4] == '/' && path[5] == 'b' && path[6] == 'i'
-           && path[7] == 'n' && path[8] == '/' && path[9] != '\0';
+static int ascii_fold_equal(char left, char right) {
+    if (left >= 'A' && left <= 'Z') { left = (char)(left - 'A' + 'a'); }
+    if (right >= 'A' && right <= 'Z') { right = (char)(right - 'A' + 'a'); }
+    return left == right;
 }
 
-static int cpio_find(const char *path, const uint8_t **data, uint64_t *size) {
+static int text_starts_with_fold(const char *text, const char *prefix) {
+    uint64_t index = 0U;
+
+    if (text == (const char *)0 || prefix == (const char *)0) { return 0; }
+    while (prefix[index] != '\0') {
+        if (text[index] == '\0' || ascii_fold_equal(text[index], prefix[index]) == 0) { return 0; }
+        index++;
+    }
+    return 1;
+}
+
+static int text_ends_with_fold(const char *text, const char *suffix) {
+    uint64_t text_length = 0U;
+    uint64_t suffix_length = 0U;
+
+    if (text == (const char *)0 || suffix == (const char *)0) { return 0; }
+    while (text[text_length] != '\0') { text_length++; }
+    while (suffix[suffix_length] != '\0') { suffix_length++; }
+    if (suffix_length > text_length) { return 0; }
+    for (uint64_t index = 0U; index < suffix_length; index++) {
+        if (ascii_fold_equal(text[text_length - suffix_length + index], suffix[index]) == 0) { return 0; }
+    }
+    return 1;
+}
+
+static int program_path_is_valid(const char *path) {
+    return text_starts_with_fold(path, "/system/core/apps/") != 0
+           || (text_starts_with_fold(path, "/apps/") != 0 && text_ends_with_fold(path, "/main.elf") != 0);
+}
+
+static int __attribute__((unused)) cpio_find(const char *path, const uint8_t **data, uint64_t *size) {
     uint64_t offset = 0U;
 
     if (archive == (const uint8_t *)0 || data == (const uint8_t **)0 || size == (uint64_t *)0) {
@@ -340,7 +370,7 @@ int initramfs_init(const struct limine_module_response *modules) {
         struct vfs_file init_file;
 
         init_available = vfs_mount_newc(archive, archive_length) != 0
-                         && vfs_open("init", &init_file) != 0;
+                         && vfs_open("/system/core/apps/init.elf", &init_file) != 0;
     }
     archive_files = vfs_file_count();
     return init_available;
@@ -365,8 +395,15 @@ int initramfs_start_init(void) {
     uint64_t argument_address;
     int task_id;
 
-    if (init_available == 0 || init_started != 0 || cpio_find("init", &image, &image_size) == 0) {
-        return 0;
+    {
+        struct vfs_file init_file;
+
+        if (init_available == 0 || init_started != 0
+            || vfs_open("/system/core/apps/init.elf", &init_file) == 0) {
+            return 0;
+        }
+        image = init_file.data;
+        image_size = init_file.size;
     }
     arch_disable_interrupts();
     if (paging_space_create_user(&init_address_space) == 0
@@ -419,13 +456,11 @@ int initramfs_spawn(const char *path, const char *arguments, uint64_t input_pipe
             && pipe_can_attach_writer(pipe_owner_task_id, output_pipe_id) == 0)) {
         return -1;
     }
-    if (cpio_find(path, &image, &image_size) == 0) {
-        if (disk_program_path_is_valid(path) == 0 || vfs_open(path, &disk_file) == 0) {
-            return -1;
-        }
-        image = disk_file.data;
-        image_size = disk_file.size;
+    if (program_path_is_valid(path) == 0 || vfs_open(path, &disk_file) == 0) {
+        return -1;
     }
+    image = disk_file.data;
+    image_size = disk_file.size;
     arch_disable_interrupts();
     /* The running init task owns the previous pages; new pages are tracked only for this spawn attempt. */
     loaded_page_count = 0U;

@@ -14,7 +14,7 @@ static uint64_t system_call(uint64_t number, uint64_t descriptor, uint64_t buffe
 
 void _start(void) {
     static const char message[] = "[orphaner] spawning sleeper then exiting\n";
-    const struct myos_spawn_request request = { "sleeper", "", UINT64_MAX, UINT64_MAX };
+    const struct myos_spawn_request request = { "/system/core/apps/sleeper.elf", "", UINT64_MAX, UINT64_MAX };
     const uint64_t child = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request,
                                        sizeof(request));
 

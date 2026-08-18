@@ -31,6 +31,11 @@
 #define MYOS_SYS_PERSIST_WRITE UINT64_C(26)
 #define MYOS_SYS_PERSIST_REMOVE UINT64_C(27)
 #define MYOS_SYS_GUI_SESSION UINT64_C(28)
+#define MYOS_SYS_VFS_LIST UINT64_C(29)
+#define MYOS_SYS_VFS_CREATE_FILE UINT64_C(30)
+#define MYOS_SYS_VFS_CREATE_DIRECTORY UINT64_C(31)
+#define MYOS_SYS_VFS_WRITE UINT64_C(32)
+#define MYOS_SYS_VFS_REMOVE UINT64_C(33)
 
 #define MYOS_GUI_BEGIN UINT64_C(0)
 #define MYOS_GUI_INPUT UINT64_C(1)
@@ -52,12 +57,17 @@
 #define MYOS_TASK_SLOT_COUNT UINT64_C(16)
 #define MYOS_TASK_NAME_MAX UINT64_C(16)
 #define MYOS_VFS_NAME_MAX UINT64_C(64)
+#define MYOS_VFS_PATH_MAX UINT64_C(112)
 #define MYOS_VFS_READ_CHUNK UINT64_C(128)
+#define MYOS_VFS_OBJECT_REGULAR UINT64_C(1)
+#define MYOS_VFS_OBJECT_DIRECTORY UINT64_C(2)
+#define MYOS_VFS_OBJECT_SYMBOLIC_LINK UINT64_C(3)
+#define MYOS_VFS_OBJECT_VIRTUAL UINT64_C(4)
 #define MYOS_GUI_CONTENT_TITLE_MAX UINT64_C(16)
 #define MYOS_GUI_CONTENT_MAX UINT64_C(128)
 #define MYOS_TMPFS_WRITE_CHUNK UINT64_C(128)
 #define MYOS_PERSIST_WRITE_CHUNK UINT64_C(128)
-#define MYOS_SPAWN_PATH_MAX MYOS_VFS_NAME_MAX
+#define MYOS_SPAWN_PATH_MAX MYOS_VFS_PATH_MAX
 #define MYOS_SPAWN_ARGUMENTS_MAX UINT64_C(128)
 
 #define MYOS_TASK_STATE_UNUSED UINT64_C(0)
@@ -103,7 +113,30 @@ struct myos_vfs_entry {
 
 struct myos_vfs_read_request {
     uint64_t offset;
-    char path[MYOS_VFS_NAME_MAX];
+    char path[MYOS_VFS_PATH_MAX];
+    uint8_t data[MYOS_VFS_READ_CHUNK];
+};
+
+struct myos_vfs_directory_entry {
+    char name[MYOS_VFS_NAME_MAX];
+    uint64_t size;
+    uint64_t type;
+};
+
+struct myos_vfs_list_request {
+    uint64_t index;
+    char path[MYOS_VFS_PATH_MAX];
+    struct myos_vfs_directory_entry entry;
+};
+
+struct myos_vfs_path_request {
+    char path[MYOS_VFS_PATH_MAX];
+};
+
+struct myos_vfs_write_request {
+    uint64_t offset;
+    uint64_t length;
+    char path[MYOS_VFS_PATH_MAX];
     uint8_t data[MYOS_VFS_READ_CHUNK];
 };
 

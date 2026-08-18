@@ -57,8 +57,8 @@ GUI преднамеренно остаётся в **`gui/bringup`**. Он за�
 | `[x]` | Desktop и window manager | Тёмный desktop, три bounded windows (`SYSTEM`, `NOTES`, `MONITOR`), visibility, z-order и focus. |
 | `[x]` | Keyboard interaction | Перемещение, focus switching, show/hide/reset и безопасный выход из GUI session. |
 | `[x]` | Software pointer | Bounded crosshair pointer и focus верхнего окна под ним. |
-| `[x]` | VFS viewer | Просмотр `motd.txt` или файла, переданного как `startgui [file]`, с ограничением контента ABI. |
-| `[x]` | Persistent note editor | Загрузка `disk/note`, редактирование, `Ctrl-S` save и `Esc` cancel. |
+| `[x]` | VFS viewer | Просмотр `/system/core/resources/motd.txt` или файла, переданного как `startgui [absolute-path]`, с ограничением контента ABI. |
+| `[x]` | Persistent note editor | Загрузка `/users/myos/files/notes/note`, редактирование, `Ctrl-S` save и `Esc` cancel. |
 | `[x]` | Boot UX integration | GUI branch содержит stage headers и clear перед normal user-shell entry; BIOS regression и `startgui` regression пройдены. |
 | `[x]` | Cross-firmware closure | UEFI/OVMF normal boot подтвердил stage headers и чистый framebuffer перед user shell. |
 
@@ -80,9 +80,9 @@ GUI release decision принят: immutable preview tag фиксирует пр
 
 | Приоритет | Статус | Работа | Критерий завершения |
 |---:|---|---|---|
-| 1 | `[x]` | Persistent ELF64 program execution | `install <source> <disk/bin/name>` копирует bounded ELF в persistent slot; `run disk/bin/name [arguments]` создаёт отдельный user task. Loader проверяет x86_64 ELF64 `ET_EXEC`, load segments и entry; BIOS/UEFI persistence regressions пройдены. |
-| 2 | `[x]` | MyOS SDK для внешней сборки | Public header, startup code, linker script, build template и example app находятся в `sdk/`; host-built ELF устанавливается в `disk/bin/` и запускается без пересборки kernel. Подробности и validation — в [SDK_RU.md](SDK_RU.md). |
-| 3 | `[ ]` | Developer filesystem workflow | Будущие source/executable namespaces, limits storage, console editor и shell-команды для исходников и бинарников. **До проектирования или реализации этапа работа остановлена: имена и структура каталогов должны быть совместно согласованы с пользователем.** |
+| 1 | `[x]` | Persistent ELF64 program execution | `install <absolute-source> /apps/<name>/main.elf` копирует bounded ELF в global application package; `run <name> [arguments]` создаёт отдельный user task. Loader проверяет x86_64 ELF64 `ET_EXEC`, load segments и entry. |
+| 2 | `[x]` | MyOS SDK для внешней сборки | Public header, startup code, linker script, build template и example app находятся в `sdk/`; host-built ELF устанавливается в `/apps/<name>/main.elf` и запускается без пересборки kernel. Подробности и validation — в [SDK_RU.md](SDK_RU.md). |
+| 3 | `[x]` | Developer filesystem workflow | Реализован MYPFS003: real directories, lower-case unified root, `/system/core`, `/system/data`, `/system/config`, `/apps`, `/users/myos`, `/temp` и read-only `/system/live`. Поддержаны absolute paths, ASCII case-preserving/case-insensitive lookup, `/apps` packages, shell `ls`/`mkdir`/`touch`/`write`/`rm`, MYPFS001/MYPFS002 migration и legacy disk namespace removal. [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md) фиксирует contract. |
 | 4 | `[ ]` | Первая нативная сборка в MyOS | В MyOS появляется компактный native assembler или ограниченный C compiler с командой build, создающей запускаемый MyOS ELF64 для учебных и практических user programs. |
 | 5 | `[ ]` | Расширение native toolchain | По мере готовности: более полное подмножество C, linker, базовая C-библиотека, build scripts и затем оценка портирования более крупного compiler. GCC/Clang не являются первым шагом. |
 
@@ -115,4 +115,4 @@ GUI release decision принят: immutable preview tag фиксирует пр
 
 ## Следующее действие
 
-MyOS SDK завершён и проверен: пример собирается на хосте, устанавливается в `disk/bin/` и повторно запускается после fresh BIOS boot. **Следующий шаг намеренно поставлен на паузу:** до проектирования Developer filesystem workflow необходимо совместно согласовать названия и структуру будущих каталогов. Никакая иерархия (`disk/src/`, package layout или иные namespace) не будет реализована до явного решения пользователя. Preview `v0.12.2-gui-preview` не сливается в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
+Developer filesystem workflow завершён в `gui/bringup`: новая MYPFS003 VFS заменяет user-facing `disk/` prefixes на единый корень с `/system`, `/apps`, `/users/myos` и `/temp`. SDK example строится на хосте, устанавливается как `/apps/sdk-hello/main.elf` и запускается коротким именем `run sdk-hello`. Следующий практический milestone — первая нативная сборка в MyOS; личная установка приложений (`/users/myos/apps`) остаётся отдельным будущим расширением. Preview `v0.12.2-gui-preview` не сливается в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
