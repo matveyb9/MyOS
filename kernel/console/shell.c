@@ -20,6 +20,7 @@
 
 #define SHELL_LINE_CAPACITY 128U
 #define SHELL_PAGING_TEST_ADDRESS UINT64_C(0xFFFFA00000000000)
+#define AUTO_INIT_WAIT_TICKS UINT64_C(300)
 
 static int text_equal(const char *left, const char *right) {
     while (*left != '\0' && *right != '\0') {
@@ -69,6 +70,37 @@ static void print_prompt(void) {
     serial_write("myos> ");
 }
 
+static int start_user_shell(void) {
+    if (initramfs_start_init() == 0) {
+        return 0;
+    }
+    serial_write("/init scheduled; kernel console input is now owned by user space.\n");
+    for (;;) {
+        arch_wait_for_interrupt();
+    }
+}
+
+static int auto_init_cancelled(void) {
+    const uint64_t deadline = pit_ticks() + AUTO_INIT_WAIT_TICKS;
+
+    while (pit_ticks() < deadline) {
+        char input;
+
+        if (keyboard_has_char() != 0) {
+            input = keyboard_read_char();
+        } else if (serial_input_available() != 0) {
+            input = serial_read_char();
+        } else {
+            arch_wait_for_interrupt();
+            continue;
+        }
+        if (input == 'k' || input == 'K') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void print_help(void) {
     serial_write("Built-in commands:\n");
     serial_write("  help              List available commands.\n");
@@ -113,7 +145,7 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "version")) {
-        serial_write("MyOS 0.12.0-dev (x86_64, freestanding C11 + NASM)\n");
+        serial_write("MyOS 0.12.2-dev (x86_64, freestanding C11 + NASM)\n");
         return;
     }
 
@@ -321,14 +353,10 @@ static void execute_command(const char *line, const struct shell_context *contex
     }
 
     if (text_equal(line, "init")) {
-        if (initramfs_start_init() == 0) {
+        if (start_user_shell() == 0) {
             serial_write("Unable to load /init from initramfs.\n");
-            return;
         }
-        serial_write("/init scheduled; kernel console input is now owned by user space.\n");
-        for (;;) {
-            arch_wait_for_interrupt();
-        }
+        return;
     }
 
     if (text_equal(line, "heap")) {
@@ -441,7 +469,21 @@ void shell_run(const struct shell_context *context) {
     char line[SHELL_LINE_CAPACITY];
     size_t length = 0U;
 
-    serial_write("\nMyOS serial shell ready. Type 'help'.\n");
+    if (initramfs_has_init() != 0) {
+        serial_write("\n[boot] Starting /init in 3 seconds; press K for kernel shell.\n");
+        if (auto_init_cancelled() == 0) {
+            serial_write("[boot] Starting /init now.\n");
+            if (start_user_shell() == 0) {
+                serial_write("[boot] Automatic /init launch failed; entering kernel shell.\n");
+            }
+        } else {
+            serial_write("[boot] Automatic /init cancelled; entering kernel shell.\n");
+        }
+    } else {
+        serial_write("[boot] /init is unavailable; entering kernel shell.\n");
+    }
+
+    serial_write("MyOS serial shell ready. Type 'help' or 'init'.\n");
     print_prompt();
 
     for (;;) {

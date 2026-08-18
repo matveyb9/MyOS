@@ -84,8 +84,8 @@ Limine
   -> ACPI / PIC / PIT / PS2 / RTC / PCI / AHCI
   -> initramfs + VFS + persistent mount
   -> scheduler and kernel workers
-  -> kernel shell
-  -> `init` user process
+  -> three-second auto-init countdown
+  -> `K` cancellation to kernel shell, or `/init` user process
   -> ring-3 user shell
 ```
 
@@ -151,7 +151,7 @@ Both writable stores are intentionally bounded. The persistent backend uses one 
 
 ## 6. Input, console and user shell
 
-COM1 output is mirrored to the framebuffer text console. The keyboard driver handles PS/2 Set 1 US QWERTY characters and wakes tasks in `INPUT` state. The user shell in `user/init.c` owns interactive input after the kernel-shell `init` command.
+COM1 output is mirrored to the framebuffer text console. The keyboard driver handles PS/2 Set 1 US QWERTY characters and wakes tasks in `INPUT` state. After bootstrap, `kernel/console/shell.c` waits three seconds for `K` from PS/2 or COM1: no cancellation starts `/init` automatically; `K` retains the diagnostic kernel shell, where `init` still launches the same user shell manually. If `/init` is unavailable or automatic loading fails, the kernel reports the condition and remains in kernel shell without retry looping.
 
 The user shell provides deterministic history navigation and unique-prefix Tab completion. Its command list and command semantics are the source of truth for end-user documentation. Changes to `command_help()`, `execute_command()` or a user program should be reflected in `docs/USER_GUIDE_RU.md` and `README.md`.
 
@@ -162,8 +162,10 @@ Before committing a console change, at minimum perform:
 | Test | Expected result |
 |---|---|
 | `make all img` | Strict `-Werror` build and both artifacts complete. |
-| BIOS raw image | Limine boot, kernel diagnostics, `init`, user shell. |
-| UEFI raw image | Equivalent boot and shell through OVMF. |
+| BIOS raw image | Limine boot, automatic `/init` after three seconds, then user shell. |
+| BIOS cancellation | `K` during countdown keeps kernel shell; manual `init` reaches user shell. |
+| UEFI raw image | Equivalent automatic startup and user shell through OVMF. |
+| Fallback check | Missing or failed `/init` leaves diagnostic kernel shell without retry loop. |
 | Process check | `run hello`, `spawn sleeper 1`, `ps`, `wait` or `kill`. |
 | Filesystem check | Create/write/read/remove a `tmp/` file and a `disk/` file. |
 | Persistence check | Reboot the same `myos.img`, then read a previous `disk/` file. |
