@@ -146,11 +146,9 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     if (number == MYOS_SYS_GUI_SESSION) {
         const uint64_t current_task_id = scheduler_current_task_id();
 
-        if (length != 0U) {
-            return UINT64_MAX;
-        }
         if (descriptor == MYOS_GUI_BEGIN) {
-            if (buffer != 0U || gui_owner_task_id != UINT64_MAX || framebuffer_gui_begin() == 0) {
+            if (buffer != 0U || length != 0U || gui_owner_task_id != UINT64_MAX
+                || framebuffer_gui_begin() == 0) {
                 return UINT64_MAX;
             }
             gui_owner_task_id = current_task_id;
@@ -160,13 +158,24 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
             return UINT64_MAX;
         }
         if (descriptor == MYOS_GUI_INPUT) {
-            if (buffer > UINT64_C(127)) {
+            if (length != 0U || buffer > UINT64_C(127)) {
                 return UINT64_MAX;
             }
             framebuffer_gui_handle_input((char)buffer);
             return 0U;
         }
-        if (descriptor == MYOS_GUI_END && buffer == 0U) {
+        if (descriptor == MYOS_GUI_SET_CONTENT) {
+            struct myos_gui_content_request request;
+
+            if (buffer == 0U || length != sizeof(request) || copy_from_user(&request, buffer, sizeof(request)) == 0
+                || request.length > MYOS_GUI_CONTENT_MAX
+                || request_string_is_terminated(request.title, MYOS_GUI_CONTENT_TITLE_MAX, 1) == 0
+                || framebuffer_gui_set_content(request.title, request.data, request.length) == 0) {
+                return UINT64_MAX;
+            }
+            return 0U;
+        }
+        if (descriptor == MYOS_GUI_END && buffer == 0U && length == 0U) {
             framebuffer_gui_end();
             gui_owner_task_id = UINT64_MAX;
             return 0U;

@@ -35,6 +35,7 @@
 #define MYOS_GUI_BEGIN UINT64_C(0)
 #define MYOS_GUI_INPUT UINT64_C(1)
 #define MYOS_GUI_END UINT64_C(2)
+#define MYOS_GUI_SET_CONTENT UINT64_C(3)
 
 #define MYOS_EXIT_STATUS_KILLED UINT64_C(137)
 
@@ -42,6 +43,8 @@
 #define MYOS_TASK_NAME_MAX UINT64_C(16)
 #define MYOS_VFS_NAME_MAX UINT64_C(64)
 #define MYOS_VFS_READ_CHUNK UINT64_C(128)
+#define MYOS_GUI_CONTENT_TITLE_MAX UINT64_C(16)
+#define MYOS_GUI_CONTENT_MAX UINT64_C(128)
 #define MYOS_TMPFS_WRITE_CHUNK UINT64_C(128)
 #define MYOS_PERSIST_WRITE_CHUNK UINT64_C(128)
 #define MYOS_SPAWN_PATH_MAX MYOS_TASK_NAME_MAX
@@ -92,6 +95,12 @@ struct myos_vfs_read_request {
     uint64_t offset;
     char path[MYOS_VFS_NAME_MAX];
     uint8_t data[MYOS_VFS_READ_CHUNK];
+};
+
+struct myos_gui_content_request {
+    uint64_t length;
+    char title[MYOS_GUI_CONTENT_TITLE_MAX];
+    uint8_t data[MYOS_GUI_CONTENT_MAX];
 };
 
 struct myos_tmpfs_path_request {

@@ -14,6 +14,8 @@
 #define GUI_WINDOW_SYSTEM 0U
 #define GUI_WINDOW_NOTES 1U
 #define GUI_WINDOW_MONITOR 2U
+#define GUI_CONTENT_TITLE_MAX 16U
+#define GUI_CONTENT_MAX 128U
 
 typedef struct gui_window {
     uint64_t x;
@@ -50,6 +52,9 @@ typedef struct framebuffer_console {
     uint8_t gui_focus;
     uint8_t gui_z_order[GUI_WINDOW_COUNT];
     gui_window_t gui_windows[GUI_WINDOW_COUNT];
+    char gui_content_title[GUI_CONTENT_TITLE_MAX];
+    uint8_t gui_content[GUI_CONTENT_MAX];
+    uint64_t gui_content_length;
     uint64_t gui_pointer_x;
     uint64_t gui_pointer_y;
     int active;
@@ -189,18 +194,72 @@ static void fill_rect(uint64_t x, uint64_t y, uint64_t width, uint64_t height, u
     }
 }
 
-static void draw_gui_text(uint64_t x, uint64_t y, const char *text, uint32_t colour) {
-    while (*text != '\0') {
-        for (uint64_t row = 0U; row < 7U; row++) {
-            const uint8_t bits = glyph_row(*text, (uint8_t)row);
-            for (uint64_t column = 0U; column < 5U; column++) {
-                if ((bits & (uint8_t)(UINT8_C(1) << (4U - column))) != 0U) {
-                    put_pixel(x + column, y + row, colour);
-                }
+static void draw_gui_character(uint64_t x, uint64_t y, char character, uint32_t colour) {
+    for (uint64_t row = 0U; row < 7U; row++) {
+        const uint8_t bits = glyph_row(character, (uint8_t)row);
+        for (uint64_t column = 0U; column < 5U; column++) {
+            if ((bits & (uint8_t)(UINT8_C(1) << (4U - column))) != 0U) {
+                put_pixel(x + column, y + row, colour);
             }
         }
+    }
+}
+
+static void draw_gui_text(uint64_t x, uint64_t y, const char *text, uint32_t colour) {
+    while (*text != '\0') {
+        draw_gui_character(x, y, *text, colour);
         x += 7U;
         text++;
+    }
+}
+
+static void gui_reset_content(void) {
+    static const char default_title[] = "VIEWER";
+    static const char default_content[] = "PRESS M FOR MOTD OR D FOR DISK NOTE";
+    uint64_t index;
+
+    for (index = 0U; index < GUI_CONTENT_TITLE_MAX; index++) {
+        console.gui_content_title[index] = '\0';
+    }
+    for (index = 0U; default_title[index] != '\0' && index + 1U < GUI_CONTENT_TITLE_MAX; index++) {
+        console.gui_content_title[index] = default_title[index];
+    }
+    for (index = 0U; index < GUI_CONTENT_MAX; index++) {
+        console.gui_content[index] = 0U;
+    }
+    for (index = 0U; default_content[index] != '\0' && index < GUI_CONTENT_MAX; index++) {
+        console.gui_content[index] = (uint8_t)default_content[index];
+    }
+    console.gui_content_length = index;
+}
+
+static void draw_gui_content(const gui_window_t *window, uint32_t colour) {
+    uint64_t x = window->x + 16U;
+    uint64_t y = window->y + 48U;
+    const uint64_t first_x = x;
+    const uint64_t limit_x = window->x + window->width - 16U;
+    const uint64_t limit_y = window->y + window->height - 12U;
+
+    for (uint64_t index = 0U; index < console.gui_content_length && y < limit_y; index++) {
+        char character = (char)console.gui_content[index];
+
+        if (character == '\n') {
+            x = first_x;
+            y += 12U;
+            continue;
+        }
+        if ((uint8_t)character < 32U || (uint8_t)character > 126U) {
+            character = '?';
+        }
+        if (x + 7U > limit_x) {
+            x = first_x;
+            y += 12U;
+            if (y >= limit_y) {
+                break;
+            }
+        }
+        draw_gui_character(x, y, character, colour);
+        x += 7U;
     }
 }
 
@@ -222,9 +281,9 @@ static void gui_layout_windows(void) {
     notes_window->y = console.height / 4U;
     notes_window->width = (console.width * 3U) / 5U;
     notes_window->height = console.height / 2U;
-    notes_window->title = "NOTES";
-    notes_window->line_one = "DEMO APP SURFACE";
-    notes_window->line_two = "NO USER FILE LOADED";
+    notes_window->title = console.gui_content_title;
+    notes_window->line_one = "";
+    notes_window->line_two = "";
     notes_window->visible = 1U;
 
     monitor_window->x = console.width / 2U;
@@ -333,8 +392,12 @@ static void draw_gui_window(const gui_window_t *window, int focused) {
     fill_rect(window->x + 2U, window->y + 2U, window->width - 4U, 24U, header);
     draw_gui_text(window->x + 14U, window->y + 10U, window->title, surface);
     fill_rect(window->x + window->width - 22U, window->y + 7U, 10U, 10U, surface);
-    draw_gui_text(window->x + 16U, window->y + 48U, window->line_one, text);
-    draw_gui_text(window->x + 16U, window->y + 72U, window->line_two, text);
+    if (window == &console.gui_windows[GUI_WINDOW_NOTES]) {
+        draw_gui_content(window, text);
+    } else {
+        draw_gui_text(window->x + 16U, window->y + 48U, window->line_one, text);
+        draw_gui_text(window->x + 16U, window->y + 72U, window->line_two, text);
+    }
 }
 
 static void draw_gui_pointer(void) {
@@ -463,6 +526,7 @@ int framebuffer_console_init(const struct limine_framebuffer *framebuffer) {
         console.gui_z_order[index] = (uint8_t)index;
         console.gui_windows[index].visible = 0U;
     }
+    gui_reset_content();
     console.gui_pointer_x = 0U;
     console.gui_pointer_y = 0U;
     console.background = rgb(framebuffer, 13U, 20U, 34U);
@@ -552,6 +616,7 @@ int framebuffer_gui_begin(void) {
         return 0;
     }
     console.gui_active = 1;
+    gui_reset_content();
     gui_layout_windows();
     console.gui_pointer_x = console.width / 2U;
     console.gui_pointer_y = console.height / 2U;
@@ -569,6 +634,30 @@ void framebuffer_gui_end(void) {
 
 int framebuffer_gui_active(void) {
     return console.gui_active;
+}
+
+int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t length) {
+    uint64_t index;
+
+    if (console.gui_active == 0 || title == (const char *)0 || data == (const uint8_t *)0
+        || length > GUI_CONTENT_MAX || title[0] == '\0') {
+        return 0;
+    }
+    for (index = 0U; index < GUI_CONTENT_TITLE_MAX; index++) {
+        console.gui_content_title[index] = '\0';
+    }
+    for (index = 0U; index + 1U < GUI_CONTENT_TITLE_MAX && title[index] != '\0'; index++) {
+        console.gui_content_title[index] = title[index];
+    }
+    for (index = 0U; index < GUI_CONTENT_MAX; index++) {
+        console.gui_content[index] = 0U;
+    }
+    for (index = 0U; index < length; index++) {
+        console.gui_content[index] = data[index];
+    }
+    console.gui_content_length = length;
+    redraw_gui_desktop();
+    return 1;
 }
 
 void framebuffer_gui_handle_input(char character) {

@@ -17,5 +17,6 @@ int framebuffer_gui_begin(void);
 void framebuffer_gui_end(void);
 int framebuffer_gui_active(void);
 void framebuffer_gui_handle_input(char character);
+int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t length);
 
 #endif

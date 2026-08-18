@@ -395,6 +395,7 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
 
 static void command_help(void) {
     write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm set get env sleep run spawn pipe wait kill stress startgui reboot poweroff dmesg clear exit\n");
+    write_text("GUI: startgui [file]; M loads motd.txt, D loads disk/note.\n");
     write_text("Files: tmp/<name> is temporary; disk/<name> persists across reboots.\n");
     write_text("Programs: hello sleeper orphaner safety argshow calc pipewrite piperead wc grep edit\n");
 }
@@ -847,9 +848,25 @@ static void command_run(char *argument) {
     write_char('\n');
 }
 
-static void command_startgui(void) {
-    char program[] = "startgui";
+static void command_startgui(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "startgui";
+    uint64_t length = 8U;
 
+    if (argument[0] != '\0') {
+        if (length + 1U >= sizeof(program)) {
+            write_text("GUI file path is too long.\n");
+            return;
+        }
+        program[length++] = ' ';
+        for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+            if (length + 1U >= sizeof(program)) {
+                write_text("GUI file path is too long.\n");
+                return;
+            }
+            program[length++] = argument[index];
+        }
+        program[length] = '\0';
+    }
     command_run(program);
 }
 
@@ -943,7 +960,7 @@ static void execute_command(char *line) {
     } else if (text_equal(line, "sleep")) {
         command_sleep(argument);
     } else if (text_equal(line, "startgui")) {
-        command_startgui();
+        command_startgui(argument);
     } else if (text_equal(line, "reboot")) {
         command_reboot();
     } else if (text_equal(line, "poweroff")) {
