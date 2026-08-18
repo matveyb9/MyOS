@@ -395,7 +395,7 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
 
 static void command_help(void) {
     write_text("Commands: help echo uname ps meminfo date uptime ls cat touch write rm set get env sleep run spawn pipe wait kill stress startgui reboot poweroff dmesg clear exit\n");
-    write_text("GUI: startgui [file]; M loads motd.txt, D loads disk/note.\n");
+    write_text("GUI: startgui [file]; E edits disk/note, M loads motd.txt, D loads disk/note.\n");
     write_text("Files: tmp/<name> is temporary; disk/<name> persists across reboots.\n");
     write_text("Programs: hello sleeper orphaner safety argshow calc pipewrite piperead wc grep edit\n");
 }
