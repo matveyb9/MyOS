@@ -12,11 +12,21 @@ import time
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 PROMPT = b"[myos]$ "
 NOTE_PATH = "/users/myos/files/notes/release-harness.txt"
-SOURCE_PATH = "/users/myos/projects/release-harness.mya"
+SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
 APP_PATH = "/apps/release-harness/main.elf"
-BACKWARD_SOURCE_PATH = "/users/myos/projects/release-harness-backward.mya"
+FALSE_SOURCE_PATH = "/temp/f.mya"
+FALSE_ELF_PATH = "/users/myos/projects/release-false.elf"
+FALSE_APP_PATH = "/apps/release-false/main.elf"
+NONZERO_SOURCE_PATH = "/temp/p.mya"
+NONZERO_ELF_PATH = "/users/myos/projects/release-nonzero.elf"
+NONZERO_APP_PATH = "/apps/release-nonzero/main.elf"
+BACKWARD_SOURCE_PATH = "/temp/release-harness-backward.mya"
 BACKWARD_ELF_PATH = "/users/myos/projects/release-harness-backward.elf"
+MISSING_SET_SOURCE_PATH = "/temp/release-missing-set.mya"
+MISSING_SET_ELF_PATH = "/users/myos/projects/release-missing-set.elf"
+CONDITIONAL_BACKWARD_SOURCE_PATH = "/temp/release-conditional-backward.mya"
+CONDITIONAL_BACKWARD_ELF_PATH = "/users/myos/projects/release-conditional-backward.elf"
 
 
 class RegressionFailure(RuntimeError):
@@ -144,17 +154,39 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {NOTE_PATH}", "base!")
-        guest.command(f"write {SOURCE_PATH} write \"native\\n\"; jump done; write \"skipped\\n\"; label done:; exit 7")
+        guest.command(f"write {SOURCE_PATH} set 0;jump_if_zero done;write \"B\\n\";label done:;write \"Z\\n\";exit 7")
         guest.command(f"build {SOURCE_PATH} {ELF_PATH}", "exited with status 0")
         guest.command(f"install {ELF_PATH} {APP_PATH}", "exited with status 0")
         run_start = len(guest.output)
-        guest.command("run release-harness", "native")
+        guest.command("run release-harness", "Z")
         run_output = guest.output[run_start:]
-        if b"skipped" in run_output or b"exited with status 7" not in run_output:
-            raise RegressionFailure(f"BIOS: forward-jump native program did not skip code or return status 7\n{guest._tail()}")
-        guest.command(f"write {BACKWARD_SOURCE_PATH} label start:; write \"x\\n\"; jump start; exit 0")
+        if b"B" in run_output or b"exited with status 7" not in run_output:
+            raise RegressionFailure(f"BIOS: zero-true conditional program did not skip code or return status 7\n{guest._tail()}")
+        guest.command(f"write {FALSE_SOURCE_PATH} set 9;jump_if_zero a;write \"F\\n\";jump e;label a:;write \"B\\n\";label e:;exit 8")
+        guest.command(f"build {FALSE_SOURCE_PATH} {FALSE_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {FALSE_ELF_PATH} {FALSE_APP_PATH}", "exited with status 0")
+        run_start = len(guest.output)
+        guest.command("run release-false", "F")
+        run_output = guest.output[run_start:]
+        if b"B" in run_output or b"exited with status 8" not in run_output:
+            raise RegressionFailure(f"BIOS: zero-false conditional program did not continue or return status 8\n{guest._tail()}")
+        guest.command(f"write {NONZERO_SOURCE_PATH} set 5;jump_if_nonzero d;write \"B\\n\";label d:;write \"N\\n\";exit 9")
+        guest.command(f"build {NONZERO_SOURCE_PATH} {NONZERO_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {NONZERO_ELF_PATH} {NONZERO_APP_PATH}", "exited with status 0")
+        run_start = len(guest.output)
+        guest.command("run release-nonzero", "N")
+        run_output = guest.output[run_start:]
+        if b"B" in run_output or b"exited with status 9" not in run_output:
+            raise RegressionFailure(f"BIOS: nonzero-true conditional program did not skip code or return status 9\n{guest._tail()}")
+        guest.command(f"write {BACKWARD_SOURCE_PATH} label start:;write \"x\\n\";jump start;exit 0")
         guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}",
-                      "asm: syntax error; labels need ':' and jumps must target a later label")
+                      "asm: syntax error; set <0..255>, labels need ':' and jumps must target a later label")
+        guest.command(f"write {MISSING_SET_SOURCE_PATH} jump_if_zero done;label done:;exit 0")
+        guest.command(f"build {MISSING_SET_SOURCE_PATH} {MISSING_SET_ELF_PATH}",
+                      "asm: syntax error; set <0..255>, labels need ':' and jumps must target a later label")
+        guest.command(f"write {CONDITIONAL_BACKWARD_SOURCE_PATH} label start:;set 1;jump_if_nonzero start;exit 0")
+        guest.command(f"build {CONDITIONAL_BACKWARD_SOURCE_PATH} {CONDITIONAL_BACKWARD_ELF_PATH}",
+                      "asm: syntax error; set <0..255>, labels need ':' and jumps must target a later label")
     finally:
         guest.close()
 
@@ -169,10 +201,10 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.expect(PROMPT)
         guest.command(f"cat {NOTE_PATH}", "base!")
         run_start = len(guest.output)
-        guest.command("run release-harness", "native")
+        guest.command("run release-harness", "Z")
         run_output = guest.output[run_start:]
-        if b"skipped" in run_output or b"exited with status 7" not in run_output:
-            raise RegressionFailure(f"UEFI: persisted forward-jump program did not skip code or return status 7\n{guest._tail()}")
+        if b"B" in run_output or b"exited with status 7" not in run_output:
+            raise RegressionFailure(f"UEFI: persisted zero-true program did not skip code or return status 7\n{guest._tail()}")
         guest.gui_open_and_exit()
     finally:
         guest.close()

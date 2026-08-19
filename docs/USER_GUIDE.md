@@ -203,7 +203,7 @@ install /users/myos/projects/native/forward.elf /apps/native-forward/main.elf
 run native-forward
 ```
 
-The source language supports `label name:`, `write "text"`, `jump name`, and a final `exit <0..255>`. A jump target must be a defined label located later in the source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\`, and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` for the command summary and [NATIVE_BUILD.md](NATIVE_BUILD.md) for all bounds and syntax rules.
+The source language supports `set <0..255>`, `label name:`, `write "text"`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name`, and a final `exit <0..255>`. A conditional jump needs an earlier `set`; every target must be a defined label located later in the source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\`, and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` for the command summary and [NATIVE_BUILD.md](NATIVE_BUILD.md) for all bounds and syntax rules.
 
 > Project ELF files are intentionally not directly runnable. The loader accepts installed user applications only from `/apps/<name>/main.elf`, so `install` remains the explicit package boundary.
 

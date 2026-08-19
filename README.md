@@ -6,7 +6,7 @@
 
 ## Status
 
-The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current graphical and user-program work is isolated in [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); it is **experimental** and is not merged into `main` automatically. This branch includes BIOS/UEFI boot paths, MYPFS004 persistent storage, framebuffer GUI, persistent ELF packages, the MyOS SDK, and a bounded in-OS assembler with labels and forward-only jumps.
+The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current graphical and user-program work is isolated in [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); it is **experimental** and is not merged into `main` automatically. This branch includes BIOS/UEFI boot paths, MYPFS004 persistent storage, framebuffer GUI, persistent ELF packages, the MyOS SDK, and a bounded in-OS assembler with labels, explicit condition values and forward-only unconditional or conditional jumps.
 
 | Line | Purpose | State |
 |---|---|---|

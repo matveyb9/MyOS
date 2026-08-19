@@ -6,7 +6,7 @@
 
 ## Статус
 
-Стабильная консольная граница закреплена тегом [`v0.12.1-console`](docs/RELEASES_RU.md). Текущая работа над графическим интерфейсом и пользовательскими программами изолирована в ветке [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); это **экспериментальная** линия, которая не переносится в `main` автоматически. Ветка содержит BIOS/UEFI boot paths, persistent MYPFS004 storage, framebuffer GUI, persistent ELF packages, MyOS SDK и ограниченный встроенный assembler с метками и переходами только вперёд.
+Стабильная консольная граница закреплена тегом [`v0.12.1-console`](docs/RELEASES_RU.md). Текущая работа над графическим интерфейсом и пользовательскими программами изолирована в ветке [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); это **экспериментальная** линия, которая не переносится в `main` автоматически. Ветка содержит BIOS/UEFI boot paths, persistent MYPFS004 storage, framebuffer GUI, persistent ELF packages, MyOS SDK и ограниченный встроенный assembler с метками, явными condition values и forward-only безусловными или условными переходами.
 
 | Линия | Назначение | Состояние |
 |---|---|---|
