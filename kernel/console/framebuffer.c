@@ -608,7 +608,7 @@ static void redraw_gui_desktop(void) {
     if (console.gui_launcher_active != 0) {
         draw_gui_launcher(text);
         fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-        draw_gui_text(30U, console.height - 36U, "CLICK TILE TO OPEN  TOP X EXITS  CTRL-B DESKTOP  ALT-F4 EXIT", text);
+        draw_gui_text(30U, console.height - 36U, "CLICK TILE TO OPEN  TOP X OR CTRL-Q EXITS", text);
     } else {
         for (uint64_t slot = 0U; slot < GUI_WINDOW_COUNT; slot++) {
             const uint8_t window_id = console.gui_z_order[slot];
@@ -619,7 +619,7 @@ static void redraw_gui_desktop(void) {
             }
         }
         fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-        draw_gui_text(30U, console.height - 36U, "CLICK TITLE TO RAISE  WINDOW X CLOSES  ALT-TAB FOCUS  CTRL-B DESKTOP  ALT-F4 EXIT", text);
+        draw_gui_text(30U, console.height - 36U, "TITLE RAISES  X OR ALT-F4 CLOSES  ESC BACK  CTRL-Q EXITS", text);
     }
     draw_gui_pointer();
 }
@@ -864,12 +864,25 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
     return 1;
 }
 
-void framebuffer_gui_handle_input(char character) {
-    if (console.gui_active == 0 || (uint8_t)character != MYOS_INPUT_KEY_ALT_TAB) {
-        return;
+char framebuffer_gui_handle_input(char character) {
+    if (console.gui_active == 0) {
+        return '\0';
     }
-    gui_focus_next_window();
+    if ((uint8_t)character == MYOS_INPUT_KEY_ALT_TAB) {
+        gui_focus_next_window();
+        redraw_gui_desktop();
+        return '\0';
+    }
+    if ((uint8_t)character != MYOS_INPUT_KEY_ALT_F4 || console.gui_launcher_active != 0) {
+        return '\0';
+    }
+    if (console.gui_focus == GUI_WINDOW_NOTES) {
+        return (console.gui_content_flags & MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U
+            ? '\x1b' : (char)MYOS_INPUT_GUI_ACTION_HOME;
+    }
+    gui_toggle_window(console.gui_focus);
     redraw_gui_desktop();
+    return '\0';
 }
 
 static uint64_t gui_pointer_offset(uint64_t position, int64_t delta, uint64_t limit) {
@@ -901,7 +914,7 @@ char framebuffer_gui_handle_mouse(int64_t delta_x, int64_t delta_y, int left_pre
     if (left_pressed != 0 && left_was_pressed == 0) {
         action = gui_launcher_action_at_pointer();
         if (action == '\0' && gui_pointer_hits_exit() != 0) {
-            action = (char)MYOS_INPUT_KEY_ALT_F4;
+            action = (char)MYOS_INPUT_GUI_ACTION_EXIT;
         }
         if (action == '\0' && console.gui_launcher_active == 0) {
             action = gui_window_action_at_pointer(&window_chrome_handled);

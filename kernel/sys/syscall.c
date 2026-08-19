@@ -161,8 +161,7 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
             if (length != 0U || buffer > UINT64_C(127)) {
                 return UINT64_MAX;
             }
-            framebuffer_gui_handle_input((char)buffer);
-            return 0U;
+            return (uint64_t)(uint8_t)framebuffer_gui_handle_input((char)buffer);
         }
         if (descriptor == MYOS_GUI_SET_CONTENT) {
             struct myos_gui_content_request request;

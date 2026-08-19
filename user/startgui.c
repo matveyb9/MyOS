@@ -141,8 +141,8 @@ static void show_desktop_home(void) {
         "MYOS DESKTOP\n"
         "\n"
         "CLICK A TILE TO OPEN\n"
-        "CTRL-B  DESKTOP\n"
-        "ALT-F4  EXIT\n";
+        "ALT-TAB  FOCUS\n"
+        "CTRL-Q   EXIT\n";
 
     (void)set_viewer_content("MYOS DESKTOP", text, sizeof(text) - 1U, MYOS_GUI_CONTENT_FLAG_LAUNCHER, 0U, 0U);
 }
@@ -339,11 +339,22 @@ static int edit_selected_disk_file(void) {
         if (read_result == UINT64_MAX || read_result == 0U) {
             continue;
         }
-        if ((uint8_t)character == MYOS_INPUT_KEY_ALT_F4) {
+        if ((uint8_t)character == MYOS_INPUT_KEY_CTRL_Q
+            || (uint8_t)character == MYOS_INPUT_GUI_ACTION_EXIT) {
             return GUI_EDITOR_RESULT_EXIT;
         }
-        if ((uint8_t)character == MYOS_INPUT_KEY_CTRL_B) {
-            return GUI_EDITOR_RESULT_HOME;
+        if ((uint8_t)character == MYOS_INPUT_KEY_ALT_F4) {
+            const uint64_t action = system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_INPUT,
+                                                (uint64_t)(uint8_t)character, 0U);
+
+            if (action == (uint64_t)(uint8_t)'\x1b') {
+                load_viewer_file(selected_disk_path);
+                return GUI_EDITOR_RESULT_VIEWER;
+            }
+            if (action == MYOS_INPUT_GUI_ACTION_HOME) {
+                return GUI_EDITOR_RESULT_HOME;
+            }
+            continue;
         }
         if (character == '\x1b') {
             load_viewer_file(selected_disk_path);
@@ -431,12 +442,23 @@ void _start(uint64_t argc, const char *arguments) {
             if (read_result == UINT64_MAX || read_result == 0U) {
                 continue;
             }
-            if ((uint8_t)character == MYOS_INPUT_KEY_ALT_F4) {
+            if ((uint8_t)character == MYOS_INPUT_KEY_CTRL_Q
+                || (uint8_t)character == MYOS_INPUT_GUI_ACTION_EXIT) {
                 (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
                 break;
             }
-            if ((uint8_t)character == MYOS_INPUT_KEY_CTRL_B
-                || (uint8_t)character == MYOS_INPUT_GUI_ACTION_HOME) {
+            if ((uint8_t)character == MYOS_INPUT_KEY_ALT_F4) {
+                const uint64_t action = system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_INPUT,
+                                                    (uint64_t)(uint8_t)character, 0U);
+
+                if (action == MYOS_INPUT_GUI_ACTION_HOME) {
+                    home_mode = 1;
+                    show_desktop_home();
+                }
+            } else if (character == '\x1b' && home_mode == 0) {
+                home_mode = 1;
+                show_desktop_home();
+            } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_HOME) {
                 home_mode = 1;
                 show_desktop_home();
             } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_EDITOR) {

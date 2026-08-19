@@ -133,8 +133,8 @@ static void keyboard_process_scancode(uint8_t scan_code) {
             character = (char)MYOS_INPUT_KEY_ALT_TAB;
         } else if (alt_held != 0U && key_code == 0x3eU) {
             character = (char)MYOS_INPUT_KEY_ALT_F4;
-        } else if (control_held != 0U && key_code == 0x30U) {
-            character = (char)MYOS_INPUT_KEY_CTRL_B;
+        } else if (control_held != 0U && key_code == 0x10U) {
+            character = (char)MYOS_INPUT_KEY_CTRL_Q;
         } else {
             character = shift_held != 0U ? shifted_set1[key_code] : unshifted_set1[key_code];
             if (control_held != 0U && character >= 'a' && character <= 'z') {

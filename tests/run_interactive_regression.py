@@ -222,6 +222,11 @@ class Guest:
         self.qmp_key_event(modifier, False)
         time.sleep(0.10)
 
+    def qmp_press(self, key):
+        self.qmp_key_event(key, True)
+        self.qmp_key_event(key, False)
+        time.sleep(0.10)
+
     def _tail(self):
         return self.output[-4096:].decode("utf-8", errors="replace")
 
@@ -299,7 +304,7 @@ class Guest:
         self.require_framebuffer_transition(launcher, editor, "launcher EDIT NOTE click")
         self.send(b"!\x13")
         time.sleep(0.25)
-        self.qmp_hotkey("alt", "f4")
+        self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
@@ -321,7 +326,7 @@ class Guest:
         self.send((command or f"startgui {NOTE_PATH}") + "\n")
         self.expect("Started process ", start)
         time.sleep(0.25)
-        self.qmp_hotkey("alt", "f4")
+        self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
@@ -334,10 +339,29 @@ class Guest:
         self.qmp_hotkey("alt", "tab")
         focused = self.qmp_screendump("hotkeys-alt-tab")
         self.require_pixel_transition(viewer, focused, 640, 96, "Alt+Tab MONITOR focus")
-        self.qmp_hotkey("ctrl", "b")
-        launcher = self.qmp_screendump("hotkeys-ctrl-b")
-        self.require_framebuffer_transition(focused, launcher, "Ctrl+B desktop return")
         self.qmp_hotkey("alt", "f4")
+        monitor_closed = self.qmp_screendump("hotkeys-alt-f4-monitor-closed")
+        self.require_framebuffer_transition(focused, monitor_closed, "Alt+F4 focused MONITOR close")
+        self.qmp_press("esc")
+        launcher = self.qmp_screendump("hotkeys-esc-home")
+        self.require_framebuffer_transition(monitor_closed, launcher, "Esc viewer return")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
+    def gui_alt_f4_editor_close_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        self.qmp_move(delta_x=115)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        editor = self.qmp_screendump("alt-f4-editor-open")
+        self.qmp_hotkey("alt", "f4")
+        viewer = self.qmp_screendump("alt-f4-editor-viewer")
+        self.require_region_transition(editor, viewer, 332, 210, 96, 12, "Alt+F4 editor close to viewer")
+        self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
@@ -451,6 +475,7 @@ def run_bios(image_path, work_dir):
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
         guest.command(f"write {NOTE_PATH} base")
         guest.gui_modifier_hotkeys_and_exit()
+        guest.gui_alt_f4_editor_close_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
@@ -590,6 +615,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         require_time_line("UEFI persisted native args", args_output)
         guest.gui_open_and_exit()
         guest.gui_modifier_hotkeys_and_exit()
+        guest.gui_alt_f4_editor_close_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
