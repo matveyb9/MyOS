@@ -20,6 +20,7 @@
 | Документ | Откройте его, если нужно… |
 |---|---|
 | [GUI bring-up](GUI_BRINGUP_RU.md) | Использовать экспериментальный framebuffer desktop в `gui/bringup`. |
+| [Текстовый редактор](TEXT_EDITOR_RU.md) | Редактировать обычные files и многострочный `.mya` source внутри MyOS. |
 | [Native build](NATIVE_BUILD_RU.md) | Написать, собрать, установить и запустить ограниченную `.mya` программу. |
 | [MyOS SDK](SDK_RU.md) | Собрать freestanding C11 program на host-компьютере. |
 | [Спецификация файловой системы](FILESYSTEM_SPEC_RU.md) | Понять root layout, paths и runtime projection. |

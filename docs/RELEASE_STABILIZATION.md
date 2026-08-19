@@ -10,7 +10,7 @@
 | Command | What it checks | Isolation |
 |---|---|---|
 | `make smoke` | Raw-image BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. | Uses `myos.img`; does not write user test files. |
-| `make regression` | BIOS GUI note create/edit/save, native `.mya` source → `build` → `install` → `run`, then UEFI remount/readback, persisted native run and clean GUI enter/exit. | Creates a temporary copy of `myos.img` and deletes it after the check. The user's working image is not modified. |
+| `make regression` | BIOS GUI note create/edit/save, console-editor ordinary text save/readback, editor-authored `.mya` source → `build` → `install` → `run`, conditional rejection cases, then UEFI text/native persistence and clean GUI enter/exit. | Creates a temporary copy of `myos.img` and deletes it after the check. The user's working image is not modified. |
 | `make release-check` | Requires a clean Git tree, rebuilds ISO/IMG from scratch, runs `make smoke` and `make regression`, then prints the exact source commit and SHA-256 of both artifacts. | Local-only: does not create a tag, GitHub Release, Pre-release or remote push. |
 
 `make smoke`, `make regression` and `make release-check` require QEMU and OVMF. `make regression` uses a fixed Q35 configuration and `-drive if=ide,format=raw`, because this is the supported persistent AHCI path. `make release-check` additionally requires a clean Git tree and itself runs a clean `make all img`.

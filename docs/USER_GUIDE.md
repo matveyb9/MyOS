@@ -151,7 +151,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `mkdir` | `mkdir /users/myos/projects/demo` | Create a directory. |
 | `write` | `write /users/myos/files/note.txt Hello` | Overwrite a file with a single line. |
 | `rm` | `rm /users/myos/files/note.txt` | Remove a file or an empty directory. |
-| `edit` | `run edit /users/myos/files/note.txt` | Open the simple text editor. |
+| `edit` | `edit /users/myos/files/note.txt` | Open the bounded multi-line text editor; `Ctrl-S` saves and exits, `Ctrl-Q` or `Esc` discards. |
 | `ps` | `ps` | Show processes. |
 | `calc` | `calc -5 + 2` | Perform signed 64-bit arithmetic. |
 | `run` | `run hello` | Run a foreground user program. |
@@ -193,17 +193,24 @@ The SDK builds freestanding C11 programs on the host computer. The detailed work
 
 ## 8. Native build directly in MyOS
 
-The first native build workflow uses the restricted assembler and the `build` command. Sources are stored in `/users/myos/projects/`, the generated ELF remains next to the source, and to run the program it is installed into the global package `/apps/<name>/main.elf`.
+The native build workflow uses the restricted assembler and the `build` command. Sources are stored in `/users/myos/projects/`, the generated ELF remains next to the source, and to run the program it is installed into the global package `/apps/<name>/main.elf`. Use the general `edit` command for multi-line source; `write` remains useful for short one-line files.
 
 ```text
 mkdir /users/myos/projects/native
-write /users/myos/projects/native/forward.mya write "Before jump\n"; jump done; write "Skipped\n"; label done:; exit 37
+edit /users/myos/projects/native/forward.mya
+# Type source lines, then Ctrl-S:
+write "Before jump\n"
+jump done
+write "Skipped\n"
+label done:
+exit 37
+
 build /users/myos/projects/native/forward.mya /users/myos/projects/native/forward.elf
 install /users/myos/projects/native/forward.elf /apps/native-forward/main.elf
 run native-forward
 ```
 
-The source language supports `set <0..255>`, `label name:`, `write "text"`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name`, and a final `exit <0..255>`. A conditional jump needs an earlier `set`; every target must be a defined label located later in the source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\`, and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` for the command summary and [NATIVE_BUILD.md](NATIVE_BUILD.md) for all bounds and syntax rules.
+The source language supports `set <0..255>`, `label name:`, `write "text"`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name`, and a final `exit <0..255>`. A conditional jump needs an earlier `set`; every target must be a defined label located later in the source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\`, and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` and `help edit` for concise command help, [Text Editor](TEXT_EDITOR.md) for editing controls, and [Native Build](NATIVE_BUILD.md) for all bounds and syntax rules.
 
 > Project ELF files are intentionally not directly runnable. The loader accepts installed user applications only from `/apps/<name>/main.elf`, so `install` remains the explicit package boundary.
 

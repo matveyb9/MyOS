@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "ps", "meminfo", "date", "uptime", "ls", "cat", "touch", "mkdir", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -431,6 +431,13 @@ static void command_help(const char *topic) {
         write_text("Conditional jumps need set; every target must be a later label; escape \\n, \\r, \\t, \\\\ and \\\" inside text.\n");
         return;
     }
+    if (text_equal(topic, "edit")) {
+        write_text("edit <absolute-file>\n");
+        write_text("Multi-line text editor for ordinary files and .mya source.\n");
+        write_text("Ctrl-S saves+exits; Ctrl-Q or Esc discards; arrows/Home/End, Del and Backspace edit.\n");
+        write_text("Current document limit: 4096 bytes.\n");
+        return;
+    }
     if (topic[0] != '\0') {
         write_text("No detailed help for: ");
         write_text(topic);
@@ -439,8 +446,8 @@ static void command_help(const char *topic) {
     }
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
-    write_text("Tools: calc <a> <op> <b>; run <program-or-absolute-path> [arguments]\n");
-    write_text("Native: build <source.mya> <output.elf>; help asm for source syntax\n");
+    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run <program-or-absolute-path> [arguments]\n");
+    write_text("Native: build <source.mya> <output.elf>; help asm/edit for syntax and controls\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -980,6 +987,30 @@ static void command_calc(const char *argument) {
     (void)run_foreground(program, 0);
 }
 
+static void command_edit(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "edit";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("edit");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Editor file path is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Editor file path is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    command_run(program);
+}
+
 static void command_startgui(const char *argument) {
     char program[USER_LINE_CAPACITY] = "startgui";
     uint64_t length = 8U;
@@ -1099,6 +1130,8 @@ static void execute_command(char *line) {
         command_sleep(argument);
     } else if (text_equal(line, "calc")) {
         command_calc(argument);
+    } else if (text_equal(line, "edit")) {
+        command_edit(argument);
     } else if (text_equal(line, "startgui")) {
         command_startgui(argument);
     } else if (text_equal(line, "reboot")) {

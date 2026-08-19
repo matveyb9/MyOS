@@ -96,4 +96,4 @@ asm: syntax error; set <0..255>, labels need ':' and jumps must target a later l
 
 ## Связь с SDK и следующий шаг
 
-Host [MyOS SDK](SDK_RU.md) остаётся поддерживаемым путём для более крупных freestanding C11 programs. Native build намеренно меньше: он подтверждает контролируемый in-OS authoring path, а не повторяет host toolchain. Следующее практическое расширение — multi-line project editor, затем carefully selected input и time syscalls; они не должны ослаблять package separation или loader policy.
+Host [MyOS SDK](SDK_RU.md) остаётся поддерживаемым путём для более крупных freestanding C11 programs. Native build намеренно меньше: он подтверждает контролируемый in-OS authoring path, а не повторяет host toolchain. Реализованный [Текстовый редактор](TEXT_EDITOR_RU.md) — normal in-OS путь для создания multi-line `.mya` source перед `build`; он также редактирует ordinary text files. Следующее практическое расширение — carefully selected input и time syscalls без ослабления package separation или loader policy.

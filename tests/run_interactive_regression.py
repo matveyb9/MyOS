@@ -12,6 +12,10 @@ import time
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 PROMPT = b"[myos]$ "
 NOTE_PATH = "/users/myos/files/notes/release-harness.txt"
+EDITOR_TEXT_PATH = "/users/myos/projects/editor-harness.txt"
+EDITOR_SOURCE_PATH = "/users/myos/projects/editor-harness.mya"
+EDITOR_ELF_PATH = "/users/myos/projects/editor-harness.elf"
+EDITOR_APP_PATH = "/apps/editor-harness/main.elf"
 SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
 APP_PATH = "/apps/release-harness/main.elf"
@@ -119,6 +123,16 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def console_edit_and_save(self, path, content):
+        start = len(self.output)
+        self.send(f"edit {path}\n")
+        self.expect("MYOS TEXT EDITOR", start)
+        time.sleep(0.10)
+        self.send(content + b"\x13")
+        self.expect(f"edit: saved {len(content)} byte(s)", start)
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_open_and_exit(self):
         start = len(self.output)
         self.send(f"startgui {NOTE_PATH}\n")
@@ -154,6 +168,21 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {NOTE_PATH}", "base!")
+        guest.console_edit_and_save(EDITOR_TEXT_PATH, b"first\nsecond\n")
+        text_start = len(guest.output)
+        guest.command(f"cat {EDITOR_TEXT_PATH}", "first")
+        text_output = guest.output[text_start:]
+        if b"first\nsecond" not in text_output and b"first\r\nsecond" not in text_output:
+            raise RegressionFailure(f"BIOS: editor text readback is not exact\n{guest._tail()}")
+        editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
+        guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
+        guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {EDITOR_ELF_PATH} {EDITOR_APP_PATH}", "exited with status 0")
+        run_start = len(guest.output)
+        guest.command("run editor-harness", "editor")
+        run_output = guest.output[run_start:]
+        if b"bad" in run_output or b"exited with status 44" not in run_output:
+            raise RegressionFailure(f"BIOS: editor-authored program did not skip code or return status 44\n{guest._tail()}")
         guest.command(f"write {SOURCE_PATH} set 0;jump_if_zero done;write \"B\\n\";label done:;write \"Z\\n\";exit 7")
         guest.command(f"build {SOURCE_PATH} {ELF_PATH}", "exited with status 0")
         guest.command(f"install {ELF_PATH} {APP_PATH}", "exited with status 0")
@@ -200,6 +229,16 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.expect("[ok] Persistent storage mount: ready")
         guest.expect(PROMPT)
         guest.command(f"cat {NOTE_PATH}", "base!")
+        text_start = len(guest.output)
+        guest.command(f"cat {EDITOR_TEXT_PATH}", "first")
+        text_output = guest.output[text_start:]
+        if b"first\nsecond" not in text_output and b"first\r\nsecond" not in text_output:
+            raise RegressionFailure(f"UEFI: persisted editor text readback is not exact\n{guest._tail()}")
+        run_start = len(guest.output)
+        guest.command("run editor-harness", "editor")
+        run_output = guest.output[run_start:]
+        if b"bad" in run_output or b"exited with status 44" not in run_output:
+            raise RegressionFailure(f"UEFI: persisted editor-authored program did not skip code or return status 44\n{guest._tail()}")
         run_start = len(guest.output)
         guest.command("run release-harness", "Z")
         run_output = guest.output[run_start:]

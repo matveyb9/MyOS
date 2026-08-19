@@ -96,4 +96,4 @@ asm: syntax error; set <0..255>, labels need ':' and jumps must target a later l
 
 ## Relationship to the SDK and next work
 
-The host-side [MyOS SDK](SDK.md) remains the supported route for larger freestanding C11 programs. Native build intentionally remains smaller: it proves a controlled in-OS authoring path rather than duplicating a host toolchain. The next practical expansion is a multi-line project editor, followed by carefully selected input and time syscalls; neither should weaken package separation or loader policy.
+The host-side [MyOS SDK](SDK.md) remains the supported route for larger freestanding C11 programs. Native build intentionally remains smaller: it proves a controlled in-OS authoring path rather than duplicating a host toolchain. The implemented [Text Editor](TEXT_EDITOR.md) is the normal in-OS way to create multi-line `.mya` source before `build`; it also edits ordinary text files. The next practical expansion is carefully selected input and time syscalls, without weakening package separation or loader policy.

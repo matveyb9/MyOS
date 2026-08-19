@@ -20,6 +20,7 @@ This folder contains the detailed documentation for the current branch. Start wi
 | Guide | Use it for |
 |---|---|
 | [GUI Bring-up](GUI_BRINGUP.md) | The experimental framebuffer desktop in `gui/bringup`. |
+| [Text Editor](TEXT_EDITOR.md) | Editing ordinary files and multi-line `.mya` source inside MyOS. |
 | [Native Build](NATIVE_BUILD.md) | Writing, building, installing and running bounded `.mya` programs. |
 | [MyOS SDK](SDK.md) | Building freestanding C11 programs on the host. |
 | [Filesystem Specification](FILESYSTEM_SPEC.md) | Root layout, paths and runtime projection. |
