@@ -84,6 +84,7 @@ cat /users/myos/files/note.txt
 | [Руководство разработчика](docs/DEVELOPER_GUIDE_RU.md) | Contributors | Architecture, source tree, ABI, storage invariants and validation. |
 | [Правила документации](docs/DOCUMENTATION_POLICY_RU.md) | Maintainers | What must be updated with every project change. |
 | [Releases and branches](docs/RELEASES_RU.md) | All readers | Meaning of `main`, `console-stable`, tags and GUI branch. |
+| [GUI release stabilization](docs/RELEASE_STABILIZATION_RU.md) | Testers and maintainers | Automated BIOS/UEFI checks, manual release gates and merge conditions. |
 | [Documentation index](docs/README.md) | All readers | Current manuals versus historical development notes. |
 | [GUI bring-up manual](docs/GUI_BRINGUP_RU.md) | `gui/bringup` only | Experimental framebuffer desktop controls and validation. |
 | [Filesystem specification](docs/FILESYSTEM_SPEC_RU.md) | Users and contributors | Unified root layout, path contract and runtime projection. |
@@ -101,11 +102,12 @@ cat /users/myos/files/note.txt
 | BIOS graphical ISO test | `make run-graphic` |
 | UEFI ISO test | `make run-uefi` |
 | BIOS + UEFI raw-image boot smoke | `make smoke` |
+| Isolated GUI/native BIOS + UEFI regression | `make regression` |
 | Inspect kernel ELF | `make inspect` |
 | Clean generated files | `make clean` |
 | Deep-clean Limine dependency too | `make distclean` |
 
-`make img` intentionally recreates `myos.img`; any existing persistent MYPFS004 files and application packages inside the prior image are erased. `make smoke` boots that raw image headlessly through BIOS and UEFI, verifies firmware, persistent AHCI mount and automatic `[myos]$` entry, then stops both guests. It is a boot baseline rather than a substitute for interactive GUI, filesystem or native-program tests.
+`make img` intentionally recreates `myos.img`; any existing persistent MYPFS004 files and application packages inside the prior image are erased. `make smoke` boots that raw image headlessly through BIOS and UEFI, verifies firmware, persistent AHCI mount and automatic `[myos]$` entry, then stops both guests. `make regression` creates a disposable copy of `myos.img` and drives GUI note editing plus native build/install/run in BIOS, then verifies the persisted results through UEFI. These checks are release-stabilization evidence, not a substitute for physical-PC testing; see [the full checklist](docs/RELEASE_STABILIZATION_RU.md).
 
 ## Git model
 

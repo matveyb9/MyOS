@@ -27,6 +27,7 @@
 | `make run-uefi` | UEFI ISO test in headless serial mode. |
 | `make run-uefi-graphic` | UEFI ISO test with framebuffer window. |
 | `make smoke` | Headless BIOS and UEFI raw-image boot smoke: checks firmware marker, persistent AHCI mount and automatic `[myos]$` entry. |
+| `make regression` | Creates a disposable raw-image copy; validates BIOS GUI note edit/save, native build/install/run, then UEFI persistence/readback and GUI enter/exit. |
 | `make debug` | Starts QEMU paused with GDB server on TCP 1234. |
 | `make inspect` | Prints ELF headers and sections. |
 
@@ -165,6 +166,7 @@ Before committing a console change, at minimum perform:
 |---|---|
 | `make all img` | Strict `-Werror` build and both artifacts complete. |
 | `make smoke` | Reproducible raw-image BIOS and UEFI markers pass: expected firmware, persistent AHCI mount and automatic `[myos]$` entry. |
+| `make regression` | Disposable-image BIOS GUI note editing and native workflow pass; UEFI reads the persisted note, runs the persisted native package and returns cleanly from GUI. |
 | BIOS raw image | Limine boot, automatic `/init` after three seconds, then user shell. |
 | BIOS cancellation | `K` during countdown keeps kernel shell; manual `init` reaches user shell. |
 | UEFI raw image | Equivalent automatic startup and user shell through OVMF. |
@@ -176,7 +178,7 @@ Before committing a console change, at minimum perform:
 | Migration check | Boot deterministic MYPFS003 and MYPFS002 fixtures, then confirm durable `MYPFS004` superblock, cleared journal and second-mount payload readback. |
 | IPC check | `pipe sample`; run `wc` or `grep` against a file. |
 
-`make smoke` is a boot baseline, not a replacement for interactive storage, GUI, native-build or migration regression. For storage code, test both firmware paths on **the same image**: write in BIOS, then read in UEFI. Never test raw AHCI writes on a host block device unless an isolated disposable test device is explicitly intended.
+`make smoke` is a boot baseline. `make regression` extends it with GUI, persistent storage and restricted native workflow evidence, but it deliberately uses a disposable image copy and therefore does not replace focused migration fixtures or a manual physical-PC check. For storage code, test both firmware paths on **the same image**: write in BIOS, then read in UEFI. Never test raw AHCI writes on a host block device unless an isolated disposable test device is explicitly intended. The current release gate order is in [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md).
 
 ## 8. Git workflow
 

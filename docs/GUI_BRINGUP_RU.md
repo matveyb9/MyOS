@@ -149,6 +149,7 @@ run sdk-hello external SDK validation
 | MYPFS002 legacy migration | Passed (BIOS): `disk/note` fixture migrated to `/users/myos/files/notes/note`; `MYPFS004` superblock, cleared journal and second-mount readback confirmed. |
 | MYPFS004 large-file I/O | Passed (BIOS): 1 MiB fragmented two-extent pattern write/readback, fresh-mount `wc` of all 1,048,576 bytes, SDK install/run after reboot и UEFI persisted SDK execution. |
 | Pointer refresh hardening | Passed: two 1280×800 BIOS framebuffer captures before/after keyboard pointer movement differed in only 726 PPM byte positions, consistent with old/new 11×11 cursor regions; desktop composition remained intact. |
+| Automated `make regression` | Passed: disposable-image harness created/edited/saved a BIOS GUI note, built/installed/ran a native program, then UEFI read the persisted note, ran the persisted program and entered/exited GUI cleanly. See [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md). |
 | GUI note and native workflow | Passed: BIOS GUI editor changed persistent note `base` → `base!`; the same note and a BIOS-built native program were read/executed under UEFI. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 

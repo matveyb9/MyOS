@@ -11,6 +11,7 @@
 | [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md) | Developers | Source tree, kernel architecture, ABI, storage invariants and validation. |
 | [RELEASES_RU.md](RELEASES_RU.md) | Everyone using Git | Branches, tags, console boundary, GUI branch and publication commands. |
 | [ROADMAP_RU.md](ROADMAP_RU.md) | Everyone following development | Completed milestones, current GUI work, priorities and deferred research. |
+| [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md) | Testers and maintainers | Automated BIOS/UEFI checks, manual physical-PC gate and conditions before a GUI release decision. |
 | [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md) | Maintainers | Mandatory same-commit documentation update rules. |
 | [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md) | `gui/bringup` users | Experimental framebuffer GUI, VFS viewer, note editor, cursor-only pointer refresh and GUI validation. |
 | [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md) | Users and contributors | Unified root layout, absolute-path contract and runtime projection. |
@@ -27,6 +28,7 @@
 | «Как устроены kernel, syscall или filesystem?» | `DEVELOPER_GUIDE_RU.md`, затем `FILESYSTEM_SPEC_RU.md` и `MYPFS004_STORAGE_RU.md`. |
 | «Почему есть несколько branches?» | `RELEASES_RU.md`. |
 | «Что уже завершено и что будет дальше?» | `ROADMAP_RU.md`. |
+| «Как проверить GUI line перед release?» | `RELEASE_STABILIZATION_RU.md`. |
 | «Как пользоваться experimental GUI?» | `GUI_BRINGUP_RU.md` после перехода на `gui/bringup`. |
 | «Как написать и собрать первую программу прямо в MyOS?» | `NATIVE_BUILD_RU.md`. |
 | «Как не допустить устаревшей документации?» | `DOCUMENTATION_POLICY_RU.md`. |
