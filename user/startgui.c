@@ -6,6 +6,9 @@
 #define GUI_NOTE_DIRECTORY "/users/myos/files/notes"
 #define GUI_NOTE_PATH_CAPACITY MYOS_VFS_PATH_MAX
 #define GUI_VFS_ENTRY_SCAN_LIMIT UINT64_C(64)
+#define GUI_EDITOR_RESULT_VIEWER 0
+#define GUI_EDITOR_RESULT_EXIT 1
+#define GUI_EDITOR_RESULT_HOME 2
 
 static char selected_disk_path[GUI_NOTE_PATH_CAPACITY] = GUI_NOTE_PATH;
 
@@ -137,11 +140,9 @@ static void show_desktop_home(void) {
     static const uint8_t text[] =
         "MYOS DESKTOP\n"
         "\n"
-        "M  System message\n"
-        "N  Notes viewer\n"
-        "E  Edit selected note\n"
-        "H  Return here\n"
-        "Q  Return to shell\n";
+        "CLICK A TILE TO OPEN\n"
+        "CTRL-B  DESKTOP\n"
+        "ALT-F4  EXIT\n";
 
     (void)set_viewer_content("MYOS DESKTOP", text, sizeof(text) - 1U, MYOS_GUI_CONTENT_FLAG_LAUNCHER, 0U, 0U);
 }
@@ -317,7 +318,7 @@ static void editor_insert_byte(uint8_t *data, uint64_t *length, uint64_t *cursor
     (*cursor)++;
 }
 
-static void edit_selected_disk_file(void) {
+static int edit_selected_disk_file(void) {
     uint8_t data[MYOS_GUI_CONTENT_MAX] = { 0 };
     uint64_t length = read_viewer_file(selected_disk_path, data);
     uint64_t cursor;
@@ -332,15 +333,21 @@ static void edit_selected_disk_file(void) {
         const uint64_t viewport = editor_viewport_for_cursor(data, length, cursor);
 
         if (set_viewer_content("EDIT NOTE", data, length, MYOS_GUI_CONTENT_FLAG_EDITABLE, cursor, viewport) == 0) {
-            return;
+            return GUI_EDITOR_RESULT_VIEWER;
         }
         read_result = system_call(MYOS_SYS_READ, 0U, (uint64_t)(uintptr_t)&character, 1U);
         if (read_result == UINT64_MAX || read_result == 0U) {
             continue;
         }
+        if ((uint8_t)character == MYOS_INPUT_KEY_ALT_F4) {
+            return GUI_EDITOR_RESULT_EXIT;
+        }
+        if ((uint8_t)character == MYOS_INPUT_KEY_CTRL_B) {
+            return GUI_EDITOR_RESULT_HOME;
+        }
         if (character == '\x1b') {
             load_viewer_file(selected_disk_path);
-            return;
+            return GUI_EDITOR_RESULT_VIEWER;
         }
         if ((uint8_t)character == UINT8_C(0x13)) {
             if (save_selected_disk_file(data, length) != 0) {
@@ -348,7 +355,7 @@ static void edit_selected_disk_file(void) {
             } else {
                 set_viewer_status("SAVE FAILED");
             }
-            return;
+            return GUI_EDITOR_RESULT_VIEWER;
         }
         if ((uint8_t)character == MYOS_INPUT_KEY_LEFT) {
             if (cursor != 0U) {
@@ -424,31 +431,38 @@ void _start(uint64_t argc, const char *arguments) {
             if (read_result == UINT64_MAX || read_result == 0U) {
                 continue;
             }
-            if (character == '\x1b' || character == 'q' || character == 'Q') {
+            if ((uint8_t)character == MYOS_INPUT_KEY_ALT_F4) {
                 (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
                 break;
             }
-            if (character == 'h' || character == 'H') {
+            if ((uint8_t)character == MYOS_INPUT_KEY_CTRL_B
+                || (uint8_t)character == MYOS_INPUT_GUI_ACTION_HOME) {
                 home_mode = 1;
                 show_desktop_home();
-            } else if (character == 'e' || character == 'E') {
-                home_mode = 0;
-                edit_selected_disk_file();
-            } else if (character == 'm' || character == 'M') {
+            } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_EDITOR) {
+                const int editor_result = edit_selected_disk_file();
+
+                if (editor_result == GUI_EDITOR_RESULT_EXIT) {
+                    (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
+                    break;
+                }
+                if (editor_result == GUI_EDITOR_RESULT_HOME) {
+                    home_mode = 1;
+                    show_desktop_home();
+                } else {
+                    home_mode = 0;
+                }
+            } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_SYSTEM) {
                 home_mode = 0;
                 load_viewer_file("/system/core/resources/motd.txt");
-            } else if (character == 'D') {
-                home_mode = 0;
-                (void)select_disk_path(GUI_NOTE_PATH);
-                load_viewer_file(selected_disk_path);
-            } else if (character == 'n' || character == 'N') {
+            } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_NOTES) {
                 home_mode = 0;
                 if (select_next_disk_file() != 0) {
                     load_viewer_file(selected_disk_path);
                 } else {
                     set_viewer_status("NO NOTES");
                 }
-            } else if (home_mode == 0) {
+            } else if ((uint8_t)character == MYOS_INPUT_KEY_ALT_TAB && home_mode == 0) {
                 (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_INPUT, (uint64_t)(uint8_t)character, 0U);
             }
         }

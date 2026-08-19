@@ -67,7 +67,7 @@ make regression     # disposable-image GUI and native workflow
 make release-check  # clean rebuild, checks and SHA-256 evidence
 ```
 
-`make regression` uses a disposable copy of `myos.img`: it covers default `startgui` navigation and clean return in BIOS/UEFI, QMP-injected PS/2 mouse actions for the centered `NOTES` launcher tile, SYSTEM/MONITOR window close controls, MONITOR title-bar raise, viewer close-to-home and editor cancel-to-viewer with framebuffer screenshot transitions. It also covers the retained `startgui home` alias in BIOS, the GUI/editor workflow, a 305-byte SDK `cp` copy across the VFS request boundary, its no-overwrite rule and UEFI persistence, native forward-only control flow, empty and forwarded native program arguments, input true/fallback branches and valid RTC `HH:MM:SS` output. `make release-check` is local verification only. It does not create a tag, GitHub Release or Pre-release.
+`make regression` uses a disposable copy of `myos.img`: it covers QMP-injected PS/2 `Alt+Tab` focus, `Ctrl+B` desktop return and `Alt+F4` clean exit in BIOS/UEFI, then mouse actions for the centered `NOTES` launcher tile, SYSTEM/MONITOR window close controls, MONITOR title-bar raise, viewer close-to-home and editor cancel-to-viewer with framebuffer screenshot transitions. It also covers the retained `startgui home` alias in BIOS, the GUI/editor workflow, a 305-byte SDK `cp` copy across the VFS request boundary, its no-overwrite rule and UEFI persistence, native forward-only control flow, empty and forwarded native program arguments, input true/fallback branches and valid RTC `HH:MM:SS` output. `make release-check` is local verification only. It does not create a tag, GitHub Release or Pre-release.
 
 ---
 

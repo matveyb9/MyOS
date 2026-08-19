@@ -14,6 +14,7 @@ import time
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 PROMPT = b"[myos]$ "
 NOTE_PATH = "/users/myos/files/notes/release-harness.txt"
+DEFAULT_GUI_NOTE_PATH = "/users/myos/files/notes/note"
 EDITOR_TEXT_PATH = "/users/myos/projects/editor-harness.txt"
 EDITOR_SOURCE_PATH = "/users/myos/projects/editor-harness.mya"
 EDITOR_ELF_PATH = "/users/myos/projects/editor-harness.elf"
@@ -162,6 +163,17 @@ class Guest:
         if len(before) != len(after) or changed < 4096:
             raise RegressionFailure(f"{self.name}: {label} did not produce the expected framebuffer transition")
 
+    def require_pixel_transition(self, before, after, x, y, label):
+        if self.ppm_pixel(before, x, y) == self.ppm_pixel(after, x, y):
+            raise RegressionFailure(f"{self.name}: {label} did not change the expected framebuffer pixel")
+
+    def require_region_transition(self, before, after, x, y, width, height, label):
+        for row in range(y, y + height):
+            for column in range(x, x + width):
+                if self.ppm_pixel(before, column, row) != self.ppm_pixel(after, column, row):
+                    return
+        raise RegressionFailure(f"{self.name}: {label} did not change the expected framebuffer region")
+
     def ppm_pixel(self, image, x, y):
         header_end = image.find(b"\n255\n")
         if header_end < 0:
@@ -197,6 +209,18 @@ class Guest:
         self._qmp_request("input-send-event", {"events": [
             {"type": "btn", "data": {"down": False, "button": "left"}},
         ]})
+
+    def qmp_key_event(self, qcode, down):
+        event = {"type": "key", "data": {"down": down, "key": {"type": "qcode", "data": qcode}}}
+        self._qmp_request("input-send-event", {"events": [event]})
+        time.sleep(0.03)
+
+    def qmp_hotkey(self, modifier, key):
+        self.qmp_key_event(modifier, True)
+        self.qmp_key_event(key, True)
+        self.qmp_key_event(key, False)
+        self.qmp_key_event(modifier, False)
+        time.sleep(0.10)
 
     def _tail(self):
         return self.output[-4096:].decode("utf-8", errors="replace")
@@ -264,10 +288,18 @@ class Guest:
 
     def gui_edit_and_exit(self):
         start = len(self.output)
-        self.send(f"startgui {NOTE_PATH}\n")
+        self.send("startgui\n")
         self.expect("Started process ", start)
         time.sleep(0.25)
-        self.send(b"E!\x13Q")
+        launcher = self.qmp_screendump("hotkey-editor-launcher")
+        self.qmp_move(delta_x=115)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        editor = self.qmp_screendump("hotkey-editor-open")
+        self.require_framebuffer_transition(launcher, editor, "launcher EDIT NOTE click")
+        self.send(b"!\x13")
+        time.sleep(0.25)
+        self.qmp_hotkey("alt", "f4")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
@@ -284,23 +316,28 @@ class Guest:
         self.expect("exited with status 0", start, timeout=60.0)
         self.expect(PROMPT, start)
 
-    def gui_open_and_exit(self):
+    def gui_open_and_exit(self, command=None):
+        start = len(self.output)
+        self.send((command or f"startgui {NOTE_PATH}") + "\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        self.qmp_hotkey("alt", "f4")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
+    def gui_modifier_hotkeys_and_exit(self):
         start = len(self.output)
         self.send(f"startgui {NOTE_PATH}\n")
         self.expect("Started process ", start)
         time.sleep(0.25)
-        self.send(b"Q")
-        self.expect("exited with status 0", start)
-        self.expect(PROMPT, start)
-
-    def gui_desktop_navigate_and_exit(self, command="startgui"):
-        start = len(self.output)
-        self.send(command + "\n")
-        self.expect("Started process ", start)
-        time.sleep(0.25)
-        for key in (b"m", b"h", b"n", b"h", b"Q"):
-            self.send(key)
-            time.sleep(0.10)
+        viewer = self.qmp_screendump("hotkeys-viewer")
+        self.qmp_hotkey("alt", "tab")
+        focused = self.qmp_screendump("hotkeys-alt-tab")
+        self.require_pixel_transition(viewer, focused, 640, 96, "Alt+Tab MONITOR focus")
+        self.qmp_hotkey("ctrl", "b")
+        launcher = self.qmp_screendump("hotkeys-ctrl-b")
+        self.require_framebuffer_transition(focused, launcher, "Ctrl+B desktop return")
+        self.qmp_hotkey("alt", "f4")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
@@ -365,10 +402,7 @@ class Guest:
         self.qmp_left_click()
         time.sleep(0.25)
         viewer = self.qmp_screendump("editor-close-viewer")
-        editor_title = self.ppm_pixel(editor, 338, 210)
-        viewer_title = self.ppm_pixel(viewer, 338, 210)
-        if editor_title == viewer_title:
-            raise RegressionFailure(f"{self.name}: editor close did not cancel to the viewer")
+        self.require_region_transition(editor, viewer, 332, 210, 96, 12, "editor close to viewer")
         self.qmp_move(delta_x=174, delta_y=191)
         self.qmp_left_click()
         self.expect("exited with status 0", start)
@@ -412,14 +446,15 @@ def run_bios(image_path, work_dir):
         guest.expect("[ok] Firmware: BIOS")
         guest.expect("[ok] Persistent storage mount: ready")
         guest.expect(PROMPT)
-        guest.command(f"write {NOTE_PATH} base")
+        guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.gui_edit_and_exit()
-        guest.command(f"cat {NOTE_PATH}", "base!")
-        guest.gui_desktop_navigate_and_exit()
+        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
+        guest.command(f"write {NOTE_PATH} base")
+        guest.gui_modifier_hotkeys_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
-        guest.gui_desktop_navigate_and_exit("startgui home")
+        guest.gui_open_and_exit("startgui home")
         guest.console_edit_and_save(EDITOR_TEXT_PATH, b"first\nsecond\n")
         text_start = len(guest.output)
         guest.command(f"cat {EDITOR_TEXT_PATH}", "first")
@@ -519,7 +554,8 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.expect("[ok] Firmware: UEFI x86_64")
         guest.expect("[ok] Persistent storage mount: ready")
         guest.expect(PROMPT)
-        guest.command(f"cat {NOTE_PATH}", "base!")
+        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
+        guest.command(f"cat {NOTE_PATH}", "base")
         text_start = len(guest.output)
         guest.command(f"cat {EDITOR_TEXT_PATH}", "first")
         text_output = guest.output[text_start:]
@@ -553,7 +589,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         require_native_line("UEFI persisted native args", args_output, b"[ovmf args]")
         require_time_line("UEFI persisted native args", args_output)
         guest.gui_open_and_exit()
-        guest.gui_desktop_navigate_and_exit()
+        guest.gui_modifier_hotkeys_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()

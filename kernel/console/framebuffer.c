@@ -255,7 +255,11 @@ static int gui_pointer_hits_exit(void) {
 }
 
 static char gui_launcher_action_at_pointer(void) {
-    static const char actions[GUI_LAUNCHER_TILE_COUNT] = { 'm', 'n', 'e' };
+    static const char actions[GUI_LAUNCHER_TILE_COUNT] = {
+        (char)MYOS_INPUT_GUI_ACTION_SYSTEM,
+        (char)MYOS_INPUT_GUI_ACTION_NOTES,
+        (char)MYOS_INPUT_GUI_ACTION_EDITOR
+    };
     const uint64_t top = gui_launcher_tile_y();
 
     if (console.gui_launcher_active == 0) {
@@ -272,7 +276,7 @@ static char gui_launcher_action_at_pointer(void) {
 
 static void gui_reset_content(void) {
     static const char default_title[] = "VIEWER";
-    static const char default_content[] = "PRESS M FOR MOTD OR D FOR DISK NOTE";
+    static const char default_content[] = "USE DESKTOP TILES OR WINDOW CONTROLS";
     uint64_t index;
 
     for (index = 0U; index < GUI_CONTENT_TITLE_MAX; index++) {
@@ -493,7 +497,8 @@ static char gui_window_action_at_pointer(int *handled) {
         if (gui_window_close_contains(window, console.gui_pointer_x, console.gui_pointer_y) != 0) {
             *handled = 1;
             if (candidate == GUI_WINDOW_NOTES) {
-                return (console.gui_content_flags & MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U ? '\x1b' : 'h';
+                return (console.gui_content_flags & MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U
+                    ? '\x1b' : (char)MYOS_INPUT_GUI_ACTION_HOME;
             }
             gui_toggle_window(candidate);
             return '\0';
@@ -544,12 +549,12 @@ static void draw_gui_launcher(uint32_t text) {
     const uint32_t surface = console_rgb(229U, 235U, 243U);
     const uint64_t top = gui_launcher_tile_y();
 
-    draw_gui_text(16U, 56U, "CLICK A TILE OR USE HOTKEY", text);
-    draw_gui_launcher_tile(gui_launcher_tile_x(0U), top, "SYSTEM", "CLICK OR M", border, surface,
+    draw_gui_text(16U, 56U, "CLICK A TILE TO OPEN", text);
+    draw_gui_launcher_tile(gui_launcher_tile_x(0U), top, "SYSTEM", "CLICK", border, surface,
                            console_rgb(13U, 20U, 34U));
-    draw_gui_launcher_tile(gui_launcher_tile_x(1U), top, "NOTES", "CLICK OR N", notes_border, surface,
+    draw_gui_launcher_tile(gui_launcher_tile_x(1U), top, "NOTES", "CLICK", notes_border, surface,
                            console_rgb(13U, 20U, 34U));
-    draw_gui_launcher_tile(gui_launcher_tile_x(2U), top, "EDIT NOTE", "CLICK OR E", border, surface,
+    draw_gui_launcher_tile(gui_launcher_tile_x(2U), top, "EDIT NOTE", "CLICK", border, surface,
                            console_rgb(13U, 20U, 34U));
 }
 
@@ -603,7 +608,7 @@ static void redraw_gui_desktop(void) {
     if (console.gui_launcher_active != 0) {
         draw_gui_launcher(text);
         fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-        draw_gui_text(30U, console.height - 36U, "CLICK TILE  HOTKEYS M N E H Q  CLICK X TO EXIT", text);
+        draw_gui_text(30U, console.height - 36U, "CLICK TILE TO OPEN  TOP X EXITS  CTRL-B DESKTOP  ALT-F4 EXIT", text);
     } else {
         for (uint64_t slot = 0U; slot < GUI_WINDOW_COUNT; slot++) {
             const uint8_t window_id = console.gui_z_order[slot];
@@ -614,7 +619,7 @@ static void redraw_gui_desktop(void) {
             }
         }
         fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-        draw_gui_text(30U, console.height - 36U, "CLICK TITLE TO RAISE  WINDOW X CLOSES  TOP X EXITS  HOTKEYS H E N Q", text);
+        draw_gui_text(30U, console.height - 36U, "CLICK TITLE TO RAISE  WINDOW X CLOSES  ALT-TAB FOCUS  CTRL-B DESKTOP  ALT-F4 EXIT", text);
     }
     draw_gui_pointer();
 }
@@ -860,50 +865,11 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
 }
 
 void framebuffer_gui_handle_input(char character) {
-    const uint64_t step = 16U;
-    int pointer_only = 0;
-
-    if (console.gui_active == 0) {
+    if (console.gui_active == 0 || (uint8_t)character != MYOS_INPUT_KEY_ALT_TAB) {
         return;
     }
-    if (character == 'w' || character == 'W') {
-        erase_gui_pointer();
-        console.gui_pointer_y = console.gui_pointer_y > step ? console.gui_pointer_y - step : 0U;
-        pointer_only = 1;
-    } else if (character == 's' || character == 'S') {
-        const uint64_t limit = console.height - GUI_POINTER_SIZE;
-
-        erase_gui_pointer();
-        console.gui_pointer_y = console.gui_pointer_y + step < limit ? console.gui_pointer_y + step : limit;
-        pointer_only = 1;
-    } else if (character == 'a' || character == 'A') {
-        erase_gui_pointer();
-        console.gui_pointer_x = console.gui_pointer_x > step ? console.gui_pointer_x - step : 0U;
-        pointer_only = 1;
-    } else if (character == 'd' || character == 'D') {
-        const uint64_t limit = console.width - GUI_POINTER_SIZE;
-
-        erase_gui_pointer();
-        console.gui_pointer_x = console.gui_pointer_x + step < limit ? console.gui_pointer_x + step : limit;
-        pointer_only = 1;
-    } else if (character == '\t' || character == '\n' || character == ' ') {
-        gui_focus_next_window();
-    } else if (character == 'f' || character == 'F') {
-        gui_focus_pointer_window();
-    } else if (character >= '1' && character <= '3') {
-        gui_toggle_window((uint8_t)(character - '1'));
-    } else if (character == 'x' || character == 'X') {
-        gui_toggle_window(console.gui_focus);
-    } else if (character == 'r' || character == 'R') {
-        gui_layout_windows();
-    } else {
-        return;
-    }
-    if (pointer_only != 0) {
-        draw_gui_pointer();
-    } else {
-        redraw_gui_desktop();
-    }
+    gui_focus_next_window();
+    redraw_gui_desktop();
 }
 
 static uint64_t gui_pointer_offset(uint64_t position, int64_t delta, uint64_t limit) {
@@ -935,7 +901,7 @@ char framebuffer_gui_handle_mouse(int64_t delta_x, int64_t delta_y, int left_pre
     if (left_pressed != 0 && left_was_pressed == 0) {
         action = gui_launcher_action_at_pointer();
         if (action == '\0' && gui_pointer_hits_exit() != 0) {
-            action = 'q';
+            action = (char)MYOS_INPUT_KEY_ALT_F4;
         }
         if (action == '\0' && console.gui_launcher_active == 0) {
             action = gui_window_action_at_pointer(&window_chrome_handled);

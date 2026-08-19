@@ -19,6 +19,7 @@ static volatile char input_buffer[256];
 static volatile uint64_t dropped_characters;
 static uint8_t shift_held;
 static uint8_t control_held;
+static uint8_t alt_held;
 static uint8_t extended_prefix;
 
 static const char unshifted_set1[128] = {
@@ -99,6 +100,11 @@ static void keyboard_process_scancode(uint8_t scan_code) {
         extended_prefix = 0U;
         return;
     }
+    if (key_code == 0x38U) {
+        alt_held = key_released == 0U ? 1U : 0U;
+        extended_prefix = 0U;
+        return;
+    }
     if (key_released != 0U) {
         extended_prefix = 0U;
         return;
@@ -123,9 +129,17 @@ static void keyboard_process_scancode(uint8_t scan_code) {
             return;
         }
     } else {
-        character = shift_held != 0U ? shifted_set1[key_code] : unshifted_set1[key_code];
-        if (control_held != 0U && character >= 'a' && character <= 'z') {
-            character = (char)(character - 'a' + 1);
+        if (alt_held != 0U && key_code == 0x0fU) {
+            character = (char)MYOS_INPUT_KEY_ALT_TAB;
+        } else if (alt_held != 0U && key_code == 0x3eU) {
+            character = (char)MYOS_INPUT_KEY_ALT_F4;
+        } else if (control_held != 0U && key_code == 0x30U) {
+            character = (char)MYOS_INPUT_KEY_CTRL_B;
+        } else {
+            character = shift_held != 0U ? shifted_set1[key_code] : unshifted_set1[key_code];
+            if (control_held != 0U && character >= 'a' && character <= 'z') {
+                character = (char)(character - 'a' + 1);
+            }
         }
     }
     if (character != '\0') {
@@ -142,6 +156,7 @@ int keyboard_init(void) {
     dropped_characters = 0U;
     shift_held = 0U;
     control_held = 0U;
+    alt_held = 0U;
     extended_prefix = 0U;
 
     while ((arch_in8(PS2_STATUS_PORT) & PS2_STATUS_OUTPUT_FULL) != 0U) {
