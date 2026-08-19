@@ -1,6 +1,6 @@
 # Research Notes: APIC virtual-wire
 
-> **Language:** [English](research-apic-virtual-wire.md) | [Русский](research-apic-virtual-wire_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](research-apic-virtual-wire_RU.md) / **🇺🇸 ENGLISH**
 
 
 Verification date: 17 August 2026.

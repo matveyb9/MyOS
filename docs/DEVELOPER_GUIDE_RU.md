@@ -1,6 +1,6 @@
 # Руководство разработчика MyOS
 
-> **Язык:** [English](DEVELOPER_GUIDE.md) | [Русский](DEVELOPER_GUIDE_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](DEVELOPER_GUIDE.md)
 
 
 

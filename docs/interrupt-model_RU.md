@@ -1,6 +1,6 @@
 # Модель прерываний MyOS 0.4.0-dev
 
-> **Язык:** [English](interrupt-model.md) | [Русский](interrupt-model_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](interrupt-model.md)
 
 > **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README_RU.md).
 

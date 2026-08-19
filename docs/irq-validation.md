@@ -1,6 +1,6 @@
 # IRQ and PS/2 validation in MyOS 0.4.0-dev
 
-> **Language:** [English](irq-validation.md) | [Русский](irq-validation_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](irq-validation_RU.md) / **🇺🇸 ENGLISH**
 
 > **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and [documentation index](README.md).
 

@@ -1,6 +1,6 @@
 # Ветки, релизы и история изменений
 
-> **Язык:** [English](RELEASES.md) | [Русский](RELEASES_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](RELEASES.md)
 
 Этот документ объясняет, какую линию MyOS выбрать, какие refs нельзя изменять и как оформлять будущие commits и releases на двух языках.
 
@@ -35,41 +35,48 @@
 
 ## Двуязычные commits
 
-Git subject остаётся коротким **английским** imperative summary. Это делает историю, GitHub lists и command-line output компактными и удобными для поиска. Каждое изменение с заметным смыслом получает ниже короткий **русский body**, который объясняет цель и затронутые user-visible contracts.
+Git subject остаётся коротким **английским** imperative summary. Это делает историю, GitHub lists и command-line output компактными и удобными для поиска. Каждое meaningful change затем получает две равнозначные, явно помеченные строки body: сначала **`[EN]:`**, затем **`[RU]:`**. Финальный trailer прозрачно отмечает сотрудничество, когда в изменении существенно помогал Manus AI.
 
 ```text
-Add labels and forward jumps to native assembler
+native: add labels and forward jumps
 
-RU: Добавлены метки `label name:` и безусловные переходы `jump name`
-только на более позднюю метку. Обновлены `help asm`, regression и
-двуязычная документация.
+[EN]: Add bounded forward-only labels and jumps; update help, regression and paired documentation.
+[RU]: Добавить ограниченные метки и переходы только вперёд; обновить help, regression и парную документацию.
+
+Assisted-by: Manus AI
 ```
 
 | Поле | Правило |
 |---|---|
 | Subject | English, imperative, до 72 characters; без точки в конце. |
-| Body | Пустая строка после subject, затем `RU:` и 1–3 короткие строки по-русски. |
+| `[EN]` description | После пустой строки кратко указать scope или user-visible effect одним английским предложением. |
+| `[RU]` description | Сразу следом привести равнозначное короткое русское предложение с тем же change и limits. |
+| Collaboration | Когда Manus AI существенно помогает, сохранять `Assisted-by: Manus AI` финальным trailer. Он не заменяет identity автора repository. |
 | Scope | Укажите ключевой subsystem при необходимости: `docs:`, `fs:`, `gui:`, `native:`. |
-| Breaking or user-visible change | В body явно назовите command, path, artifact или compatibility consequence. |
+| Breaking or user-visible change | В обеих description lines явно назовите command, path, artifact или compatibility consequence. |
 | Documentation | Если меняется public behavior, английская и русская страницы обновляются в том же commit. |
 
-Для простого исключительно documentation maintenance commit допустим компактный формат:
+Та же структура применяется к documentation-only maintenance:
 
 ```text
-docs: add bilingual navigation
+docs: refresh bilingual navigation
 
-RU: Добавлены парные English/Russian страницы, переключатели языка и
-проверяемые внутренние ссылки.
+[EN]: Replace legacy language switches with the prominent active-language widget.
+[RU]: Заменить прежние переключатели языка заметным виджетом активного языка.
+
+Assisted-by: Manus AI
 ```
 
 ## Двуязычные release notes
 
-Release description всегда содержит два равноправных раздела: сначала **English**, затем **Русский**. Они описывают один и тот же scope; не нужно смешивать два языка в одной строке или таблице.
+Release description всегда содержит два равноправных, визуально отмеченных раздела: сначала **`🇺🇸 [EN] ENGLISH`**, затем **`🇷🇺 [RU] РУССКИЙ`**. Сразу под title размещается заметный release-language widget. Оба раздела описывают один и тот же scope; не нужно смешивать два языка в одной строке или таблице.
 
 ```md
 # MyOS vX.Y.Z — Short release name
 
-## English
+> **🌐 RELEASE LANGUAGES / ЯЗЫКИ РЕЛИЗА:** **🇺🇸 [EN] ENGLISH** · **🇷🇺 [RU] РУССКИЙ**
+
+## 🇺🇸 [EN] ENGLISH
 
 **Status:** Release | Pre-release | Release candidate
 
@@ -86,7 +93,7 @@ Release description всегда содержит два равноправны�
 
 - Explicit remaining gaps.
 
-## Русский
+## 🇷🇺 [RU] РУССКИЙ
 
 **Статус:** Релиз | Предрелиз | Кандидат в релизы
 
@@ -106,7 +113,7 @@ Release description всегда содержит два равноправны�
 
 | Release element | Обязательное содержание |
 |---|---|
-| Title | Version и короткое английское название; Russian section повторяет смысл. |
+| Title | Version и короткое английское название; смысл повторяет раздел `🇷🇺 [RU]`. |
 | Status | Явно обозначить `Release`, `Pre-release` или `Release candidate`. |
 | Scope | Что включено и что намеренно не включено. |
 | Verification | Commands, firmware paths, hardware scope и status. |

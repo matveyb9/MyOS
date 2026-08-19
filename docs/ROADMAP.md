@@ -1,6 +1,6 @@
 # MyOS Roadmap
 
-> **Language:** [English](ROADMAP.md) | [Русский](ROADMAP_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](ROADMAP_RU.md) / **🇺🇸 ENGLISH**
 
 
 > **Status as of 19 August 2026.** MyOS is an in-house educational and practical OS for `x86_64`, written in freestanding C11 and x86_64 NASM. The project is not based on Linux or BSD; Limine is used only as the current bootloader and provider of the boot environment. The stable console line is complete, and the new GUI functionality is isolated in a separate branch.

@@ -1,6 +1,6 @@
 # Visual verification of the framebuffer console
 
-> **Language:** [English](framebuffer-visual-check.md) | [Русский](framebuffer-visual-check_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](framebuffer-visual-check_RU.md) / **🇺🇸 ENGLISH**
 
 > **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [User Guide](USER_GUIDE.md), [Developer Guide](DEVELOPER_GUIDE.md) and the [documentation index](README.md).
 

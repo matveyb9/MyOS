@@ -1,6 +1,6 @@
 # Политика документации MyOS
 
-> **Язык:** [English](DOCUMENTATION_POLICY.md) | [Русский](DOCUMENTATION_POLICY_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](DOCUMENTATION_POLICY.md)
 
 Документация — часть продукта. Изменение public behavior не считается завершённым, пока его English и Russian descriptions не обновлены в том же commit.
 
@@ -10,9 +10,9 @@
 |---|---|---|
 | Корень repository | `README.md` | `README_RU.md` |
 | Документация | `docs/NAME.md` | `docs/NAME_RU.md` |
-| Language switcher | `> **Language:** [English](NAME.md) \| [Русский](NAME_RU.md)` | `> **Язык:** [English](NAME.md) \| [Русский](NAME_RU.md)` |
+| Language switcher | `> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](NAME_RU.md) / **🇺🇸 ENGLISH**` | `> **🌐 LANGUAGE / ЯЗЫК:** **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](NAME.md)` |
 
-Каждая Markdown page в корне и `docs/` содержит language switcher сразу после heading. English page ссылается на English counterpart, Russian page — на Russian counterpart. Commands, paths, identifiers, source code, version numbers, SHA-256 values и URLs не переводятся.
+Каждая Markdown page в корне и `docs/` содержит этот заметный widget сразу после heading. Текущий язык — bold text; другой язык — reciprocal link. Commands, paths, identifiers, source code, version numbers, SHA-256 values и URLs не переводятся.
 
 ## Что должно обновляться
 
@@ -42,7 +42,7 @@
 
 ## История изменений и публикация
 
-Commit subject пишется коротким English imperative summary. Body после пустой строки начинается с `RU:` и кратко объясняет изменение по-русски. Future release notes содержат отдельные equivalent sections `## English` и `## Русский`; template и required fields находятся в [Release Guide](RELEASES_RU.md).
+Commit subject пишется коротким English imperative summary. После пустой строки body содержит равнозначные descriptions `[EN]:` и `[RU]:` именно в этом порядке; обе фиксируют один scope, compatibility effect и limits. Когда Manus AI существенно помогает, финальным transparency trailer становится `Assisted-by: Manus AI`. Future release notes размещают заметный widget `🌐 RELEASE LANGUAGES / ЯЗЫКИ РЕЛИЗА` под title и используют равнозначные sections `## 🇺🇸 [EN] ENGLISH` и `## 🇷🇺 [RU] РУССКИЙ`; template и required fields находятся в [Release Guide](RELEASES_RU.md).
 
 ## Термины
 

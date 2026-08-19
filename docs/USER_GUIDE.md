@@ -1,6 +1,6 @@
 # MyOS User Guide
 
-> **Language:** [English](USER_GUIDE.md) | [Русский](USER_GUIDE_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](USER_GUIDE_RU.md) / **🇺🇸 ENGLISH**
 
 
 This guide is intended for someone who wants to build, run, and try MyOS without studying kernel internals. MyOS is an experimental tutorial-and-practice OS for `x86_64`, written from scratch in freestanding C11 and x86_64 NASM. Use QEMU first; running on real hardware should be done only with a separate test USB stick.

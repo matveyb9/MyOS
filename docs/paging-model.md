@@ -1,6 +1,6 @@
 # MyOS 0.5.0-dev Virtual Memory Model
 
-> **Language:** [English](paging-model.md) | [Русский](paging-model_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](paging-model_RU.md) / **🇺🇸 ENGLISH**
 
 > **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to [USER_GUIDE.md], [DEVELOPER_GUIDE.md] and [README.md].
 

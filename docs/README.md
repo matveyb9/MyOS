@@ -1,6 +1,6 @@
 # MyOS Documentation
 
-> **Language:** [English](README.md) | [Русский](README_RU.md)
+> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](README_RU.md) / **🇺🇸 ENGLISH**
 
 This folder contains the detailed documentation for the current branch. Start with the guide that matches your goal; you do not need to read every page.
 
