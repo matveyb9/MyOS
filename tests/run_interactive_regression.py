@@ -185,9 +185,9 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
-    def gui_home_navigate_and_exit(self):
+    def gui_desktop_navigate_and_exit(self, command="startgui"):
         start = len(self.output)
-        self.send("startgui home\n")
+        self.send(command + "\n")
         self.expect("Started process ", start)
         time.sleep(0.25)
         for key in (b"m", b"h", b"n", b"h", b"Q"):
@@ -235,7 +235,8 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {NOTE_PATH}", "base!")
-        guest.gui_home_navigate_and_exit()
+        guest.gui_desktop_navigate_and_exit()
+        guest.gui_desktop_navigate_and_exit("startgui home")
         guest.console_edit_and_save(EDITOR_TEXT_PATH, b"first\nsecond\n")
         text_start = len(guest.output)
         guest.command(f"cat {EDITOR_TEXT_PATH}", "first")
@@ -369,7 +370,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         require_native_line("UEFI persisted native args", args_output, b"[ovmf args]")
         require_time_line("UEFI persisted native args", args_output)
         guest.gui_open_and_exit()
-        guest.gui_home_navigate_and_exit()
+        guest.gui_desktop_navigate_and_exit()
     finally:
         guest.close()
 

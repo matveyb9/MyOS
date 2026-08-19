@@ -6,7 +6,7 @@
 
 ## Status
 
-The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current graphical and user-program work is isolated in [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); it is **experimental** and is not merged into `main` automatically. This branch includes BIOS/UEFI boot paths, MYPFS004 persistent storage, framebuffer GUI with a bounded keyboard-driven `startgui home` desktop launcher, a general bounded text editor, persistent ELF packages, the MyOS SDK with a bounded public VFS subset and live `cp` developer tool, and an in-OS assembler with bounded program-argument forwarding, single-byte input, RTC `HH:MM:SS` output, labels, explicit condition values, exact-byte comparison and forward-only unconditional or conditional jumps.
+The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current graphical and user-program work is isolated in [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); it is **experimental** and is not merged into `main` automatically. This branch includes BIOS/UEFI boot paths, MYPFS004 persistent storage, framebuffer GUI with a bounded keyboard-driven desktop launcher entered by `startgui`, a general bounded text editor, persistent ELF packages, the MyOS SDK with a bounded public VFS subset and live `cp` developer tool, and an in-OS assembler with bounded program-argument forwarding, single-byte input, RTC `HH:MM:SS` output, labels, explicit condition values, exact-byte comparison and forward-only unconditional or conditional jumps.
 
 | Line | Purpose | State |
 |---|---|---|
@@ -40,7 +40,7 @@ MyOS opens the user shell after a three-second countdown. Press `K` during the c
 help
 ls /
 run hello
-startgui home
+startgui
 ```
 
 > `make img` recreates `myos.img` and erases its previous persistent MyOS data. Use a disposable copy before experiments. For a physical USB test, use `myos.img`, not the ISO, and follow the safety guidance in the User Guide.
@@ -67,7 +67,7 @@ make regression     # disposable-image GUI and native workflow
 make release-check  # clean rebuild, checks and SHA-256 evidence
 ```
 
-`make regression` uses a disposable copy of `myos.img`: it covers `startgui home` navigation and clean return in BIOS/UEFI, the GUI/editor workflow, a 305-byte SDK `cp` copy across the VFS request boundary, its no-overwrite rule and UEFI persistence, native forward-only control flow, empty and forwarded native program arguments, input true/fallback branches and valid RTC `HH:MM:SS` output. `make release-check` is local verification only. It does not create a tag, GitHub Release or Pre-release.
+`make regression` uses a disposable copy of `myos.img`: it covers default `startgui` navigation and clean return in BIOS/UEFI, plus the retained `startgui home` alias in BIOS, the GUI/editor workflow, a 305-byte SDK `cp` copy across the VFS request boundary, its no-overwrite rule and UEFI persistence, native forward-only control flow, empty and forwarded native program arguments, input true/fallback branches and valid RTC `HH:MM:SS` output. `make release-check` is local verification only. It does not create a tag, GitHub Release or Pre-release.
 
 ---
 

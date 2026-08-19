@@ -402,8 +402,8 @@ static void edit_selected_disk_file(void) {
 
 void _start(uint64_t argc, const char *arguments) {
     uint64_t status = 0U;
-    int home_mode = text_equal(arguments, "home");
-    const char *initial_path = arguments[0] == '\0' ? "/system/core/resources/motd.txt" : arguments;
+    int home_mode = arguments[0] == '\0' || text_equal(arguments, "home");
+    const char *initial_path = arguments;
 
     (void)argc;
     if (system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_BEGIN, 0U, 0U) == UINT64_MAX) {
