@@ -6,7 +6,7 @@
 
 ## Статус
 
-Стабильная консольная граница закреплена тегом [`v0.12.1-console`](docs/RELEASES_RU.md). Текущая работа над графическим интерфейсом и пользовательскими программами изолирована в ветке [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); это **экспериментальная** линия, которая не переносится в `main` автоматически. Ветка содержит BIOS/UEFI boot paths, persistent MYPFS004 storage, framebuffer GUI с bounded keyboard-driven desktop launcher, открываемым через `startgui`, общий bounded text editor, persistent ELF packages, MyOS SDK с bounded public VFS subset и live `cp` developer tool, а также встроенный assembler с bounded program-argument forwarding, single-byte input, RTC output `HH:MM:SS`, метками, явными condition values, exact-byte comparison и forward-only безусловными или условными переходами.
+Стабильная консольная граница закреплена тегом [`v0.12.1-console`](docs/RELEASES_RU.md). Текущая работа над графическим интерфейсом и пользовательскими программами изолирована в ветке [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); это **экспериментальная** линия, которая не переносится в `main` автоматически. Ветка содержит BIOS/UEFI boot paths, persistent MYPFS004 storage, framebuffer GUI с bounded mouse-first desktop launcher, открываемым через `startgui`, общий bounded text editor, persistent ELF packages, MyOS SDK с bounded public VFS subset и live `cp` developer tool, а также встроенный assembler с bounded program-argument forwarding, single-byte input, RTC output `HH:MM:SS`, метками, явными condition values, exact-byte comparison и forward-only безусловными или условными переходами.
 
 | Линия | Назначение | Состояние |
 |---|---|---|
@@ -67,7 +67,7 @@ make regression     # disposable-image GUI и native workflow
 make release-check  # clean rebuild, checks и SHA-256 evidence
 ```
 
-`make regression` использует disposable copy `myos.img`: он покрывает default navigation `startgui` и clean return в BIOS/UEFI, а также retained alias `startgui home` в BIOS, GUI/editor workflow, 305-byte SDK `cp` copy через VFS request boundary, его no-overwrite rule и UEFI persistence, native forward-only control flow, empty и forwarded native program arguments, input true/fallback branches и valid RTC output `HH:MM:SS`. `make release-check` выполняет только локальную проверку. Он не создаёт tag, GitHub Release или Pre-release.
+`make regression` использует disposable copy `myos.img`: он покрывает default navigation `startgui` и clean return в BIOS/UEFI, QMP-injected PS/2 clicks по centered tile `NOTES` со screenshot transitions framebuffer, а также retained alias `startgui home` в BIOS, GUI/editor workflow, 305-byte SDK `cp` copy через VFS request boundary, его no-overwrite rule и UEFI persistence, native forward-only control flow, empty и forwarded native program arguments, input true/fallback branches и valid RTC output `HH:MM:SS`. `make release-check` выполняет только локальную проверку. Он не создаёт tag, GitHub Release или Pre-release.
 
 ---
 

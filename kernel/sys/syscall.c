@@ -169,7 +169,10 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
 
             if (buffer == 0U || length != sizeof(request) || copy_from_user(&request, buffer, sizeof(request)) == 0
                 || request.length > MYOS_GUI_CONTENT_MAX
-                || (request.flags & ~MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U || request.cursor > request.length
+                || (request.flags & ~(MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER)) != 0U
+                || (request.flags & (MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER))
+                       == (MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER)
+                || request.cursor > request.length
                 || request.viewport > request.length
                 || request_string_is_terminated(request.title, MYOS_GUI_CONTENT_TITLE_MAX, 1) == 0
                 || framebuffer_gui_set_content(request.title, request.data, request.length, request.flags,

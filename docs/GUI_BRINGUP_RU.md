@@ -26,7 +26,7 @@ startgui
 # File viewer: startgui /users/myos/files/notes/note
 ```
 
-`startgui` является обычной ring-3 программой. Без аргументов она открывает bounded home view **MYOS DESKTOP**; `startgui home` остаётся compatibility alias. Его keyboard launcher предоставляет `M` для system message, `N` для notes viewer, `E` для selected note editor, `H` для возврата home и `Q` для возврата в shell. Она создаёт ограниченную GUI session через существующую syscall boundary, читает и редактирует только bounded user-space payload, а kernel получает лишь проверенные syscall requests. `startgui /users/myos/files/notes/<name>` выбирает persistent note ещё до его создания: viewer сообщит об отсутствии, а `E` откроет пустой draft, который `Ctrl-S` создаст. `Q` или `Esc` за пределами editor завершает graphical session и возвращает в тот же user shell.
+`startgui` является обычной ring-3 программой. Без аргументов она открывает bounded home view **MYOS DESKTOP**; `startgui home` остаётся compatibility alias. Его mouse-first launcher предоставляет кликабельные tiles `SYSTEM`, `NOTES` и `EDIT NOTE`, а также top-bar control `X` для выхода. Keyboard hotkeys сохраняются: `M` открывает system message, `N` — notes viewer, `E` — selected note editor, `H` возвращает home, а `Q` — в shell. Она создаёт ограниченную GUI session через существующую syscall boundary, читает и редактирует только bounded user-space payload, а kernel получает лишь проверенные syscall requests. `startgui /users/myos/files/notes/<name>` выбирает persistent note ещё до его создания: viewer сообщит об отсутствии, а `E` откроет пустой draft, который `Ctrl-S` создаст. `Q` или `Esc` за пределами editor завершает graphical session и возвращает в тот же user shell.
 
 ## Persistent user programs
 
@@ -72,12 +72,13 @@ run sdk-hello external SDK validation
 |---|---|
 | Renderer | Нативное прямое рисование в Limine RGB framebuffer без внешнего GUI runtime. |
 | Владение session | Одновременно допустим ровно один GUI owner; kernel отклоняет вторую параллельную session. |
-| Desktop | Тёмный desktop, верхняя строка состояния и нижняя строка доступных controls. |
-| Windows | Три статические bounded window records: `SYSTEM`, `NOTES` и `MONITOR`. |
+| Desktop | Тёмный desktop, top status bar с кликабельным control `X` для выхода и нижняя строка controls. |
+| Launcher | В desktop-home mode три fixed clickable tiles — `SYSTEM`, `NOTES` и `EDIT NOTE` — заменяют ordinary windows. |
+| Windows | Вне launcher mode используются три статические bounded window records: `SYSTEM`, `NOTES` и `MONITOR`. |
 | Z-order | Focused window поднимается на передний план; focus, visibility, layout и content events выполняют bounded full redraw композиции, тогда как ordinary pointer movement обновляет только cursor region. |
 | Viewer | `NOTES` отображает до 128 bytes выбранного VFS file. |
 | File loading | `startgui <absolute-path>` читает первые 128 bytes указанного VFS file. |
-| Desktop home | Bare `startgui` рисует fixed launcher `MYOS DESKTOP`; `startgui home` — compatibility alias; он не сканирует arbitrary paths, не создаёт tasks и не хранит unbounded state. |
+| Desktop home | Bare `startgui` рисует fixed mouse-first launcher `MYOS DESKTOP`; `startgui home` — compatibility alias. Действуют только три fixed tile rectangles и top-bar exit rectangle; launcher не сканирует arbitrary paths, не создаёт tasks и не хранит unbounded state. |
 | Persistent selection | `D` выбирает стандартный `/users/myos/files/notes/note`; `N` циклически выбирает следующую existing note через directory-scoped VFS enumeration. |
 | Named launch | `startgui /users/myos/files/notes/<name>` выбирает конкретную personal note; title NOTES показывает basename выбранного file. |
 | Editor entry | `E` открывает bounded editor для выбранной personal note; отсутствующий selected path начинает с пустого draft. |
@@ -85,10 +86,10 @@ run sdk-hello external SDK validation
 | Caret и navigation | `Left`/`Right` перемещают caret на byte, `Up`/`Down` — по logical lines с сохранением column, `Home`/`End` переходят к границам строки. |
 | Bounded scrolling | Renderer отображает окно до 20 logical newline-separated lines; viewport автоматически следует за строкой caret. |
 | Save и cancel | `Ctrl-S` заменяет выбранный file в `/users/myos/files/notes/`, записывает draft и возвращает к его viewer. `Esc` отменяет draft и перезагружает ранее сохранённое содержимое. |
-| Built-in choices | `M` или `m` повторно загружает `/system/core/resources/motd.txt`; `H` возвращает к MYOS DESKTOP, а desktop-home `N` открывает bounded personal-notes route. |
-| Focus | `Tab`, `Enter` или `Space` вне editor переводят focus на следующее видимое окно. |
-| Hardware pointer | PS/2 mouse relative motion перемещает bounded crosshair pointer; rising edge левой кнопки фокусирует верхнее видимое окно под pointer. |
-| Keyboard fallback | Строчные `W`, `A`, `S`, `D` перемещают pointer на 16 pixels; `F` сохраняет keyboard focus верхнего окна под pointer. |
+| Built-in choices | Click по `SYSTEM`, `NOTES` или `EDIT NOTE` запускает те же bounded actions, что `M`, `N` и `E`; `H` возвращает к MYOS DESKTOP, а desktop-home `N` открывает bounded personal-notes route. |
+| Focus | Click по ordinary visible window поднимает его; `Tab`, `Enter` или `Space` вне editor переводят focus на следующее видимое окно. |
+| Hardware pointer | PS/2 mouse relative motion перемещает bounded crosshair pointer. Rising-edge left click активирует launcher tile или top-bar `X`; иначе он поднимает верхнее visible window под pointer. |
+| Keyboard fallback | `M`/`N`/`E`/`H`/`Q` повторяют launcher actions; строчные `W`, `A`, `S`, `D` перемещают pointer на 16 pixels, а `F` сохраняет keyboard focus верхнего окна под pointer. |
 | Visibility | `1`, `2`, `3` переключают `SYSTEM`, `NOTES`, `MONITOR`; `X` скрывает focused window, не позволяя скрыть все окна. |
 | Reset и выход | `R` восстанавливает исходный layout и z-order. `Q` или `Esc` вне editor завершает session и возвращает framebuffer text console. |
 
@@ -96,7 +97,7 @@ run sdk-hello external SDK validation
 
 ## Ограничения editor и граница ABI
 
-`NOTES` использует дескриптор `MYOS_GUI_SET_CONTENT = 3` в `MYOS_SYS_GUI_SESSION`. Kernel принимает content request лишь от текущего GUI owner при активной session, копирует request после проверки отображения user buffer и не хранит user pointers. Framebuffer владеет собственными статическими copies title и data. GUI циклически использует directory-scoped `MYOS_SYS_VFS_LIST` для `/users/myos/files/notes/` и держит выбранный absolute path в bounded static storage. Editor удаляет выбранный file, создаёт его через unified VFS и записывает один bounded payload с offset `0`.
+`NOTES` использует дескриптор `MYOS_GUI_SET_CONTENT = 3` в `MYOS_SYS_GUI_SESSION`. Request допускает либо editable content, либо fixed launcher-content flag, но никогда оба; только launcher flag включает три static launcher hit rectangles renderer. Kernel принимает content request лишь от текущего GUI owner при активной session, копирует request после проверки отображения user buffer и не хранит user pointers. Framebuffer владеет собственными статическими copies title и data. GUI циклически использует directory-scoped `MYOS_SYS_VFS_LIST` для `/users/myos/files/notes/` и держит выбранный absolute path в bounded static storage. Editor удаляет выбранный file, создаёт его через unified VFS и записывает один bounded payload с offset `0`.
 
 | Поле или операция | Ограничение | Назначение |
 |---|---:|---|
@@ -123,7 +124,7 @@ run sdk-hello external SDK validation
 | Rendering | Full desktop composition выполняется при content update, focus, visibility или layout change. Обычное pointer movement восстанавливает bounded 11×11 cursor underlay и рисует cursor в новом месте без полного redraw. |
 | Files | Viewer читает любой доступный absolute VFS file; editor изменяет выбранную note в `/users/myos/files/notes/`. |
 | Atomicity | Save удаляет и пересоздаёт file перед записью; MYPFS004 сохраняет bounded metadata and allocation state, а полная application-level atomic replace пока не реализована. |
-| Mouse hardware | PS/2 relative motion и left-button focus реализованы. Обычное движение использует bounded cursor-only refresh; higher-level actions, dragging, wheel и multi-button semantics пока отсутствуют. |
+| Mouse hardware | PS/2 relative motion и left-button edge реализованы. В launcher mode kernel сопоставляет только три fixed tile rectangles и fixed top-bar `X` rectangle с bounded action characters, передаваемыми через existing scheduler-safe input queue; ordinary viewer clicks фокусируют windows. Motion остаётся cursor-only; dragging, wheel и multi-button semantics отсутствуют. |
 | General window API | Не реализован; records остаются внутренними для framebuffer renderer. |
 
 ## Проверка milestone
@@ -154,7 +155,7 @@ run sdk-hello external SDK validation
 | MYPFS002 legacy migration | Passed (BIOS): `disk/note` fixture migrated to `/users/myos/files/notes/note`; `MYPFS004` superblock, cleared journal and second-mount readback confirmed. |
 | MYPFS004 large-file I/O | Passed (BIOS): 1 MiB fragmented two-extent pattern write/readback, fresh-mount `wc` of all 1,048,576 bytes, SDK install/run after reboot и UEFI persisted SDK execution. |
 | Pointer refresh hardening | Passed: two 1280×800 BIOS framebuffer captures before/after keyboard pointer movement differed in only 726 PPM byte positions, consistent with old/new 11×11 cursor regions; desktop composition remained intact. |
-| Automated `make regression` | Passed: disposable-image harness created/edited/saved a BIOS GUI note, navigated default `startgui` through M/H/N/H/Q и returned cleanly, затем verified retained alias `startgui home`, copied paced editor-authored 305-byte file SDK `cp` через VFS request boundary, verified exact data и overwrite refusal, built/installed/ran legacy native packages, checked empty и forwarded `args` output, exact `input` match and fallback paths plus valid RTC `HH:MM:SS` output, rejected invalid forward-only control flow, затем UEFI повторил desktop-home navigation, прочитал persisted files и copied data, повторно запустил installed input/time/argument packages и корректно entered/exited GUI. See [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md). |
+| Automated `make regression` | Passed: disposable-image harness created/edited/saved a BIOS GUI note, navigated default `startgui` through M/H/N/H/Q и returned cleanly, затем через QMP injected PS/2 left click по centered tile `NOTES` и required substantial PPM framebuffer transition к viewer в BIOS и UEFI; он также verified retained alias `startgui home`, copied paced editor-authored 305-byte file SDK `cp` через VFS request boundary, verified exact data и overwrite refusal, built/installed/ran legacy native packages, checked empty и forwarded `args` output, exact `input` match and fallback paths plus valid RTC `HH:MM:SS` output, rejected invalid forward-only control flow, затем UEFI повторил desktop-home navigation, прочитал persisted files и copied data, повторно запустил installed input/time/argument packages и корректно entered/exited GUI. See [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md). |
 | GUI note and native workflow | Passed: BIOS GUI editor changed persistent note `base` → `base!`; the same note and a BIOS-built native program were read/executed under UEFI. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
@@ -173,4 +174,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`, а GitHub Pre-release `v0.13.0-gui-rc.1` опубликован отдельно. Текущая ветка `gui/bringup` содержит MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, MyOS SDK для внешней сборки с public bounded VFS wrappers и его live no-overwrite `cp` developer tool, а также restricted in-OS `asm`/`build` workflow с bounded `args` forwarding из `run <name> [arguments]`, labels, явными `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison и forward-only branches. Generated image добавляет только fixed private RW data segment размером 32 bytes: entry argument pointer и input/time scratch storage. Ветка также содержит bounded keyboard-driven desktop launcher, открываемый `startgui` (с `startgui home` как alias), общий console [Текстовый редактор](TEXT_EDITOR_RU.md) и cursor-only GUI pointer refresh. GUI editor остаётся notes-focused feature; direct `edit <absolute-file>` — общий file editor. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); будущая native-platform work должна сохранять completed bounded execution contract.
+GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`, а GitHub Pre-release `v0.13.0-gui-rc.1` опубликован отдельно. Текущая ветка `gui/bringup` содержит MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, MyOS SDK для внешней сборки с public bounded VFS wrappers и его live no-overwrite `cp` developer tool, а также restricted in-OS `asm`/`build` workflow с bounded `args` forwarding из `run <name> [arguments]`, labels, явными `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison и forward-only branches. Generated image добавляет только fixed private RW data segment размером 32 bytes: entry argument pointer и input/time scratch storage. Ветка также содержит bounded mouse-first desktop launcher, открываемый `startgui` (с `startgui home` как alias), общий console [Текстовый редактор](TEXT_EDITOR_RU.md) и cursor-only GUI pointer refresh. GUI editor остаётся notes-focused feature; direct `edit <absolute-file>` — общий file editor. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); будущая native-platform work должна сохранять completed bounded execution contract.

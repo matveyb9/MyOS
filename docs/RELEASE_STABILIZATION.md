@@ -10,7 +10,7 @@
 | Command | What it checks | Isolation |
 |---|---|---|
 | `make smoke` | Raw-image BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. | Uses `myos.img`; does not write user test files. |
-| `make regression` | BIOS default `startgui` navigation through M/H/N/H/Q with clean return plus the retained `startgui home` alias, GUI note create/edit/save, paced console-editor ordinary text save/readback, SDK `cp` copying of a 305-byte file across the 256-byte VFS boundary with overwrite rejection, editor-authored `.mya` source → `build` → `install` → `run`, conditional rejection cases, then UEFI repetition of desktop-home navigation, text/copied-file/native persistence and clean GUI enter/exit. | Creates a temporary copy of `myos.img` and deletes it after the check. The user's working image is not modified. |
+| `make regression` | BIOS default `startgui` navigation through M/H/N/H/Q with clean return, QMP-injected PS/2 click activation of the centered `NOTES` tile with a PPM framebuffer transition, plus the retained `startgui home` alias, GUI note create/edit/save, paced console-editor ordinary text save/readback, SDK `cp` copying of a 305-byte file across the 256-byte VFS boundary with overwrite rejection, editor-authored `.mya` source → `build` → `install` → `run`, conditional rejection cases, then UEFI repetition of desktop-home navigation, text/copied-file/native persistence and clean GUI enter/exit. | Creates a temporary copy of `myos.img` and deletes it after the check. The user's working image is not modified. |
 | `make release-check` | Requires a clean Git tree, rebuilds ISO/IMG from scratch, runs `make smoke` and `make regression`, then prints the exact source commit and SHA-256 of both artifacts. | Local-only: does not create a tag, GitHub Release, Pre-release or remote push. |
 
 `make smoke`, `make regression` and `make release-check` require QEMU and OVMF. `make regression` uses a fixed Q35 configuration and `-drive if=ide,format=raw`, because this is the supported persistent AHCI path. `make release-check` additionally requires a clean Git tree and itself runs a clean `make all img`.
@@ -47,7 +47,7 @@ Automated commands are intentionally limited. Before a new GUI release tag is cr
 
 ## What these tests do not prove
 
-`make smoke` and `make regression` do not establish networking, USB HID, SMP, production security, long-duration stress reliability, physical-hardware compatibility or a full native C toolchain. They are release-stabilization evidence for the currently implemented GUI including its bounded default desktop launcher, MYPFS004, public SDK VFS copy workflow, and the restricted native development workflow only.
+`make smoke` and `make regression` do not establish networking, USB HID, SMP, production security, long-duration stress reliability, physical-hardware compatibility or a full native C toolchain. They are release-stabilization evidence for the currently implemented GUI including its bounded mouse-first desktop launcher, MYPFS004, public SDK VFS copy workflow, and the restricted native development workflow only.
 
 ## Publication rule
 

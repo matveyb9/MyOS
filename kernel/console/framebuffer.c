@@ -17,6 +17,11 @@
 #define GUI_WINDOW_MONITOR 2U
 #define GUI_CONTENT_TITLE_MAX 16U
 #define GUI_CONTENT_MAX 128U
+#define GUI_POINTER_SIZE 11U
+#define GUI_LAUNCHER_TILE_COUNT 3U
+#define GUI_LAUNCHER_TILE_WIDTH 180U
+#define GUI_LAUNCHER_TILE_HEIGHT 96U
+#define GUI_LAUNCHER_TILE_GAP 24U
 
 typedef struct gui_window {
     uint64_t x;
@@ -59,9 +64,10 @@ typedef struct framebuffer_console {
     uint64_t gui_content_flags;
     uint64_t gui_content_cursor;
     uint64_t gui_content_viewport;
+    int gui_launcher_active;
     uint64_t gui_pointer_x;
     uint64_t gui_pointer_y;
-    uint32_t gui_pointer_under[11U * 11U];
+    uint32_t gui_pointer_under[GUI_POINTER_SIZE * GUI_POINTER_SIZE];
     int gui_pointer_under_valid;
     int active;
 } framebuffer_console_t;
@@ -219,6 +225,46 @@ static void draw_gui_text(uint64_t x, uint64_t y, const char *text, uint32_t col
     }
 }
 
+static uint64_t gui_launcher_total_width(void) {
+    return GUI_LAUNCHER_TILE_COUNT * GUI_LAUNCHER_TILE_WIDTH
+        + (GUI_LAUNCHER_TILE_COUNT - 1U) * GUI_LAUNCHER_TILE_GAP;
+}
+
+static uint64_t gui_launcher_tile_x(uint64_t index) {
+    return (console.width - gui_launcher_total_width()) / 2U
+        + index * (GUI_LAUNCHER_TILE_WIDTH + GUI_LAUNCHER_TILE_GAP);
+}
+
+static uint64_t gui_launcher_tile_y(void) {
+    return (console.height - GUI_LAUNCHER_TILE_HEIGHT) / 2U;
+}
+
+static int gui_point_in_rect(uint64_t x, uint64_t y, uint64_t left, uint64_t top,
+                             uint64_t width, uint64_t height) {
+    return x >= left && y >= top && x - left < width && y - top < height;
+}
+
+static int gui_pointer_hits_exit(void) {
+    return gui_point_in_rect(console.gui_pointer_x, console.gui_pointer_y,
+                             console.width - 40U, 7U, 20U, 18U);
+}
+
+static char gui_launcher_action_at_pointer(void) {
+    static const char actions[GUI_LAUNCHER_TILE_COUNT] = { 'm', 'n', 'e' };
+    const uint64_t top = gui_launcher_tile_y();
+
+    if (console.gui_launcher_active == 0) {
+        return '\0';
+    }
+    for (uint64_t index = 0U; index < GUI_LAUNCHER_TILE_COUNT; index++) {
+        if (gui_point_in_rect(console.gui_pointer_x, console.gui_pointer_y, gui_launcher_tile_x(index), top,
+                              GUI_LAUNCHER_TILE_WIDTH, GUI_LAUNCHER_TILE_HEIGHT) != 0) {
+            return actions[index];
+        }
+    }
+    return '\0';
+}
+
 static void gui_reset_content(void) {
     static const char default_title[] = "VIEWER";
     static const char default_content[] = "PRESS M FOR MOTD OR D FOR DISK NOTE";
@@ -238,6 +284,7 @@ static void gui_reset_content(void) {
     }
     console.gui_content_length = index;
     console.gui_content_flags = 0U;
+    console.gui_launcher_active = 0;
     console.gui_content_cursor = 0U;
     console.gui_content_viewport = 0U;
 }
@@ -437,6 +484,29 @@ static void draw_gui_window(const gui_window_t *window, int focused) {
     }
 }
 
+static void draw_gui_launcher_tile(uint64_t x, uint64_t y, const char *title, const char *subtitle,
+                                   uint32_t border, uint32_t surface, uint32_t text) {
+    fill_rect(x, y, GUI_LAUNCHER_TILE_WIDTH, GUI_LAUNCHER_TILE_HEIGHT, border);
+    fill_rect(x + 3U, y + 3U, GUI_LAUNCHER_TILE_WIDTH - 6U, GUI_LAUNCHER_TILE_HEIGHT - 6U, surface);
+    draw_gui_text(x + 16U, y + 26U, title, text);
+    draw_gui_text(x + 16U, y + 54U, subtitle, text);
+}
+
+static void draw_gui_launcher(uint32_t text) {
+    const uint32_t border = console_rgb(36U, 170U, 224U);
+    const uint32_t notes_border = console_rgb(72U, 196U, 139U);
+    const uint32_t surface = console_rgb(229U, 235U, 243U);
+    const uint64_t top = gui_launcher_tile_y();
+
+    draw_gui_text(16U, 56U, "CLICK A TILE OR USE HOTKEY", text);
+    draw_gui_launcher_tile(gui_launcher_tile_x(0U), top, "SYSTEM", "CLICK OR M", border, surface,
+                           console_rgb(13U, 20U, 34U));
+    draw_gui_launcher_tile(gui_launcher_tile_x(1U), top, "NOTES", "CLICK OR N", notes_border, surface,
+                           console_rgb(13U, 20U, 34U));
+    draw_gui_launcher_tile(gui_launcher_tile_x(2U), top, "EDIT NOTE", "CLICK OR E", border, surface,
+                           console_rgb(13U, 20U, 34U));
+}
+
 static void erase_gui_pointer(void) {
     if (console.gui_pointer_under_valid == 0) {
         return;
@@ -482,16 +552,24 @@ static void redraw_gui_desktop(void) {
     fill_rect(0U, 0U, console.width, console.height, desktop);
     fill_rect(0U, 0U, console.width, 32U, top_bar);
     draw_gui_text(16U, 12U, "MYOS DESKTOP", text);
-    for (uint64_t slot = 0U; slot < GUI_WINDOW_COUNT; slot++) {
-        const uint8_t window_id = console.gui_z_order[slot];
-        const gui_window_t *window = &console.gui_windows[window_id];
+    fill_rect(console.width - 40U, 7U, 20U, 18U, console_rgb(170U, 70U, 80U));
+    draw_gui_text(console.width - 34U, 12U, "X", text);
+    if (console.gui_launcher_active != 0) {
+        draw_gui_launcher(text);
+        fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
+        draw_gui_text(30U, console.height - 36U, "CLICK TILE  HOTKEYS M N E H Q  CLICK X TO EXIT", text);
+    } else {
+        for (uint64_t slot = 0U; slot < GUI_WINDOW_COUNT; slot++) {
+            const uint8_t window_id = console.gui_z_order[slot];
+            const gui_window_t *window = &console.gui_windows[window_id];
 
-        if (window->visible != 0U) {
-            draw_gui_window(window, window_id == console.gui_focus);
+            if (window->visible != 0U) {
+                draw_gui_window(window, window_id == console.gui_focus);
+            }
         }
+        fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
+        draw_gui_text(30U, console.height - 36U, "CLICK WINDOW TO FOCUS  CLICK X TO EXIT  HOTKEYS H E N Q  WASD TAB 1-3 X R", text);
     }
-    fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-    draw_gui_text(30U, console.height - 36U, "MOUSE MOVE/CLICK WASD FALLBACK TAB FOCUS 1-3 TOGGLE F POINTER X HIDE N NEXT DISK E EDIT ARROWS NAV HOME END DEL CTRL-S SAVE ESC CANCEL Q EXIT", text);
     draw_gui_pointer();
 }
 
@@ -704,8 +782,11 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
     uint64_t index;
 
     if (console.gui_active == 0 || title == (const char *)0 || data == (const uint8_t *)0
-        || length > GUI_CONTENT_MAX || (flags & ~MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U || cursor > length
-        || viewport > length || title[0] == '\0') {
+        || length > GUI_CONTENT_MAX
+        || (flags & ~(MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER)) != 0U
+        || (flags & (MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER))
+               == (MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER)
+        || cursor > length || viewport > length || title[0] == '\0') {
         return 0;
     }
     for (index = 0U; index < GUI_CONTENT_TITLE_MAX; index++) {
@@ -722,6 +803,7 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
     }
     console.gui_content_length = length;
     console.gui_content_flags = flags;
+    console.gui_launcher_active = (flags & MYOS_GUI_CONTENT_FLAG_LAUNCHER) != 0U;
     console.gui_content_cursor = cursor;
     console.gui_content_viewport = gui_content_line_start(viewport);
     redraw_gui_desktop();
@@ -740,7 +822,7 @@ void framebuffer_gui_handle_input(char character) {
         console.gui_pointer_y = console.gui_pointer_y > step ? console.gui_pointer_y - step : 0U;
         pointer_only = 1;
     } else if (character == 's' || character == 'S') {
-        const uint64_t limit = console.height - 11U;
+        const uint64_t limit = console.height - GUI_POINTER_SIZE;
 
         erase_gui_pointer();
         console.gui_pointer_y = console.gui_pointer_y + step < limit ? console.gui_pointer_y + step : limit;
@@ -750,7 +832,7 @@ void framebuffer_gui_handle_input(char character) {
         console.gui_pointer_x = console.gui_pointer_x > step ? console.gui_pointer_x - step : 0U;
         pointer_only = 1;
     } else if (character == 'd' || character == 'D') {
-        const uint64_t limit = console.width - 11U;
+        const uint64_t limit = console.width - GUI_POINTER_SIZE;
 
         erase_gui_pointer();
         console.gui_pointer_x = console.gui_pointer_x + step < limit ? console.gui_pointer_x + step : limit;
@@ -787,26 +869,34 @@ static uint64_t gui_pointer_offset(uint64_t position, int64_t delta, uint64_t li
     return position + (uint64_t)delta;
 }
 
-void framebuffer_gui_handle_mouse(int64_t delta_x, int64_t delta_y, int left_pressed, int left_was_pressed) {
+char framebuffer_gui_handle_mouse(int64_t delta_x, int64_t delta_y, int left_pressed, int left_was_pressed) {
     const uint8_t previous_focus = console.gui_focus;
+    char action = '\0';
 
     if (console.gui_active == 0) {
-        return;
+        return '\0';
     }
     if (delta_x == 0 && delta_y == 0 && (left_pressed == 0 || left_was_pressed != 0)) {
-        return;
+        return '\0';
     }
     erase_gui_pointer();
-    console.gui_pointer_x = gui_pointer_offset(console.gui_pointer_x, delta_x, console.width - 11U);
-    console.gui_pointer_y = gui_pointer_offset(console.gui_pointer_y, delta_y, console.height - 11U);
+    console.gui_pointer_x = gui_pointer_offset(console.gui_pointer_x, delta_x, console.width - GUI_POINTER_SIZE);
+    console.gui_pointer_y = gui_pointer_offset(console.gui_pointer_y, delta_y, console.height - GUI_POINTER_SIZE);
     if (left_pressed != 0 && left_was_pressed == 0) {
-        gui_focus_pointer_window();
+        action = gui_launcher_action_at_pointer();
+        if (action == '\0' && gui_pointer_hits_exit() != 0) {
+            action = 'q';
+        }
+        if (action == '\0' && console.gui_launcher_active == 0) {
+            gui_focus_pointer_window();
+        }
     }
     if (console.gui_focus != previous_focus) {
         redraw_gui_desktop();
     } else {
         draw_gui_pointer();
     }
+    return action;
 }
 
 uint64_t framebuffer_console_columns(void) {

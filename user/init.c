@@ -432,7 +432,8 @@ static void command_help(const char *topic) {
     }
     if (text_equal(topic, "startgui")) {
         write_text("startgui [absolute-file]\n");
-        write_text("Without a file it opens MYOS DESKTOP; 'home' remains an alias. M message, N notes, E edit, H home, Q shell.\n");
+        write_text("Without a file it opens MYOS DESKTOP; click SYSTEM, NOTES or EDIT NOTE. Click top-bar X to exit.\n");
+        write_text("Hotkeys remain available: M message, N notes, E edit, H home, Q shell; 'home' is an alias.\n");
         return;
     }
     if (text_equal(topic, "asm")) {

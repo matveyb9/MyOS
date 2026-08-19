@@ -143,7 +143,7 @@ static void show_desktop_home(void) {
         "H  Return here\n"
         "Q  Return to shell\n";
 
-    (void)set_viewer_content("MYOS DESKTOP", text, sizeof(text) - 1U, 0U, 0U, 0U);
+    (void)set_viewer_content("MYOS DESKTOP", text, sizeof(text) - 1U, MYOS_GUI_CONTENT_FLAG_LAUNCHER, 0U, 0U);
 }
 
 static uint64_t read_viewer_file(const char *path, uint8_t *data) {

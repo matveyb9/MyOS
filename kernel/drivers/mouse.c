@@ -2,6 +2,7 @@
 
 #include <arch.h>
 #include <framebuffer.h>
+#include <keyboard.h>
 #include <mouse.h>
 
 #define PS2_DATA_PORT 0x60U
@@ -83,15 +84,20 @@ static int64_t mouse_delta(uint8_t value, uint8_t sign_set) {
 
 static void mouse_process_packet(void) {
     const uint8_t flags = mouse_packet[0];
+    const int left_pressed = (flags & PS2_MOUSE_PACKET_LEFT_BUTTON) != 0U;
+    char gui_action;
 
     if ((flags & (PS2_MOUSE_PACKET_X_OVERFLOW | PS2_MOUSE_PACKET_Y_OVERFLOW)) != 0U) {
         dropped_packets++;
         return;
     }
-    framebuffer_gui_handle_mouse(mouse_delta(mouse_packet[1], flags & PS2_MOUSE_PACKET_X_SIGN),
-                                 mouse_delta(mouse_packet[2], flags & PS2_MOUSE_PACKET_Y_SIGN),
-                                 (flags & PS2_MOUSE_PACKET_LEFT_BUTTON) != 0U, mouse_left_button != 0U);
-    mouse_left_button = (flags & PS2_MOUSE_PACKET_LEFT_BUTTON) != 0U ? 1U : 0U;
+    gui_action = framebuffer_gui_handle_mouse(mouse_delta(mouse_packet[1], flags & PS2_MOUSE_PACKET_X_SIGN),
+                                               mouse_delta(mouse_packet[2], flags & PS2_MOUSE_PACKET_Y_SIGN),
+                                               left_pressed, mouse_left_button != 0U);
+    if (gui_action != '\0') {
+        keyboard_inject_char(gui_action);
+    }
+    mouse_left_button = left_pressed != 0 ? 1U : 0U;
     received_packets++;
 }
 

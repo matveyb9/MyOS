@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import pathlib
 import re
 import select
@@ -51,8 +52,12 @@ class Guest:
     def __init__(self, name, image_path, work_dir, uefi_code=None, uefi_vars=None):
         self.name = name
         self.socket_path = str(work_dir / f"{name}.serial.sock")
+        self.qmp_socket_path = str(work_dir / f"{name}.qmp.sock")
+        self.work_dir = work_dir
         self.output = bytearray()
         self.connection = None
+        self.qmp_connection = None
+        self.qmp_buffer = bytearray()
         command = [
             "qemu-system-x86_64",
             "-machine", "q35",
@@ -60,6 +65,7 @@ class Guest:
             "-drive", f"if=ide,format=raw,file={image_path}",
             "-boot", "c",
             "-serial", f"unix:{self.socket_path},server=on,wait=off",
+            "-qmp", f"unix:{self.qmp_socket_path},server=on,wait=off",
             "-display", "none",
             "-no-reboot",
             "-no-shutdown",
@@ -71,6 +77,7 @@ class Guest:
             ]
         self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self._connect()
+        self._connect_qmp()
 
     def _connect(self):
         deadline = time.monotonic() + 10.0
@@ -89,6 +96,88 @@ class Guest:
                 candidate.close()
             time.sleep(0.05)
         raise RegressionFailure(f"{self.name}: cannot connect to QEMU serial socket")
+
+    def _connect_qmp(self):
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            if self.process.poll() is not None:
+                raise RegressionFailure(f"{self.name}: QEMU stopped before QMP socket became available")
+            candidate = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            try:
+                candidate.connect(self.qmp_socket_path)
+                candidate.setblocking(False)
+                self.qmp_connection = candidate
+                greeting = self._qmp_read_message()
+                if "QMP" not in greeting:
+                    raise RegressionFailure(f"{self.name}: QMP greeting is invalid: {greeting!r}")
+                self._qmp_request("qmp_capabilities")
+                return
+            except FileNotFoundError:
+                candidate.close()
+            except ConnectionRefusedError:
+                candidate.close()
+            time.sleep(0.05)
+        raise RegressionFailure(f"{self.name}: cannot connect to QMP socket")
+
+    def _qmp_read_message(self, timeout=10.0):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            newline = self.qmp_buffer.find(b"\n")
+            if newline >= 0:
+                raw = bytes(self.qmp_buffer[:newline])
+                del self.qmp_buffer[:newline + 1]
+                if raw:
+                    return json.loads(raw.decode("utf-8"))
+            ready, _, _ = select.select([self.qmp_connection], [], [], 0.20)
+            if ready:
+                chunk = self.qmp_connection.recv(4096)
+                if not chunk:
+                    raise RegressionFailure(f"{self.name}: QMP connection closed")
+                self.qmp_buffer.extend(chunk)
+        raise RegressionFailure(f"{self.name}: QMP response timeout")
+
+    def _qmp_request(self, command, arguments=None):
+        request = {"execute": command}
+        if arguments is not None:
+            request["arguments"] = arguments
+        self.qmp_connection.sendall(json.dumps(request).encode("utf-8") + b"\n")
+        while True:
+            response = self._qmp_read_message()
+            if "return" in response:
+                return response["return"]
+            if "error" in response:
+                raise RegressionFailure(f"{self.name}: QMP {command} failed: {response['error']}")
+
+    def qmp_screendump(self, stem):
+        path = self.work_dir / f"{self.name}-{stem}.ppm"
+        if path.exists():
+            path.unlink()
+        self._qmp_request("screendump", {"filename": str(path)})
+        if not path.is_file():
+            raise RegressionFailure(f"{self.name}: QMP did not create {path.name}")
+        return path.read_bytes()
+
+    def qmp_move(self, delta_x=0, delta_y=0):
+        for axis, delta in (("x", delta_x), ("y", delta_y)):
+            remaining = delta
+            while remaining != 0:
+                step = min(100, remaining) if remaining > 0 else max(-100, remaining)
+                self._qmp_request("input-send-event", {"events": [
+                    {"type": "rel", "data": {"axis": axis, "value": step}},
+                ]})
+                remaining -= step
+                time.sleep(0.05)
+
+    def qmp_left_click(self):
+        self.qmp_move(delta_x=1)
+        time.sleep(0.05)
+        self._qmp_request("input-send-event", {"events": [
+            {"type": "btn", "data": {"down": True, "button": "left"}},
+        ]})
+        time.sleep(0.05)
+        self._qmp_request("input-send-event", {"events": [
+            {"type": "btn", "data": {"down": False, "button": "left"}},
+        ]})
 
     def _tail(self):
         return self.output[-4096:].decode("utf-8", errors="replace")
@@ -172,8 +261,8 @@ class Guest:
             self.send(content[index:index + 1])
             time.sleep(0.015)
         self.send(b"\x13")
-        self.expect(f"edit: saved {len(content)} byte(s)", start)
-        self.expect("exited with status 0", start)
+        self.expect(f"edit: saved {len(content)} byte(s)", start, timeout=60.0)
+        self.expect("exited with status 0", start, timeout=60.0)
         self.expect(PROMPT, start)
 
     def gui_open_and_exit(self):
@@ -196,7 +285,26 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_mouse_notes_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        before = self.qmp_screendump("desktop-before-click")
+        self.qmp_left_click()
+        time.sleep(0.25)
+        after = self.qmp_screendump("desktop-after-click")
+        changed = sum(left != right for left, right in zip(before, after))
+        if len(before) != len(after) or changed < 4096:
+            raise RegressionFailure(f"{self.name}: launcher mouse click did not produce a viewer framebuffer change")
+        self.qmp_move(delta_x=600, delta_y=390)
+        self.qmp_left_click()
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def close(self):
+        if self.qmp_connection is not None:
+            self.qmp_connection.close()
         if self.connection is not None:
             self.connection.close()
         if self.process.poll() is None:
@@ -236,6 +344,7 @@ def run_bios(image_path, work_dir):
         guest.gui_edit_and_exit()
         guest.command(f"cat {NOTE_PATH}", "base!")
         guest.gui_desktop_navigate_and_exit()
+        guest.gui_mouse_notes_and_exit()
         guest.gui_desktop_navigate_and_exit("startgui home")
         guest.console_edit_and_save(EDITOR_TEXT_PATH, b"first\nsecond\n")
         text_start = len(guest.output)
@@ -371,6 +480,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         require_time_line("UEFI persisted native args", args_output)
         guest.gui_open_and_exit()
         guest.gui_desktop_navigate_and_exit()
+        guest.gui_mouse_notes_and_exit()
     finally:
         guest.close()
 

@@ -173,6 +173,14 @@ void keyboard_on_irq(uint8_t irq) {
     }
 }
 
+void keyboard_inject_char(char character) {
+    if (character == '\0') {
+        return;
+    }
+    keyboard_push_char(character);
+    scheduler_wake_console_input();
+}
+
 int keyboard_has_char(void) {
     return input_head != input_tail;
 }
