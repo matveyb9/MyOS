@@ -1,30 +1,33 @@
-# Модель безопасности памяти MyOS 0.6.0-dev
-> **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README.md).
+# MyOS 0.6.0-dev Memory Safety Model
+
+> **Language:** [English](memory-safety-model.md) | [Русский](memory-safety-model_RU.md)
+
+> **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and the [documentation index](README.md).
 
 
-## Цель этапа
+## Milestone objective
 
-MyOS 0.5.0-dev умеет выделять кадры и создавать heap-отображения, но не хранит явную причину владения кадром, не возвращает heap-память и печатает page fault как обычное исключение. В 0.6.0-dev каждая операция с физическим кадром получит ясную политику: кадр либо свободен, либо занят; явное резервирование не позволит повторно выдать область критической структуры; освобождение вернёт только ровно выровненный занятый кадр.
+MyOS 0.5.0-dev can allocate frames and create heap mappings, but it does not record an explicit reason for frame ownership, does not return heap memory, and prints a page fault like an ordinary exception. In 0.6.0-dev every operation on a physical frame will have a clear policy: a frame is either free or occupied; explicit reservation will not allow reallocation of a region of critical data structures; freeing will return only an exactly aligned occupied frame.
 
-| Подсистема | Политика 0.6.0-dev | Неподдерживаемое пока |
+| Subsystem | Policy in 0.6.0-dev | Not yet supported |
 |---|---|---|
-| PMM | Bitmap остаётся источником истины; доступны `reserve_frame` и `free_frame`; операции проверяют выравнивание и диапазон. | Детальная метка владельца каждого кадра, NUMA и память выше 4 GiB. |
-| Page tables | Новые таблицы и heap-страницы выделяются PMM как занятые. | Удаление page-table уровней после `unmap`. |
-| Heap | Свободный список блоков внутри heap и `kfree`; повторное использование освобождённого блока. | Coalescing всех соседних блоков, SMP locking и red zones. |
-| Page fault | Вектор 14 сохраняет CR2 до потенциально опасной работы, декодирует P/W/U/RSVD/I-D биты error code и завершает ядро. | Demand paging, COW и восстановление fault. |
+| PMM | The bitmap remains the source of truth; `reserve_frame` and `free_frame` are available; operations check alignment and range. | Detailed per-frame owner tagging, NUMA and memory above 4 GiB. |
+| Page tables | New page tables and heap pages are allocated by PMM as occupied. | Removal of page-table levels after `unmap`. |
+| Heap | A free list of blocks inside the heap and `kfree`; reuse of freed blocks. | Coalescing of all adjacent blocks, SMP locking and red zones. |
+| Page fault | Vector 14 saves CR2 before potentially unsafe work, decodes the P/W/U/RSVD/I-D bits of the error code and halts the kernel. | Demand paging, COW and fault recovery. |
 
 ## Page fault policy
 
-Процессор записывает линейный адрес fault в CR2 при каждом page fault; следующий fault может перезаписать CR2, поэтому обработчик MyOS читает его первым действием. Error code описывает, было ли отображение present, был ли доступ записью или user access, был ли установлен reserved bit и являлся ли доступ instruction fetch. [1] В MyOS пока нет user mode и demand paging, поэтому любой page fault считается non-recoverable: выводится структурированная диагностика и процессор останавливается.
+The processor writes the linear address of the fault into CR2 on every page fault; a subsequent fault can overwrite CR2, so the MyOS handler reads it as its first action. The error code describes whether the mapping was present, whether the access was a write or a user access, whether a reserved bit was set, and whether the access was an instruction fetch. [1] MyOS currently has no user mode and no demand paging, so any page fault is considered non-recoverable: structured diagnostics are printed and the processor is stopped.
 
-> Page fault — именно **fault**, то есть в более зрелой ОС его можно обработать и повторить инструкцию. MyOS 0.6 сознательно не пытается продолжить выполнение без проверенной политики восстановления. [2]
+> Page fault — specifically a **fault**, meaning in a more mature OS it can be handled and the instruction retried. MyOS 0.6 deliberately does not attempt to continue execution without a verified recovery policy. [2]
 
-## Инварианты
+## Invariants
 
-1. PMM не должен увеличивать счётчик свободных кадров при освобождении уже свободного, невыравненного или нетрекуемого адреса.
-2. `kfree()` принимает только адрес начала известного heap-блока; неизвестные адреса и двойное освобождение отвергаются без изменения списка.
-3. Page fault handler снимает CR2 до вывода строк и до обращения к сложной диагностике.
-4. Тесты должны показать, что `heapfree` возвращает блок для повторного использования и что инспекционный page fault формирует CR2 plus decoded reason.
+1. PMM must not increase the free-frame count when freeing an already free, unaligned, or untracked address.
+2. `kfree()` accepts only the start address of a known heap block; unknown addresses and double-free are rejected without modifying the list.
+3. The page fault handler captures CR2 before printing lines and before performing complex diagnostics.
+4. Tests must show that `heapfree` returns a block for reuse and that an inspected page fault produces CR2 plus a decoded reason.
 
 ## References
 

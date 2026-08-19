@@ -1,30 +1,30 @@
-# Руководство разработчика MyOS Console 0.12.0-dev
+# MyOS Console 0.12.0-dev Developer Guide
 
-> **Язык:** [English](DEVELOPER_GUIDE.md) | [Русский](DEVELOPER_GUIDE_RU.md)
+> **Language:** [English](DEVELOPER_GUIDE.md) | [Русский](DEVELOPER_GUIDE_RU.md)
 
 
-Этот документ описывает завершённый **console release** MyOS. Он предназначен для разработчиков, системных программистов и читателей, которым нужна карта исходного кода и технические инварианты. Зафиксированная точка release — аннотированный tag `v0.12.0-console` на commit `1a454cb`.
+This document describes the completed **console release** of MyOS. It is intended for developers, systems programmers and readers who need a map of the source tree and the technical invariants. The fixed release point is the annotated tag `v0.12.0-console` on commit `1a454cb`.
 
-> `main` и `console-stable` указывают на console milestone. GUI experiments должны находиться только в отдельных ветках и не должны менять этот release без отдельного решения.
+> `main` and `console-stable` point to the console milestone. GUI experiments must live only in separate branches and must not change this release without a separate decision.
 
-## 1. Build и test contract
+## 1. Build and test contract
 
 ### Host dependencies
 
-| Инструмент | Использование |
+| Tool | Usage |
 |---|---|
-| `gcc`, `ld`, `nasm`, `make` | Сборка freestanding C11 kernel, user ELF и ASM. |
-| `xorriso`, `mtools` | Создание ISO и FAT EFI partition. |
-| `sgdisk` | Создание GPT raw image. |
-| `qemu-system-x86_64` | BIOS и UEFI regression. |
+| `gcc`, `ld`, `nasm`, `make` | Build freestanding C11 kernel, user ELF and ASM. |
+| `xorriso`, `mtools` | Create ISO and FAT EFI partition. |
+| `sgdisk` | Create GPT raw image. |
+| `qemu-system-x86_64` | BIOS and UEFI regression. |
 | OVMF | UEFI firmware for QEMU. |
 
 ### Make targets
 
 | Target | Output / purpose |
 |---|---|
-| `make` or `make all` | Собирает hybrid BIOS/UEFI ISO `myos.iso`. |
-| `make img` | Пересоздаёт 128 MiB raw GPT image `myos.img`. |
+| `make` or `make all` | Builds the hybrid BIOS/UEFI ISO `myos.iso`. |
+| `make img` | Recreates the 128 MiB raw GPT image `myos.img`. |
 | `make run` | BIOS ISO test in headless serial mode. |
 | `make run-graphic` | BIOS ISO test with framebuffer window. |
 | `make run-uefi` | UEFI ISO test in headless serial mode. |
@@ -156,7 +156,7 @@ Both writable stores are intentionally bounded. The persistent backend uses one 
 
 COM1 output is mirrored to the framebuffer text console. The keyboard driver handles PS/2 Set 1 US QWERTY characters and wakes tasks in `INPUT` state. After bootstrap, `kernel/console/shell.c` waits three seconds for `K` from PS/2 or COM1: no cancellation starts `/init` automatically; `K` retains the diagnostic kernel shell, where `init` still launches the same user shell manually. If `/init` is unavailable or automatic loading fails, the kernel reports the condition and remains in kernel shell without retry looping.
 
-The user shell provides deterministic history navigation and unique-prefix Tab completion. Its command list and command semantics are the source of truth for end-user documentation. Changes to `command_help()`, `execute_command()` or a user program should be reflected in `docs/USER_GUIDE_RU.md` and `README.md`.
+The user shell provides deterministic history navigation and unique-prefix Tab completion. Its command list and command semantics are the source of truth for end-user documentation. Changes to `command_help()`, `execute_command()` or a user program should be reflected in `docs/USER_GUIDE.md` and `README.md`.
 
 ## 7. Validation baseline
 
@@ -195,4 +195,4 @@ The next project phase, if resumed, is GUI work in a separate branch. Do not add
 
 ## 10. Documentation maintenance
 
-Documentation changes are part of feature maintenance. Any change to build/run behavior, public shell behavior, ABI, storage layout, host support, branch policy or safety guidance must update the corresponding documentation in the same commit. The authoritative checklist is [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md).
+Documentation changes are part of feature maintenance. Any change to build/run behavior, public shell behavior, ABI, storage layout, host support, branch policy or safety guidance must update the corresponding documentation in the same commit. The authoritative checklist is [DOCUMENTATION_POLICY.md](DOCUMENTATION_POLICY.md).

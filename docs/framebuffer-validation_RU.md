@@ -1,13 +1,13 @@
-# Framebuffer console validation for MyOS 0.7.0-dev
+# Проверка framebuffer-консоли MyOS 0.7.0-dev
 
-> **Language:** [English](framebuffer-validation.md) | [Русский](framebuffer-validation_RU.md)
+> **Язык:** [English](framebuffer-validation.md) | [Русский](framebuffer-validation_RU.md)
 
-> **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and [documentation index](README.md).
+> **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README_RU.md).
 
 
-## Implemented milestone
+## Реализованный рубеж
 
-MyOS 0.7.0-dev adds the first on-screen text console on top of the Limine-provided framebuffer. The console accepts the same character stream as COM1, so the serial port remains available for headless QEMU and debugging while the normal screen shows the boot log and an interactive shell.
+MyOS 0.7.0-dev добавляет первую экранную текстовую консоль поверх framebuffer, предоставленного Limine. Консоль принимает тот же поток символов, что и COM1, поэтому serial остаётся доступным для headless QEMU и отладки, а обычный экран показывает журнал загрузки и интерактивную shell.
 
 | Компонент | Реализация | Проверяемый результат |
 |---|---|---|
@@ -19,9 +19,7 @@ MyOS 0.7.0-dev adds the first on-screen text console on top of the Limine-provid
 | Прокрутка | Сдвиг символьного буфера на строку, полный repaint и scroll counter. | `fbdemo` вызвал scroll и `fbinfo` показал ненулевой счётчик. |
 | Очистка | `clear` вызывает framebuffer clear и сохраняет ANSI очистку serial terminal. | Экран очищается без вывода escape bytes как glyph. |
 
-(Notes: Table headers and code identifiers are preserved exactly as in the original.)
-
-## Validation matrix
+## Матрица проверки
 
 | Сценарий | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Результат |
 |---|---:|---:|---|
@@ -32,20 +30,20 @@ MyOS 0.7.0-dev adds the first on-screen text console on top of the Limine-provid
 | PIT/IRQ0 после repaint | Пройдено | Пройдено | Таймер и shell продолжили работу после полной перерисовки. |
 | Parallel COM1 | Пройдено | Пройдено | Serial log подтверждает те же команды и значения, что framebuffer. |
 
-## Visual confirmation
+## Визуальное подтверждение
 
 | Образ | Наблюдение |
 |---|---|
-| `framebuffer-bios-after-demo.png` | Shows the last lines of the demo, `myos> fbinfo`, `scrolls: 0x8` and the current cursor. |
-| `framebuffer-uefi.png` | The same raster console after OVMF, `scrolls: 0x16`; verification is independent of the BIOS path. |
+| `framebuffer-bios-after-demo.png` | Видны последние строки demo, `myos> fbinfo`, `scrolls: 0x8` и текущий cursor. |
+| `framebuffer-uefi.png` | Та же raster-консоль после OVMF, `scrolls: 0x16`; проверка независима от BIOS пути. |
 
-> Pixel address calculation uses the row pitch rather than assuming `width * bytes_per_pixel`: framebuffer rows may have padding. Base formula — `address + y * pitch + x * pixelwidth`. [1]
+> Расчёт адреса пикселя использует row pitch, а не предполагает `width * bytes_per_pixel`: строки framebuffer могут иметь padding. Базовая формула — `address + y * pitch + x * pixelwidth`. [1]
 
-## Limitations
+## Ограничения
 
-The implementation is intentionally small: only printable 7-bit ASCII and basic control characters; no Unicode, wide glyphs, VT100, mouse, hardware cursor, double buffering, GPU acceleration or mode switching. Scrolling repaints the entire grid and is suitable for an early console, but will later be optimized with rectangle blit or a retained compositor.
+Реализация намеренно небольшая: только printable 7-bit ASCII и базовые управляющие символы; нет Unicode, широких glyph, VT100, мыши, аппаратного cursor, двойной буферизации, GPU acceleration или смены режима. Прокрутка перерисовывает всю сетку и подходит для ранней консоли, но позднее будет оптимизирована rectangle blit или retained compositor.
 
-## Reproduction
+## Повторение
 
 ```bash
 cd /home/ubuntu/myos
@@ -54,7 +52,7 @@ make run-graphic
 make run-uefi-graphic
 ```
 
-In the terminal on COM1 run `fbinfo`, `fbdemo`, `fbinfo` and `clear`. The QEMU graphical window will show the console; `fbdemo` should increase the scroll counter.
+В terminal с COM1 выполните `fbinfo`, `fbdemo`, `fbinfo` и `clear`. Графическое окно QEMU покажет консоль; `fbdemo` должен увеличить scroll counter.
 
 ## References
 

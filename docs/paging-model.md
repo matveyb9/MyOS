@@ -1,32 +1,35 @@
-# Модель виртуальной памяти MyOS 0.5.0-dev
-> **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README.md).
+# MyOS 0.5.0-dev Virtual Memory Model
+
+> **Language:** [English](paging-model.md) | [Русский](paging-model_RU.md)
+
+> **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), the [developer guide](DEVELOPER_GUIDE.md) and the [documentation index](README.md).
 
 
-## Цель
+## Purpose
 
-MyOS 0.4.0-dev использует page tables, предоставленные загрузчиком, и умеет добавить одну MMIO-страницу Local APIC. MyOS 0.5.0-dev создаст и будет владеть собственным корнем PML4, сохраняя существующие рабочие отображения только на время перехода. Четырёхуровневый paging в x86_64 представляет виртуальный адрес как индексы PML4, PDPT, PD, PT и смещение внутри 4 KiB страницы; CR3 содержит физический адрес активного верхнего уровня. [1] [2]
+MyOS 0.4.0-dev uses page tables provided by the bootloader and can add a single Local APIC MMIO page. MyOS 0.5.0-dev will create and own its own PML4 root, keeping existing working mappings only for the transition period. Four-level paging on x86_64 represents a virtual address as PML4, PDPT, PD, PT indices and an offset within a 4 KiB page; CR3 contains the physical address of the active top level. [1] [2]
 
-| Область виртуальных адресов | Назначение в MyOS 0.5 | Политика |
+| Virtual address region | Purpose in MyOS 0.5 | Policy |
 |---|---|---|
-| `0xFFFFFFFF80000000+` | Higher-half ELF-ядро и статические данные. | Сохраняется отображение, позднее код станет RX, read-only данные — RO. |
-| HHDM `offset + physical` | Прямой доступ к физическим страницам, структурам загрузчика и новым таблицам. | Стартовая реализация отображает доступную физическую память только supervisor RW. |
-| `0xFFFFFFFFC0000000` | Local APIC MMIO. | 4 KiB, RW, PWT+PCD; без кэширования. |
-| `0xFFFF900000000000` | Kernel heap. | Отображается по требованию 4 KiB страниц; только supervisor RW. |
-| Низкая половина | Будущий user space. | В 0.5 остаётся unmapped, кроме того, что временно необходимо для безопасного перехода. |
+| `0xFFFFFFFF80000000+` | Higher-half ELF kernel and static data. | Preserved mapping; kernel code will later become RX, read-only data — RO. |
+| HHDM `offset + physical` | Direct access to physical pages, bootloader structures and new tables. | The initial implementation maps available physical memory as supervisor RW only. |
+| `0xFFFFFFFFC0000000` | Local APIC MMIO. | 4 KiB, RW, PWT+PCD; uncached. |
+| `0xFFFF900000000000` | Kernel heap. | Mapped on demand in 4 KiB pages; supervisor RW only. |
+| Low half | Future user space. | In 0.5 remains unmapped, except what is temporarily necessary for a safe transition. |
 
-> Page tables — иерархия массивов: каждый элемент указывает на следующую таблицу либо на физическую страницу. Разреженная структура позволяет не выделять таблицы для неиспользуемых областей адресного пространства. [2]
+> Page tables are a hierarchy of arrays: each entry points to the next table or to a physical page. The sparse structure allows not allocating tables for unused areas of the address space. [2]
 
-## Инварианты
+## Invariants
 
-1. Все новые page-table страницы выделяются только через PMM и обнуляются до публикации present-entry.
-2. Отображения ядра и heap не получают флаг U/S; пользовательский доступ не появляется до реализации ring 3.
-3. MMIO не использует обычный cacheable mapping.
-4. После изменения уже доступного отображения invaldiate выполняется через `invlpg`; после смены PML4 CR3 перезагружается.
-5. Старые таблицы загрузчика не освобождаются на этапе 0.5: это исключает использование неизвестных структур во время ранней миграции.
+1. All new page-table pages are allocated only via PMM and zeroed before publishing a present-entry.
+2. Kernel and heap mappings do not get the U/S flag; user access does not appear until ring 3 is implemented.
+3. MMIO does not use ordinary cacheable mappings.
+4. After changing an already accessible mapping, invalidation is performed via `invlpg`; after switching the PML4, CR3 is reloaded.
+5. Old bootloader tables are not freed at stage 0.5: this prevents using unknown structures during early migration.
 
-## Объём первого управляемого адресного пространства
+## Scope of the first managed address space
 
-Первый собственный PML4 будет построен как расширение текущего рабочего пространства. Это сознательный переходный дизайн: он сохраняет higher-half kernel и HHDM, добавляет управляемые kernel heap и MMIO отображения, но пока не претендует на изоляцию процессов. После появления `boot_info`, page-fault policy и ring 3 MyOS сможет создавать независимые адресные пространства.
+The first owned PML4 will be built as an extension of the current working space. This is an intentional transitional design: it preserves the higher-half kernel and HHDM, adds managed kernel heap and MMIO mappings, but does not yet claim process isolation. After `boot_info`, a page-fault policy and ring 3 are present, MyOS will be able to create independent address spaces.
 
 ## References
 

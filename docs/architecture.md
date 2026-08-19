@@ -1,63 +1,66 @@
-# Архитектура MyOS 0.7.0-dev
+# Architecture of MyOS 0.7.0-dev
 
-> **Исторический документ.** Он описывает milestone `0.7.0-dev`, а не текущий console release `0.12.0-dev`. Для актуальной архитектуры используйте [руководство разработчика](DEVELOPER_GUIDE_RU.md).
+> **Language:** [English](architecture.md) | [Русский](architecture_RU.md)
 
-## Назначение
 
-MyOS — учебно-практическое ядро собственной разработки для **x86_64**. Гибридный ISO-образ запускается через BIOS и UEFI в QEMU. Проект развивает сначала наблюдаемое ring 0-ядро, затем подготовит изолированные процессы, файловую систему и графическую среду. Версия 0.7.0-dev впервые показывает интерактивный текст не только через COM1, но и на framebuffer.
+> **Historical document.** It describes the milestone `0.7.0-dev`, not the current console release `0.12.0-dev`. For the current architecture use the [developer guide](DEVELOPER_GUIDE.md).
 
-> Limine подготавливает окружение запуска и публикует boot responses, однако консоль, память, IDT, драйверы и будущие пользовательские подсистемы принадлежат MyOS. [1]
+## Purpose
 
-## Слои системы
+MyOS is an educational, hands-on kernel of original design for **x86_64**. The hybrid ISO image boots via BIOS and UEFI in QEMU. The project first develops an observable ring-0 kernel, then will prepare isolated processes, a filesystem and a graphical environment. Version 0.7.0-dev shows interactive text not only via COM1 but also on the framebuffer for the first time.
 
-| Слой | Каталог | Ответственность в 0.7.0-dev | Следующая граница |
+> Limine prepares the boot environment and publishes boot responses, however the console, memory, IDT, drivers and future user subsystems belong to MyOS. [1]
+
+## System layers
+
+| Layer | Directory | Responsibility in 0.7.0-dev | Next boundary |
 |---|---|---|---|
-| Загрузка | `boot/` | Higher-half ELF, Limine requests, BIOS/UEFI menu. | `boot_info` и явный ownership boot-областей. |
-| Архитектура | `kernel/arch/x86_64/` | GDT, IDT, CR2, Local APIC virtual-wire, ASM stubs. | Guard policy, APIC timer, IOAPIC и SMP. |
-| IRQ и ввод | `kernel/irq/`, `kernel/drivers/` | PIC 8259A, PIT 100 Hz, PS/2 Set 1 и keyboard ring buffer. | USB HID, extended keyboard layout, device queues. |
-| Физическая память | `kernel/mm/pmm.c` | Bitmap usable frames и checked allocate/reserve/free. | Ownership tags, >4 GiB и NUMA. |
-| Виртуальная память | `kernel/mm/paging.c` | Собственный PML4, CR3 switch, 4 KiB mapping, APIC MMIO. | `unmap`, NX, supervisor/user mappings. |
-| Heap | `kernel/mm/heap.c` | Free list, split/coalesce, `kmalloc` и `kfree`. | Locks, guard zones и page reclamation. |
+| Boot | `boot/` | Higher-half ELF, Limine requests, BIOS/UEFI menu. | `boot_info` and explicit ownership of boot areas. |
+| Architecture | `kernel/arch/x86_64/` | GDT, IDT, CR2, Local APIC virtual-wire, ASM stubs. | Guard policy, APIC timer, IOAPIC and SMP. |
+| IRQ and input | `kernel/irq/`, `kernel/drivers/` | PIC 8259A, PIT 100 Hz, PS/2 Set 1 and keyboard ring buffer. | USB HID, extended keyboard layout, device queues. |
+| Physical memory | `kernel/mm/pmm.c` | Bitmap of usable frames and checked allocate/reserve/free. | Ownership tags, >4 GiB and NUMA. |
+| Virtual memory | `kernel/mm/paging.c` | Own PML4, CR3 switch, 4 KiB mapping, APIC MMIO. | `unmap`, NX, supervisor/user mappings. |
+| Heap | `kernel/mm/heap.c` | Free list, split/coalesce, `kmalloc` and `kfree`. | Locks, guard zones and page reclamation. |
 | Serial console | `kernel/console/serial.c` | COM1 output/input, headless journal. | Panic-safe minimal fallback. |
-| Framebuffer console | `kernel/console/framebuffer.c` | 8×8 raster, cell buffer, cursor, scroll и COM1 mirroring. | Unicode, optimized scroll, double buffering и UI primitives. |
-| Shell | `kernel/console/shell.c` | Один input path для COM1 и PS/2; команды observability. | History, completion, user processes. |
+| Framebuffer console | `kernel/console/framebuffer.c` | 8×8 raster, cell buffer, cursor, scroll and COM1 mirroring. | Unicode, optimized scroll, double buffering and UI primitives. |
+| Shell | `kernel/console/shell.c` | Single input path for COM1 and PS/2; observability commands. | History, completion, user processes. |
 
 ## Output model
 
-Serial остаётся первой точкой загрузочного журнала. После принятия 32-bit RGB Limine framebuffer `framebuffer_console_init()` создаёт символьную сетку, чистит background и включает second sink. Каждый последующий `serial_write_char()` отправляет байт в COM1, затем — в `framebuffer_console_putc()`. Это deliberately keeps headless logging even if graphical mode unavailable.
+Serial remains the primary boot log sink. After acquiring a 32-bit RGB Limine framebuffer `framebuffer_console_init()` creates a character grid, clears the background and enables the second sink. Each subsequent `serial_write_char()` sends the byte to COM1, then to `framebuffer_console_putc()`. This deliberately keeps headless logging even if graphical mode unavailable.
 
 | Input/character | Serial | Framebuffer |
 |---|---|---|
-| Printable ASCII | COM1 transmit. | Glyph на текущей cell. |
-| `\n` | Добавляет `\r` перед LF. | Переход на строку и scroll при нижней границе. |
-| Backspace | Печатает `\b`, space, `\b`. | Очищает предыдущую cell. |
-| ANSI clear | Передаётся terminal. | Escape sequence не рисуется; shell вызывает явный clear. |
-| Неподдерживаемый UTF-8 byte | Передаётся как raw COM1 output. | Игнорируется до появления Unicode. |
+| Printable ASCII | COM1 transmit. | Glyph in the current cell. |
+| `\n` | Adds `\r` before LF. | Line advance and scroll at the bottom boundary. |
+| Backspace | Prints `\b`, space, `\b`. | Clears the previous cell. |
+| ANSI clear | Passed through to the terminal. | Escape sequence is not rendered; shell invokes an explicit clear. |
+| Unsupported UTF-8 byte | Passed as raw COM1 output. | Ignored until Unicode support is added. |
 
 ## Framebuffer implementation
 
-MyOS принимает только Limine RGB framebuffer с `bpp == 32`, проверенным memory model и pitch, достаточным для ширины. Пиксель адресуется через `pixels[y * pixels_per_row + x]`, где `pixels_per_row = pitch / 4`. Это учитывает possible padding между строками framebuffer. [2]
+MyOS accepts only Limine RGB framebuffers with `bpp == 32`, a verified memory model and a pitch sufficient for the width. A pixel is addressed via `pixels[y * pixels_per_row + x]`, where `pixels_per_row = pitch / 4`. This accounts for possible padding between framebuffer rows. [2]
 
-| Свойство | Текущая политика |
+| Property | Current policy |
 |---|---|
-| Цвета | Dark navy background, off-white text, cyan cursor/accent. |
-| Шрифт | Встроенный 5×7 bitmap, расположен в 8×8 cell. |
-| Размер | До 160 columns × 100 rows; QEMU 1280×800 использует максимум 160×100. |
-| Скролл | Сдвиг cell buffer на строку и complete repaint. |
-| Cursor | Accent underline в текущей cell. |
-| Очистка | Полная очистка cells и pixels; top accent line сохраняется. |
+| Colors | Dark navy background, off-white text, cyan cursor/accent. |
+| Font | Built-in 5×7 bitmap, positioned in an 8×8 cell. |
+| Size | Up to 160 columns × 100 rows; QEMU 1280×800 uses the maximum 160×100. |
+| Scroll | Shift the cell buffer by one row and complete repaint. |
+| Cursor | Accent underline in the current cell. |
+| Clear | Full clear of cells and pixels; top accent line is preserved. |
 
 ## Memory and fault policy
 
-PMM поддерживает пригодные и свободные bitmap, heap повторно использует blocks, а vector 14 сохраняет CR2 до вывода и делает fail-stop. Эти гарантии остались необходимыми после добавления framebuffer: rendering не требует динамических allocation и не зависит от файловой системы, поэтому уже доступно в раннем bootstrap после paging.
+The PMM maintains usable and free bitmaps, the heap reuses blocks, and vector 14 preserves CR2 until output and performs a fail-stop. These guarantees remained necessary after adding the framebuffer: rendering does not require dynamic allocation and is not dependent on the file system, so it is already available in the early bootstrap after paging.
 
 ## Visual verification
 
-BIOS и UEFI QEMU проверялись через QMP `screendump` после ввода `fbdemo`/`fbinfo` виртуальной PS/2-клавиатурой. Снимки показывают readable glyphs, latest demo rows, cursor и ненулевой scroll counter. Serial logs independently reproduce the same shell commands and values.
+BIOS and UEFI QEMU were verified via QMP `screendump` after entering `fbdemo`/`fbinfo` with a virtual PS/2 keyboard. Screenshots show readable glyphs, the latest demo rows, the cursor and a nonzero scroll counter. Serial logs independently reproduce the same shell commands and values.
 
-## Следующая техническая итерация
+## Next technical iteration
 
-Далее MyOS должен явным образом резервировать kernel and boot physical pages, добавить `unmap` и guard ranges для виртуальной памяти. После укрепления address ownership framebuffer-console может получить небольшой line editor, history и контрастный status bar, не меняя базовый serial fallback.
+Going forward, MyOS should explicitly reserve kernel and boot physical pages, add `unmap` and guard ranges for virtual memory. After strengthening address ownership, the framebuffer console can gain a small line editor, history, and a contrasting status bar, without changing the basic serial fallback.
 
 ## References
 
