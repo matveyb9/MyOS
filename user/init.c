@@ -427,7 +427,12 @@ static void command_help(const char *topic) {
     }
     if (text_equal(topic, "cp")) {
         write_text("run cp <absolute-source> <new-absolute-target>\n");
-        write_text("Copies one regular file in bounded chunks; target must not exist and its parent must exist.\n");
+        write_text("Copies one regular file in bounded chunks; target must not exist and parent directory must exist.\n");
+        return;
+    }
+    if (text_equal(topic, "startgui")) {
+        write_text("startgui [absolute-file|home]\n");
+        write_text("home opens MYOS DESKTOP: M message, N notes, E edit selected note, H home, Q shell.\n");
         return;
     }
     if (text_equal(topic, "asm")) {
@@ -452,9 +457,9 @@ static void command_help(const char *topic) {
     }
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
-    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run <program-or-absolute-path> [arguments]; help cp\n");
+    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/startgui\n");
     write_text("Native: build <source.mya> <output.elf>; help asm/edit for syntax and controls\n");
-    write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
+    write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file|home]\n");
     write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
     write_text("Root: /system /apps /users/myos /temp; paths are case-insensitive.\n");

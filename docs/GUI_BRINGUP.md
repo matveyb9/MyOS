@@ -22,10 +22,11 @@ After kernel bootstrap MyOS automatically launches the user shell after a three-
 
 ```text
 startgui
-# либо: startgui /users/myos/files/notes/note
+# or: startgui home
+# or: startgui /users/myos/files/notes/note
 ```
 
-`startgui` is an ordinary ring-3 program. It creates a restricted GUI session through the existing syscall boundary, reads and edits only bounded user-space payloads, and the kernel receives only validated syscall requests. `startgui /users/myos/files/notes/<name>` selects a persistent note even before it exists: the viewer will indicate absence, and `E` opens an empty draft which `Ctrl-S` will create. `Q` or `Esc` outside the editor ends the graphical session and returns to the same user shell.
+`startgui` is an ordinary ring-3 program. `startgui home` opens the bounded **MYOS DESKTOP** home view; its keyboard launcher exposes `M` for the system message, `N` for the notes viewer, `E` for the selected note editor, `H` to return home and `Q` to return to the shell. It creates a restricted GUI session through the existing syscall boundary, reads and edits only bounded user-space payloads, and the kernel receives only validated syscall requests. `startgui /users/myos/files/notes/<name>` selects a persistent note even before it exists: the viewer will indicate absence, and `E` opens an empty draft which `Ctrl-S` will create. `Q` or `Esc` outside the editor ends the graphical session and returns to the same user shell.
 
 ## Persistent user programs
 
@@ -76,6 +77,7 @@ The validation program prints a greeting and the accepted argument string. After
 | Z-order | Focused window is raised to the front; focus, visibility, layout and content events perform a bounded full redraw composition, whereas ordinary pointer movement updates only the cursor region. |
 | Viewer | `NOTES` displays up to 128 bytes of the selected VFS file. |
 | File loading | `startgui [absolute-path]` reads the first 128 bytes of the specified VFS file; without an argument `/system/core/resources/motd.txt` is used. |
+| Desktop home | `startgui home` renders the fixed `MYOS DESKTOP` launcher; it does not scan arbitrary paths, create tasks or retain unbounded state. |
 | Persistent selection | `D` selects the default `/users/myos/files/notes/note`; `N` cycles to the next existing note via a directory-scoped VFS enumeration. |
 | Named launch | `startgui /users/myos/files/notes/<name>` selects a specific personal note; the NOTES title shows the basename of the selected file. |
 | Editor entry | `E` opens a bounded editor for the selected personal note; a missing selected path starts as an empty draft. |
@@ -83,7 +85,7 @@ The validation program prints a greeting and the accepted argument string. After
 | Caret and navigation | `Left`/`Right` move the caret by one byte, `Up`/`Down` move by logical lines preserving column, `Home`/`End` go to line boundaries. |
 | Bounded scrolling | The renderer displays up to 20 logical newline-separated lines; the viewport automatically follows the caret line. |
 | Save and cancel | `Ctrl-S` replaces the selected file in `/users/myos/files/notes/`, writes the draft and returns to its viewer. `Esc` cancels the draft and reloads the previously saved content. |
-| Built-in choices | `M` or `m` reloads `/system/core/resources/motd.txt`. |
+| Built-in choices | `M` or `m` reloads `/system/core/resources/motd.txt`; `H` returns to MYOS DESKTOP, and desktop-home `N` opens the bounded personal-notes route. |
 | Focus | `Tab`, `Enter` or `Space` outside the editor move focus to the next visible window. |
 | Hardware pointer | PS/2 mouse relative motion moves a bounded crosshair pointer; the rising edge of the left button focuses the topmost visible window under the pointer. |
 | Keyboard fallback | Lowercase `W`, `A`, `S`, `D` move the pointer by 16 pixels; `F` locks keyboard focus to the top window under the pointer. |
@@ -152,7 +154,7 @@ Strict build and firmware regressions were run on QEMU Q35 before commit. BIOS a
 | MYPFS002 legacy migration | Passed (BIOS): `disk/note` fixture migrated to `/users/myos/files/notes/note`; `MYPFS004` superblock, cleared journal and second-mount readback confirmed. |
 | MYPFS004 large-file I/O | Passed (BIOS): 1 MiB fragmented two-extent pattern write/readback, fresh-mount `wc` of all 1,048,576 bytes, SDK install/run after reboot and UEFI persisted SDK execution. |
 | Pointer refresh hardening | Passed: two 1280×800 BIOS framebuffer captures before/after keyboard pointer movement differed in only 726 PPM byte positions, consistent with old/new 11×11 cursor regions; desktop composition remained intact. |
-| Automated `make regression` | Passed: the disposable-image harness created/edited/saved a BIOS GUI note, copied a paced editor-authored 305-byte file with SDK `cp` across the VFS request boundary, verified exact data and overwrite refusal, built/installed/ran legacy native packages, checked empty and forwarded `args` output, exact `input` match and fallback paths plus valid RTC `HH:MM:SS` output, rejected invalid forward-only control flow, then UEFI read persisted files and copied data, reran installed input/time/argument packages and entered/exited GUI cleanly. See [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md). |
+| Automated `make regression` | Passed: the disposable-image harness created/edited/saved a BIOS GUI note, navigated `startgui home` through M/H/N/H/Q and returned cleanly, copied a paced editor-authored 305-byte file with SDK `cp` across the VFS request boundary, verified exact data and overwrite refusal, built/installed/ran legacy native packages, checked empty and forwarded `args` output, exact `input` match and fallback paths plus valid RTC `HH:MM:SS` output, rejected invalid forward-only control flow, then UEFI repeated desktop-home navigation, read persisted files and copied data, reran installed input/time/argument packages and entered/exited GUI cleanly. See [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md). |
 | GUI note and native workflow | Passed: BIOS GUI editor changed persistent note `base` → `base!`; the same note and a BIOS-built native program were read/executed under UEFI. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
@@ -171,4 +173,4 @@ Automatic user-space initialization is now implemented and integrated into the G
 | Input source | The cancel path works via existing PS/2 keyboard and serial console input paths. |
 | Verification | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback and UEFI normal boot with a clean user-shell framebuffer passed on QEMU Q35. |
 
-The GUI preview boundary is fixed at the immutable tag `v0.12.2-gui-preview`, and the GitHub Pre-release `v0.13.0-gui-rc.1` was published separately. The current `gui/bringup` branch contains the MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, the MyOS SDK for external build with public bounded VFS wrappers and its live no-overwrite `cp` developer tool, and a restricted in-OS `asm`/`build` workflow with bounded `args` forwarding from `run <name> [arguments]`, labels, explicit `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison and forward-only branches. Its generated image adds only a fixed private 32-byte RW data segment: an entry argument pointer plus input/time scratch storage. The branch also contains the general console [Text Editor](TEXT_EDITOR.md) and cursor-only GUI pointer refresh. The GUI editor remains a notes-focused feature; direct `edit <absolute-file>` is the general file editor. The directory layout was jointly agreed with the user and recorded in [FILESYSTEM_SPEC.md](FILESYSTEM_SPEC.md); future native-platform work must preserve the completed bounded execution contract.
+The GUI preview boundary is fixed at the immutable tag `v0.12.2-gui-preview`, and the GitHub Pre-release `v0.13.0-gui-rc.1` was published separately. The current `gui/bringup` branch contains the MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, the MyOS SDK for external build with public bounded VFS wrappers and its live no-overwrite `cp` developer tool, and a restricted in-OS `asm`/`build` workflow with bounded `args` forwarding from `run <name> [arguments]`, labels, explicit `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison and forward-only branches. Its generated image adds only a fixed private 32-byte RW data segment: an entry argument pointer plus input/time scratch storage. The branch also contains the bounded keyboard-driven `startgui home` desktop launcher, the general console [Text Editor](TEXT_EDITOR.md) and cursor-only GUI pointer refresh. The GUI editor remains a notes-focused feature; direct `edit <absolute-file>` is the general file editor. The directory layout was jointly agreed with the user and recorded in [FILESYSTEM_SPEC.md](FILESYSTEM_SPEC.md); future native-platform work must preserve the completed bounded execution contract.

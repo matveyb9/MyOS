@@ -22,10 +22,11 @@ qemu-system-x86_64 \
 
 ```text
 startgui
+# либо: startgui home
 # либо: startgui /users/myos/files/notes/note
 ```
 
-`startgui` является обычной ring-3 программой. Она создаёт ограниченную GUI session через существующую syscall boundary, читает и редактирует только bounded user-space payload, а kernel получает лишь проверенные syscall requests. `startgui /users/myos/files/notes/<name>` выбирает persistent note ещё до его создания: viewer сообщит об отсутствии, а `E` откроет пустой draft, который `Ctrl-S` создаст. `Q` или `Esc` за пределами editor завершает graphical session и возвращает в тот же user shell.
+`startgui` является обычной ring-3 программой. `startgui home` открывает bounded home view **MYOS DESKTOP**; keyboard launcher предоставляет `M` для system message, `N` для notes viewer, `E` для selected note editor, `H` для возврата home и `Q` для возврата в shell. Она создаёт ограниченную GUI session через существующую syscall boundary, читает и редактирует только bounded user-space payload, а kernel получает лишь проверенные syscall requests. `startgui /users/myos/files/notes/<name>` выбирает persistent note ещё до его создания: viewer сообщит об отсутствии, а `E` откроет пустой draft, который `Ctrl-S` создаст. `Q` или `Esc` за пределами editor завершает graphical session и возвращает в тот же user shell.
 
 ## Persistent user programs
 
@@ -76,6 +77,7 @@ run sdk-hello external SDK validation
 | Z-order | Focused window поднимается на передний план; focus, visibility, layout и content events выполняют bounded full redraw композиции, тогда как ordinary pointer movement обновляет только cursor region. |
 | Viewer | `NOTES` отображает до 128 bytes выбранного VFS file. |
 | File loading | `startgui [absolute-path]` читает первые 128 bytes указанного VFS file; без аргумента используется `/system/core/resources/motd.txt`. |
+| Desktop home | `startgui home` рисует fixed launcher `MYOS DESKTOP`; он не сканирует arbitrary paths, не создаёт tasks и не хранит unbounded state. |
 | Persistent selection | `D` выбирает стандартный `/users/myos/files/notes/note`; `N` циклически выбирает следующую existing note через directory-scoped VFS enumeration. |
 | Named launch | `startgui /users/myos/files/notes/<name>` выбирает конкретную personal note; title NOTES показывает basename выбранного file. |
 | Editor entry | `E` открывает bounded editor для выбранной personal note; отсутствующий selected path начинает с пустого draft. |
@@ -83,7 +85,7 @@ run sdk-hello external SDK validation
 | Caret и navigation | `Left`/`Right` перемещают caret на byte, `Up`/`Down` — по logical lines с сохранением column, `Home`/`End` переходят к границам строки. |
 | Bounded scrolling | Renderer отображает окно до 20 logical newline-separated lines; viewport автоматически следует за строкой caret. |
 | Save и cancel | `Ctrl-S` заменяет выбранный file в `/users/myos/files/notes/`, записывает draft и возвращает к его viewer. `Esc` отменяет draft и перезагружает ранее сохранённое содержимое. |
-| Built-in choices | `M` или `m` повторно загружает `/system/core/resources/motd.txt`. |
+| Built-in choices | `M` или `m` повторно загружает `/system/core/resources/motd.txt`; `H` возвращает к MYOS DESKTOP, а desktop-home `N` открывает bounded personal-notes route. |
 | Focus | `Tab`, `Enter` или `Space` вне editor переводят focus на следующее видимое окно. |
 | Hardware pointer | PS/2 mouse relative motion перемещает bounded crosshair pointer; rising edge левой кнопки фокусирует верхнее видимое окно под pointer. |
 | Keyboard fallback | Строчные `W`, `A`, `S`, `D` перемещают pointer на 16 pixels; `F` сохраняет keyboard focus верхнего окна под pointer. |
@@ -152,7 +154,7 @@ run sdk-hello external SDK validation
 | MYPFS002 legacy migration | Passed (BIOS): `disk/note` fixture migrated to `/users/myos/files/notes/note`; `MYPFS004` superblock, cleared journal and second-mount readback confirmed. |
 | MYPFS004 large-file I/O | Passed (BIOS): 1 MiB fragmented two-extent pattern write/readback, fresh-mount `wc` of all 1,048,576 bytes, SDK install/run after reboot и UEFI persisted SDK execution. |
 | Pointer refresh hardening | Passed: two 1280×800 BIOS framebuffer captures before/after keyboard pointer movement differed in only 726 PPM byte positions, consistent with old/new 11×11 cursor regions; desktop composition remained intact. |
-| Automated `make regression` | Passed: disposable-image harness created/edited/saved a BIOS GUI note, copied paced editor-authored 305-byte file SDK `cp` через VFS request boundary, verified exact data и overwrite refusal, built/installed/ran legacy native packages, checked empty и forwarded `args` output, exact `input` match and fallback paths plus valid RTC `HH:MM:SS` output, rejected invalid forward-only control flow, затем UEFI прочитал persisted files и copied data, повторно запустил installed input/time/argument packages и корректно entered/exited GUI. See [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md). |
+| Automated `make regression` | Passed: disposable-image harness created/edited/saved a BIOS GUI note, navigated `startgui home` through M/H/N/H/Q и returned cleanly, copied paced editor-authored 305-byte file SDK `cp` через VFS request boundary, verified exact data и overwrite refusal, built/installed/ran legacy native packages, checked empty и forwarded `args` output, exact `input` match and fallback paths plus valid RTC `HH:MM:SS` output, rejected invalid forward-only control flow, затем UEFI повторил desktop-home navigation, прочитал persisted files и copied data, повторно запустил installed input/time/argument packages и корректно entered/exited GUI. See [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md). |
 | GUI note and native workflow | Passed: BIOS GUI editor changed persistent note `base` → `base!`; the same note and a BIOS-built native program were read/executed under UEFI. |
 | Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
 
@@ -171,4 +173,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`, а GitHub Pre-release `v0.13.0-gui-rc.1` опубликован отдельно. Текущая ветка `gui/bringup` содержит MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, MyOS SDK для внешней сборки с public bounded VFS wrappers и его live no-overwrite `cp` developer tool, а также restricted in-OS `asm`/`build` workflow с bounded `args` forwarding из `run <name> [arguments]`, labels, явными `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison и forward-only branches. Generated image добавляет только fixed private RW data segment размером 32 bytes: entry argument pointer и input/time scratch storage. Ветка также содержит общий console [Текстовый редактор](TEXT_EDITOR_RU.md) и cursor-only GUI pointer refresh. GUI editor остаётся notes-focused feature; direct `edit <absolute-file>` — общий file editor. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); будущая native-platform work должна сохранять completed bounded execution contract.
+GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`, а GitHub Pre-release `v0.13.0-gui-rc.1` опубликован отдельно. Текущая ветка `gui/bringup` содержит MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, MyOS SDK для внешней сборки с public bounded VFS wrappers и его live no-overwrite `cp` developer tool, а также restricted in-OS `asm`/`build` workflow с bounded `args` forwarding из `run <name> [arguments]`, labels, явными `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison и forward-only branches. Generated image добавляет только fixed private RW data segment размером 32 bytes: entry argument pointer и input/time scratch storage. Ветка также содержит bounded keyboard-driven desktop launcher `startgui home`, общий console [Текстовый редактор](TEXT_EDITOR_RU.md) и cursor-only GUI pointer refresh. GUI editor остаётся notes-focused feature; direct `edit <absolute-file>` — общий file editor. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); будущая native-platform work должна сохранять completed bounded execution contract.

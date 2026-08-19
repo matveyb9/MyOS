@@ -222,9 +222,11 @@ The GUI is available only on the `gui/bringup` branch and is started from the co
 
 ```text
 startgui
+# Or open the bounded desktop launcher:
+startgui home
 ```
 
-Without an argument the viewer opens `/system/core/resources/motd.txt`. For a personal note you can pass an absolute path:
+Without an argument the viewer opens `/system/core/resources/motd.txt`. `startgui home` opens **MYOS DESKTOP**, a bounded keyboard launcher: `M` opens the system message, `N` opens notes, `E` edits the selected note, `H` returns to the launcher, and `Q` exits to the shell. For a personal note you can pass an absolute path:
 
 ```text
 startgui /users/myos/files/notes/note
@@ -272,4 +274,4 @@ For a physical computer use **`myos.img`**, not the ISO. The image contains GPT,
 
 MyOS is not a replacement for Linux, Windows, or BSD. On `gui/bringup` there is currently no networking, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, a full native C compiler, or production security hardening. The restricted native assembler is implemented, but the GUI remains a bounded framebuffer environment rather than a general-purpose desktop.
 
-If a build or run fails, do `make clean`, then `make all img`, `make smoke`, and `make regression`. The `smoke` command headlessly checks BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. The `regression` command uses a disposable image copy: it creates and saves a GUI note, uses SDK `cp` to copy an editor-authored 305-byte file across its 256-byte request boundary, verifies exact target data and rejects overwrite, builds and installs native packages in BIOS, verifies legacy forward-only branches, empty and forwarded native arguments, `input` exact-match and fallback paths, valid `HH:MM:SS` RTC output, and rejected invalid control flow, then verifies persisted files, the `cp` target and installed input/time/argument packages through UEFI. Both commands do not replace a physical-PC test. After that repeat the QEMU command from section 3. For host-platform setup use [PLATFORMS.md](PLATFORMS.md), for release gates use [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md), and for technical diagnostics use [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).
+If a build or run fails, do `make clean`, then `make all img`, `make smoke`, and `make regression`. The `smoke` command headlessly checks BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. The `regression` command uses a disposable image copy: it creates and saves a GUI note, navigates `startgui home` through M/H/N/H/Q and verifies clean return in BIOS and UEFI, uses SDK `cp` to copy an editor-authored 305-byte file across its 256-byte request boundary, verifies exact target data and rejects overwrite, builds and installs native packages in BIOS, verifies legacy forward-only branches, empty and forwarded native arguments, `input` exact-match and fallback paths, valid `HH:MM:SS` RTC output, and rejected invalid control flow, then verifies persisted files, the `cp` target and installed input/time/argument packages through UEFI. Both commands do not replace a physical-PC test. After that repeat the QEMU command from section 3. For host-platform setup use [PLATFORMS.md](PLATFORMS.md), for release gates use [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md), and for technical diagnostics use [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).

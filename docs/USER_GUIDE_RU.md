@@ -222,9 +222,11 @@ GUI доступен только в ветке `gui/bringup` и запуска�
 
 ```text
 startgui
+# Или открыть bounded desktop launcher:
+startgui home
 ```
 
-Без аргумента viewer открывает `/system/core/resources/motd.txt`. Для personal note можно передать absolute path:
+Без аргумента viewer открывает `/system/core/resources/motd.txt`. `startgui home` открывает **MYOS DESKTOP** — bounded keyboard launcher: `M` открывает system message, `N` открывает notes, `E` редактирует selected note, `H` возвращает к launcher, а `Q` выходит в shell. Для personal note можно передать absolute path:
 
 ```text
 startgui /users/myos/files/notes/note
@@ -272,4 +274,4 @@ qemu-system-x86_64 \
 
 MyOS не является заменой Linux, Windows или BSD. В `gui/bringup` пока нет сети, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, полноценного native C compiler или production security hardening. Restricted native assembler реализован, но GUI остаётся bounded framebuffer environment, а не general-purpose desktop.
 
-Если сборка или запуск не работают, выполните `make clean`, затем `make all img`, `make smoke` и `make regression`. Smoke command headlessly проверяет BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. Regression command использует disposable image copy: он создаёт и сохраняет GUI note, использует SDK `cp` для копирования editor-authored file размером 305 bytes через 256-byte request boundary, проверяет exact target data и отклоняет overwrite, собирает и устанавливает native packages в BIOS, проверяет legacy forward-only branches, empty и forwarded native arguments, exact-match и fallback paths инструкции `input`, корректный вывод RTC `HH:MM:SS` и rejected invalid control flow, затем проверяет persisted files, `cp` target и installed input/time/argument packages через UEFI. Обе команды не заменяют physical-PC test. После этого повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), для release gates — [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).
+Если сборка или запуск не работают, выполните `make clean`, затем `make all img`, `make smoke` и `make regression`. Smoke command headlessly проверяет BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. Regression command использует disposable image copy: он создаёт и сохраняет GUI note, проходит `startgui home` через M/H/N/H/Q и проверяет clean return в BIOS и UEFI, использует SDK `cp` для копирования editor-authored file размером 305 bytes через 256-byte request boundary, проверяет exact target data и отклоняет overwrite, собирает и устанавливает native packages в BIOS, проверяет legacy forward-only branches, empty и forwarded native arguments, exact-match и fallback paths инструкции `input`, корректный вывод RTC `HH:MM:SS` и rejected invalid control flow, затем проверяет persisted files, `cp` target и installed input/time/argument packages через UEFI. Обе команды не заменяют physical-PC test. После этого повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), для release gates — [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).
