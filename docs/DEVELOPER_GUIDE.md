@@ -1,6 +1,8 @@
 # MyOS Developer Guide
 
-> [🇷🇺 РУССКИЙ](DEVELOPER_GUIDE_RU.md) / **🇺🇸 ENGLISH**
+<p align="center">
+  <a href="DEVELOPER_GUIDE_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 
 

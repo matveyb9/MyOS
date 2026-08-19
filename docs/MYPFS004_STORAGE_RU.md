@@ -1,6 +1,8 @@
 # MYPFS004: практическое хранение крупных файлов
 
-> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](MYPFS004_STORAGE.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="MYPFS004_STORAGE.md">🇺🇸 ENGLISH</a>
+</p>
 
 
 > **Статус:** реализовано и проверено в `gui/bringup`. MYPFS004 заменяет fixed single-extent allocator MYPFS003, не меняя видимое дерево `/system`, `/apps`, `/users/myos` и `/temp`.

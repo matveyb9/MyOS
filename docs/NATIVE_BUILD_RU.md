@@ -1,6 +1,8 @@
 # Native build в MyOS: ограниченный in-OS workflow
 
-> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](NATIVE_BUILD.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="NATIVE_BUILD.md">🇺🇸 ENGLISH</a>
+</p>
 
 > **Статус:** реализовано и проверено в `gui/bringup`. Встроенный `asm` поддерживает вывод текста, bounded forwarding program arguments, ввод одного байта, вывод времени RTC, именованные метки, одно ограниченное condition value и безусловные или условные переходы только вперёд. Это не general-purpose assembler, C compiler и не замена host [MyOS SDK](SDK_RU.md).
 

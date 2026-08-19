@@ -1,6 +1,8 @@
 # Текстовый редактор MyOS
 
-> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](TEXT_EDITOR.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="TEXT_EDITOR.md">🇺🇸 ENGLISH</a>
+</p>
 
 > **Статус:** реализовано и проверено в `gui/bringup`. `edit` — небольшой консольный текстовый редактор для обычных VFS files и многострочных `.mya` sources. Он намеренно отделён от GUI note editor, который остаётся GUI-функцией для заметок.
 

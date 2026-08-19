@@ -1,6 +1,8 @@
 # GUI release stabilization checklist
 
-> [🇷🇺 РУССКИЙ](RELEASE_STABILIZATION_RU.md) / **🇺🇸 ENGLISH**
+<p align="center">
+  <a href="RELEASE_STABILIZATION_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 
 > **Status:** active checklist for branch `gui/bringup`. It does not create a release tag and does not allow automatic merge into `main`. Its purpose is to provide reproducible evidence prior to a separate decision on the first stable GUI release.

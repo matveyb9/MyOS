@@ -1,10 +1,12 @@
-# MyOS
+<h1 align="center">MyOS</h1>
 
-> [🇷🇺 РУССКИЙ](README_RU.md) / **🇺🇸 ENGLISH**
+<p align="center">
+  <a href="README_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 **MyOS** is an experimental operating system written from scratch for **x86_64** in freestanding C11 and x86_64 NASM. Limine currently supplies the boot environment, while the kernel, memory management, scheduler, ring-3 programs, shell, filesystem and drivers belong to this repository.
 
-## Status
+<h2 align="center">Status</h2>
 
 The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current graphical and user-program work is isolated in [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); it is **experimental** and is not merged into `main` automatically. This branch includes BIOS/UEFI boot paths, MYPFS004 persistent storage, framebuffer GUI with a bounded mouse-first `startgui` desktop launcher, per-window title-bar raise and close controls, a general bounded text editor, persistent ELF packages, the MyOS SDK with a bounded public VFS subset and live `cp` developer tool, and an in-OS assembler with bounded program-argument forwarding, single-byte input, RTC `HH:MM:SS` output, labels, explicit condition values, exact-byte comparison and forward-only unconditional or conditional jumps.
 
@@ -14,7 +16,7 @@ The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current gr
 | `main` | Console maintenance and documentation baseline. | Supported console line. |
 | `gui/bringup` | GUI and native-development work. | Experimental development line. |
 
-## Quick start
+<h2 align="center">Quick start</h2>
 
 Clone the repository and choose the branch you want to run. The commands below select the current GUI development line.
 
@@ -45,7 +47,7 @@ startgui
 
 > `make img` recreates `myos.img` and erases its previous persistent MyOS data. Use a disposable copy before experiments. For a physical USB test, use `myos.img`, not the ISO, and follow the safety guidance in the User Guide.
 
-## Documentation
+<h2 align="center">Documentation</h2>
 
 | Guide | Start here when you need… |
 |---|---|
@@ -59,7 +61,7 @@ startgui
 | [Native Build Guide](docs/NATIVE_BUILD.md) | In-OS `.mya` source, build, install and run workflow. |
 | [Documentation Policy](docs/DOCUMENTATION_POLICY.md) | Required same-commit documentation and translation updates. |
 
-## Verification
+<h2 align="center">Verification</h2>
 
 ```bash
 make smoke          # BIOS and UEFI boot markers

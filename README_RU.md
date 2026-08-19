@@ -1,10 +1,12 @@
-# MyOS
+<h1 align="center">MyOS</h1>
 
-> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](README.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="README.md">🇺🇸 ENGLISH</a>
+</p>
 
 **MyOS** — экспериментальная операционная система для **x86_64**, написанная с нуля на freestanding C11 и x86_64 NASM. Limine пока подготавливает окружение загрузки, а ядро, управление памятью, планировщик, ring-3 программы, shell, файловая система и драйверы реализуются в этом репозитории.
 
-## Статус
+<h2 align="center">Статус</h2>
 
 Стабильная консольная граница закреплена тегом [`v0.12.1-console`](docs/RELEASES_RU.md). Текущая работа над графическим интерфейсом и пользовательскими программами изолирована в ветке [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); это **экспериментальная** линия, которая не переносится в `main` автоматически. Ветка содержит BIOS/UEFI boot paths, persistent MYPFS004 storage, framebuffer GUI с bounded mouse-first desktop launcher, открываемым через `startgui`, per-window controls подъёма по title bar и закрытия, общий bounded text editor, persistent ELF packages, MyOS SDK с bounded public VFS subset и live `cp` developer tool, а также встроенный assembler с bounded program-argument forwarding, single-byte input, RTC output `HH:MM:SS`, метками, явными condition values, exact-byte comparison и forward-only безусловными или условными переходами.
 
@@ -14,7 +16,7 @@
 | `main` | Поддержка консольной ОС и документационный baseline. | Поддерживаемая консольная линия. |
 | `gui/bringup` | GUI и среда разработки пользовательских программ. | Экспериментальная development line. |
 
-## Быстрый старт
+<h2 align="center">Быстрый старт</h2>
 
 Склонируйте репозиторий и выберите нужную ветку. Команды ниже выбирают актуальную GUI development line.
 
@@ -45,7 +47,7 @@ startgui
 
 > `make img` пересоздаёт `myos.img` и удаляет прежние persistent data MyOS. Перед экспериментами создайте отдельную копию образа. Для проверки на физической USB-флешке используйте `myos.img`, а не ISO, и следуйте предупреждениям из руководства пользователя.
 
-## Документация
+<h2 align="center">Документация</h2>
 
 | Документ | Откройте его, если нужно… |
 |---|---|
@@ -59,7 +61,7 @@ startgui
 | [Руководство по native build](docs/NATIVE_BUILD_RU.md) | Написать `.mya`, собрать, установить и запустить программу внутри MyOS. |
 | [Политика документации](docs/DOCUMENTATION_POLICY_RU.md) | Выполнять обязательные same-commit updates документации и переводов. |
 
-## Проверка
+<h2 align="center">Проверка</h2>
 
 ```bash
 make smoke          # BIOS и UEFI boot markers

@@ -1,6 +1,8 @@
 # Framebuffer console validation for MyOS 0.7.0-dev
 
-> [🇷🇺 РУССКИЙ](framebuffer-validation_RU.md) / **🇺🇸 ENGLISH**
+<p align="center">
+  <a href="framebuffer-validation_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 > **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and [documentation index](README.md).
 

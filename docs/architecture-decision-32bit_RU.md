@@ -1,6 +1,8 @@
 # Архитектурное решение: 32-битная поддержка MyOS
 
-> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](architecture-decision-32bit.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="architecture-decision-32bit.md">🇺🇸 ENGLISH</a>
+</p>
 
 
 ## Контекст

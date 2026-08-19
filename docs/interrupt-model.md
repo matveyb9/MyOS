@@ -1,6 +1,8 @@
 # Interrupt model of MyOS 0.4.0-dev
 
-> [🇷🇺 РУССКИЙ](interrupt-model_RU.md) / **🇺🇸 ENGLISH**
+<p align="center">
+  <a href="interrupt-model_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 > **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. See the [user guide](USER_GUIDE.md), the [developer guide](DEVELOPER_GUIDE.md) and the [documentation index](README.md).
 

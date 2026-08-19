@@ -1,6 +1,8 @@
 # Platforms: building and running MyOS
 
-> [🇷🇺 РУССКИЙ](PLATFORMS_RU.md) / **🇺🇸 ENGLISH**
+<p align="center">
+  <a href="PLATFORMS_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 
 This document explains how to use the MyOS sources on different host platforms. **Target remains x86_64 PC**; the host platform is the computer where you build artifacts and run QEMU.

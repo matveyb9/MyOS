@@ -1,6 +1,8 @@
 # MyOS SDK: внешняя разработка пользовательских программ
 
-> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](SDK.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="SDK.md">🇺🇸 ENGLISH</a>
+</p>
 
 
 ## Назначение

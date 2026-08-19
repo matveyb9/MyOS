@@ -1,6 +1,8 @@
 # Политика документации MyOS
 
-> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](DOCUMENTATION_POLICY.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="DOCUMENTATION_POLICY.md">🇺🇸 ENGLISH</a>
+</p>
 
 Документация — часть продукта. Изменение public behavior не считается завершённым, пока его English и Russian descriptions не обновлены в том же commit.
 
@@ -10,9 +12,9 @@
 |---|---|---|
 | Корень repository | `README.md` | `README_RU.md` |
 | Документация | `docs/NAME.md` | `docs/NAME_RU.md` |
-| Language switcher | `> [🇷🇺 РУССКИЙ](NAME_RU.md) / **🇺🇸 ENGLISH**` | `> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](NAME.md)` |
+| Language switcher | `<p align="center"><a href="NAME_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong></p>` | `<p align="center"><strong>🇷🇺 РУССКИЙ</strong> / <a href="NAME.md">🇺🇸 ENGLISH</a></p>` |
 
-Каждая Markdown page в корне и `docs/` содержит этот заметный widget сразу после heading. Текущий язык — bold text; другой язык — reciprocal link. Commands, paths, identifiers, source code, version numbers, SHA-256 values и URLs не переводятся.
+Каждая Markdown page в корне и `docs/` содержит этот центрированный selector сразу после heading. Текущий язык — bold text; другой язык — reciprocal link. Показанный GitHub-compatible HTML используется только для alignment; commands, paths, identifiers, source code, version numbers, SHA-256 values и URLs не переводятся.
 
 ## Что должно обновляться
 
@@ -42,7 +44,7 @@
 
 ## История изменений и публикация
 
-Commit subject пишется коротким English imperative summary. После пустой строки body содержит равнозначные descriptions `[EN]:` и `[RU]:` именно в этом порядке; обе фиксируют один scope, compatibility effect и limits. Когда Manus AI существенно помогает, финальным transparency trailer становится `Assisted-by: Manus AI`. Future release notes размещают компактный flag-only selector под title и используют равнозначные sections `## 🇺🇸 [EN] ENGLISH` и `## 🇷🇺 [RU] РУССКИЙ`; template и required fields находятся в [Release Guide](RELEASES_RU.md).
+Commit subject пишется коротким English imperative summary. После пустой строки body содержит равнозначные descriptions `[EN]:` и `[RU]:` именно в этом порядке; обе фиксируют один scope, compatibility effect и limits. Когда Manus AI существенно помогает, финальным transparency trailer становится `Assisted-by: Manus AI`. Future release notes размещают центрированный flag-only selector под title и используют равнозначные sections `## 🇺🇸 [EN] ENGLISH` и `## 🇷🇺 [RU] РУССКИЙ`; template и required fields находятся в [Release Guide](RELEASES_RU.md).
 
 ## Термины
 

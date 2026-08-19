@@ -1,6 +1,8 @@
 # Ветки, релизы и история изменений
 
-> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](RELEASES.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="RELEASES.md">🇺🇸 ENGLISH</a>
+</p>
 
 Этот документ объясняет, какую линию MyOS выбрать, какие refs нельзя изменять и как оформлять будущие commits и releases на двух языках.
 
@@ -69,12 +71,14 @@ Assisted-by: Manus AI
 
 ## Двуязычные release notes
 
-Release description всегда содержит два равноправных, визуально отмеченных раздела: сначала **`🇺🇸 [EN] ENGLISH`**, затем **`🇷🇺 [RU] РУССКИЙ`**. Сразу под title размещается компактный flag-only selector. Оба раздела описывают один и тот же scope; не нужно смешивать два языка в одной строке или таблице.
+Release description всегда содержит два равноправных, визуально отмеченных раздела: сначала **`🇺🇸 [EN] ENGLISH`**, затем **`🇷🇺 [RU] РУССКИЙ`**. Сразу под title размещается центрированный flag-only selector. Оба раздела описывают один и тот же scope; не нужно смешивать два языка в одной строке или таблице.
 
 ```md
 # MyOS vX.Y.Z — Short release name
 
-> **🇺🇸 [EN] ENGLISH** · **🇷🇺 [RU] РУССКИЙ**
+<p align="center">
+  <strong>🇺🇸 [EN] ENGLISH</strong> · <strong>🇷🇺 [RU] РУССКИЙ</strong>
+</p>
 
 ## 🇺🇸 [EN] ENGLISH
 

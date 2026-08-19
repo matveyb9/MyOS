@@ -1,6 +1,8 @@
 # Branches, releases and change history
 
-> [🇷🇺 РУССКИЙ](RELEASES_RU.md) / **🇺🇸 ENGLISH**
+<p align="center">
+  <a href="RELEASES_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 This guide explains which MyOS line to choose, which references must not change, and how to describe future commits and releases in two languages.
 
@@ -69,12 +71,14 @@ Assisted-by: Manus AI
 
 ## Bilingual release notes
 
-Every release description contains two equivalent, visually marked sections: **`🇺🇸 [EN] ENGLISH`** first, then **`🇷🇺 [RU] РУССКИЙ`**. A compact flag-only selector appears directly under the title. Both sections describe the same scope; do not mix two languages within one line or table row.
+Every release description contains two equivalent, visually marked sections: **`🇺🇸 [EN] ENGLISH`** first, then **`🇷🇺 [RU] РУССКИЙ`**. A centered flag-only selector appears directly under the title. Both sections describe the same scope; do not mix two languages within one line or table row.
 
 ```md
 # MyOS vX.Y.Z — Short release name
 
-> **🇺🇸 [EN] ENGLISH** · **🇷🇺 [RU] РУССКИЙ**
+<p align="center">
+  <strong>🇺🇸 [EN] ENGLISH</strong> · <strong>🇷🇺 [RU] РУССКИЙ</strong>
+</p>
 
 ## 🇺🇸 [EN] ENGLISH
 
