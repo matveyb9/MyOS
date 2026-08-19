@@ -1,35 +1,35 @@
-# Руководство разработчика MyOS Console 0.12.0-dev
+# Developer Guide MyOS Console 0.12.0-dev
 
-> **Язык:** [English](DEVELOPER_GUIDE.md) | [Русский](DEVELOPER_GUIDE_RU.md)
+> **Language:** [English](DEVELOPER_GUIDE.md) | [Русский](DEVELOPER_GUIDE_RU.md)
 
 
-Этот документ описывает завершённый **console release** MyOS. Он предназначен для разработчиков, системных программистов и читателей, которым нужна карта исходного кода и технические инварианты. Зафиксированная точка release — аннотированный tag `v0.12.0-console` на commit `1a454cb`.
+This document describes the completed **console release** of MyOS. It is intended for developers, systems programmers and readers who need a map of the source tree and the technical invariants. The pinned release point is the annotated tag `v0.12.0-console` on commit `1a454cb`.
 
-> `main` и `console-stable` указывают на console milestone. GUI experiments должны находиться только в отдельных ветках и не должны менять этот release без отдельного решения.
+> `main` and `console-stable` point at the console milestone. GUI experiments must live only in separate branches and must not change this release without a separate decision.
 
-## 1. Build и test contract
+## 1. Build and test contract
 
 ### Host dependencies
 
-| Инструмент | Использование |
+| Tool | Use |
 |---|---|
-| `gcc`, `ld`, `nasm`, `make` | Сборка freestanding C11 kernel, user ELF и ASM. |
-| `xorriso`, `mtools` | Создание ISO и FAT EFI partition. |
-| `sgdisk` | Создание GPT raw image. |
-| `qemu-system-x86_64` | BIOS и UEFI regression. |
+| `gcc`, `ld`, `nasm`, `make` | Build the freestanding C11 kernel, user ELF and ASM. |
+| `xorriso`, `mtools` | Create the ISO and the FAT EFI partition. |
+| `sgdisk` | Create the GPT raw image. |
+| `qemu-system-x86_64` | BIOS and UEFI regression. |
 | OVMF | UEFI firmware for QEMU. |
 
 ### Make targets
 
 | Target | Output / purpose |
 |---|---|
-| `make` or `make all` | Собирает hybrid BIOS/UEFI ISO `myos.iso`. |
-| `make img` | Пересоздаёт 128 MiB raw GPT image `myos.img`. |
+| `make` or `make all` | Builds the hybrid BIOS/UEFI ISO `myos.iso`. |
+| `make img` | Recreates the 128 MiB raw GPT image `myos.img`. |
 | `make run` | BIOS ISO test in headless serial mode. |
-| `make run-graphic` | BIOS ISO test with framebuffer window. |
+| `make run-graphic` | BIOS ISO test with a framebuffer window. |
 | `make run-uefi` | UEFI ISO test in headless serial mode. |
-| `make run-uefi-graphic` | UEFI ISO test with framebuffer window. |
-| `make debug` | Starts QEMU paused with GDB server on TCP 1234. |
+| `make run-uefi-graphic` | UEFI ISO test with a framebuffer window. |
+| `make debug` | Starts QEMU paused with a GDB server on TCP 1234. |
 | `make inspect` | Prints ELF headers and sections. |
 
 The raw image is the authoritative storage test target because AHCI read/write and persistent files require a Q35 IDE-attached raw disk:
@@ -60,7 +60,7 @@ qemu-system-x86_64 \
 |---|---|
 | `boot/` | Higher-half linker script and Limine boot menu/configuration. |
 | `include/` | Kernel/user ABI contracts: scheduling, paging, syscalls, VFS, pipes, AHCI and architecture helpers. |
-| `kernel/main.c` | Limine requests, bootstrap ordering, diagnostics and handoff to kernel shell. |
+| `kernel/main.c` | Limine requests, bootstrap ordering, diagnostics and handoff to the kernel shell. |
 | `kernel/arch/x86_64/` | GDT, IDT, TSS, APIC, syscall entry and low-level NASM primitives. |
 | `kernel/console/` | COM1 mirror, framebuffer text console and kernel shell. |
 | `kernel/mm/` | PMM, four-level page tables, user address spaces and kernel heap. |
@@ -92,7 +92,7 @@ Limine
   -> ring-3 user shell
 ```
 
-Limine supplies the framebuffer, memory map, firmware information, RSDP and initramfs module. MyOS keeps a higher-half kernel around `0xffffffff80000000`, uses the HHDM supplied by Limine during bootstrap and owns a four-level PML4 for its mappings. User programs run in separate address spaces and enter the kernel through `SYSCALL/SYSRET`.
+Limine supplies the framebuffer, memory map, firmware information, RSDP and the initramfs module. MyOS keeps a higher-half kernel around `0xffffffff80000000`, uses the HHDM supplied by Limine during bootstrap and owns a four-level PML4 for its mappings. User programs run in separate address spaces and enter the kernel through `SYSCALL/SYSRET`.
 
 ### Privilege and task model
 
@@ -134,7 +134,7 @@ The VFS lookup order and implementation are in `kernel/fs/vfs.c`.
 
 | Namespace | Backend | Lifetime |
 |---|---|---|
-| Initramfs entries such as `motd.txt` and programs | Read-only newc CPIO | Built into image. |
+| Initramfs entries such as `motd.txt` and programs | Read-only newc CPIO | Built into the image. |
 | `tmp/<name>` | In-memory bounded tmpfs | Lost at reboot. |
 | `disk/<name>` | Bounded persistent backend over guarded AHCI data LBAs | Survives reboot of the same `myos.img`. |
 
@@ -156,7 +156,7 @@ Both writable stores are intentionally bounded. The persistent backend uses one 
 
 COM1 output is mirrored to the framebuffer text console. The keyboard driver handles PS/2 Set 1 US QWERTY characters and wakes tasks in `INPUT` state. The user shell in `user/init.c` owns interactive input after the kernel-shell `init` command.
 
-The user shell provides deterministic history navigation and unique-prefix Tab completion. Its command list and command semantics are the source of truth for end-user documentation. Changes to `command_help()`, `execute_command()` or a user program should be reflected in `docs/USER_GUIDE_RU.md` and `README.md`.
+The user shell provides deterministic history navigation and unique-prefix Tab completion. Its command list and command semantics are the source of truth for end-user documentation. Changes to `command_help()`, `execute_command()` or a user program should be reflected in `docs/USER_GUIDE.md` and `README.md`.
 
 ## 7. Validation baseline
 
@@ -193,4 +193,4 @@ The next project phase, if resumed, is GUI work in a separate branch. Do not add
 
 ## 10. Documentation maintenance
 
-Documentation changes are part of feature maintenance. Any change to build/run behavior, public shell behavior, ABI, storage layout, host support, branch policy or safety guidance must update the corresponding documentation in the same commit. The authoritative checklist is [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md).
+Documentation changes are part of feature maintenance. Any change to build/run behavior, public shell behavior, ABI, storage layout, host support, branch policy or safety guidance must update the corresponding documentation in the same commit. The authoritative checklist is [DOCUMENTATION_POLICY.md](DOCUMENTATION_POLICY.md).

@@ -1,26 +1,29 @@
-# Модель framebuffer-консоли MyOS 0.7.0-dev
-> **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README.md).
+# Framebuffer Console Model for MyOS 0.7.0-dev
+
+> **Language:** [English](framebuffer-console-model.md) | [Русский](framebuffer-console-model_RU.md)
+
+> **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and [documentation index](README.md).
 
 
-## Цель
+## Goal
 
-MyOS уже получает Limine framebuffer и умеет заполнять фон, но весь полезный текст остаётся в COM1. В 0.7.0-dev новый модуль `kernel/console/framebuffer.c` станет вторым sink для сообщений kernel и shell: serial сохраняется для отладки, а экранная консоль делает команды видимыми на обычном мониторе.
+MyOS already obtains the Limine framebuffer and can fill the background, but all useful text still ends up on COM1. In 0.7.0-dev the new module `kernel/console/framebuffer.c` will become a second sink for kernel and shell messages: serial is retained for debugging, while the on-screen console makes commands visible on a regular monitor.
 
-| Решение | Выбор для первого этапа | Причина |
+| Decision | Choice for the first stage | Reason |
 |---|---|---|
-| Pixel format | Только 32-bit RGB framebuffer, предоставленный Limine. | Текущий QEMU-путь уже публикует 32-bit RGB; отказ от неизвестного формата безопаснее неправильной записи VRAM. |
-| Адрес пикселя | `address + y * pitch + x * bytes_per_pixel`. | `pitch` задаёт расстояние между строками и не обязан совпадать с `width * pixelwidth`. [2] |
-| Шрифт | Встроенный моноширинный 8×8 ASCII raster. | Не требует файловой системы, heap или внешних активов. |
-| Представление | Символьная сетка плюс repaint нужных glyph. | Корректно обрабатывает новую строку, backspace и прокрутку без полного framebuffer redraw. |
-| Цвета | Тёмный navy background, off-white text, cyan prompt/accent. | Контрастная минимальная палитра для диагностического ядра. |
-| Прокрутка | Сдвиг строк текстового буфера и полный redraw сетки. | Простая предсказуемая реализация до оптимизации GPU/rect blit. |
-| Serial | Остаётся активным параллельно. | Поддерживает headless QEMU, GDB и диагностику до framebuffer init. |
+| Pixel format | Only 32-bit RGB framebuffer provided by Limine. | The current QEMU path already publishes 32-bit RGB; rejecting an unknown format is safer than writing VRAM incorrectly. |
+| Pixel address | `address + y * pitch + x * bytes_per_pixel`. | `pitch` specifies the distance between rows and is not required to equal `width * pixelwidth`. [2] |
+| Font | Built-in monospaced 8×8 ASCII raster. | Does not require a filesystem, heap, or external assets. |
+| Representation | Character grid plus repaint of needed glyphs. | Correctly handles newline, backspace and scrolling without a full framebuffer redraw. |
+| Colors | Dark navy background, off-white text, cyan prompt/accent. | High-contrast minimal palette for a diagnostic kernel. |
+| Scrolling | Shift lines in the text buffer and full redraw of the grid. | Simple, predictable implementation until GPU/rect blit optimization. |
+| Serial | Remains active in parallel. | Supports headless QEMU, GDB and diagnostics prior to framebuffer init. |
 
-## Ограничения
+## Limitations
 
-На первом этапе поддерживаются printable 7-bit ASCII, `\n`, `\r`, `\b` и ANSI clear, используемый текущей shell. Нет Unicode, VT100 эмуляции, мыши, выбора текста, смены видеорежима, прозрачности или аппаратного ускорения.
+In the first stage supported are printable 7-bit ASCII, `\n`, `\r`, `\b` and the ANSI clear used by the current shell. No Unicode, VT100 emulation, mouse, text selection, video mode switching, transparency or hardware acceleration.
 
-> Framebuffer — линейная область памяти: каждая запись пикселя непосредственно изменяет изображение. После включения paging адрес framebuffer должен быть доступен ядру; Limine предоставил рабочее bootstrap mapping, которое MyOS сохраняет при создании собственного PML4. [1] [2]
+> Framebuffer — a linear region of memory: each pixel write immediately changes the image. After paging is enabled the framebuffer address must be accessible to the kernel; Limine provided a working bootstrap mapping which MyOS preserves when creating its own PML4. [1] [2]
 
 ## References
 

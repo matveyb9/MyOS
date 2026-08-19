@@ -1,11 +1,14 @@
-# Визуальная проверка framebuffer-консоли
-> **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README.md).
+# Visual check of the framebuffer console
+
+> **Language:** [English](framebuffer-visual-check.md) | [Русский](framebuffer-visual-check_RU.md)
+
+> **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Consult the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and [documentation index](README.md).
 
 
-Первый BIOS QEMU screendump успешно подтвердил, что MyOS отрисовывает загрузочный журнал, приглашение `myos>` и курсор в 8×8 raster-глифах на тёмном framebuffer фоне. На этом снимке команды `fbdemo` и `fbinfo` ещё не попали в кадр: QMP-команды на виртуальную клавиатуру обрабатывались асинхронно после запроса `screendump`.
+The initial BIOS QEMU screendump successfully confirmed that MyOS renders the boot log, the `myos>` prompt, and the cursor in 8×8 raster glyphs on a dark framebuffer background. In this capture the `fbdemo` and `fbinfo` commands had not yet appeared: QMP commands to the virtual keyboard were processed asynchronously after the `screendump` request.
 
-Следующая проверка должна запросить отдельный screendump после задержки, чтобы визуально подтвердить прокрутку и актуальный shell output. Это не ошибка текстовой консоли: serial journal уже подтвердил команды и увеличившийся scroll counter.
+The next check should request a separate screendump after a delay to visually confirm scrolling and the current shell output. This is not a text console bug: the serial journal has already confirmed the commands and the increased scroll counter.
 
-## Подтверждённый BIOS кадр
+## Confirmed BIOS frame
 
-Повторный screendump после ожидания QMP-команд визуально подтвердил работающую прокрутку: экран содержит последние строки `FB DEMO ROW`, затем `myos> fbinfo` и значение `scrolls: 0x0000000000000008`. Моноширинные 8×8 glyph читаемы, тёмный фон и светлый текст контрастны, а cursor отображается у активного приглашения shell. Это подтверждает, что текстовый буфер, repaint после scroll и serial-to-framebuffer mirroring работают в реальном QEMU framebuffer, а не только в serial log.
+A repeated screendump after waiting for the QMP commands visually confirmed scrolling in operation: the screen contains the last lines `FB DEMO ROW`, followed by `myos> fbinfo` and the value `scrolls: 0x0000000000000008`. The monospaced 8×8 glyphs are legible, the dark background and light text are high-contrast, and the cursor is displayed at the active shell prompt. This confirms that the text buffer, repaint after scroll, and serial-to-framebuffer mirroring work in the real QEMU framebuffer, not only in the serial log.

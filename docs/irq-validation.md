@@ -1,37 +1,40 @@
-# Проверка IRQ и PS/2 в MyOS 0.4.0-dev
-> **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README.md).
+# IRQ and PS/2 Validation in MyOS 0.4.0-dev
+
+> **Language:** [English](irq-validation.md) | [Русский](irq-validation_RU.md)
+
+> **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and [documentation index](README.md).
 
 
-## Что было проверено
+## What was tested
 
-MyOS 0.4.0-dev использует legacy PIC как контроллер источников IRQ, но доставляет его сигнал через Local APIC LINT0 в режиме **ExtINT virtual-wire**. Это необходимо в обычной APIC-конфигурации QEMU: PIC/PIT работает с отключённым APIC, но без Local APIC маршрут не достигает CPU. Local APIC MMIO отображается только в одной некэшируемой странице `0xFFFFFFFFC0000000`; этот ранний mapper не является полноценной системой виртуальной памяти.
+MyOS 0.4.0-dev uses the legacy PIC as the IRQ source controller, but delivers its signal via the Local APIC LINT0 in **ExtINT virtual-wire** mode. This is required in a typical QEMU APIC configuration: the PIC/PIT operates with the APIC disabled, but without the Local APIC the route does not reach the CPU. The Local APIC MMIO is mapped only in a single uncachable page `0xFFFFFFFFC0000000`; this early mapper is not a full virtual memory system.
 
-| Проверка | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Результат |
+| Check | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Result |
 |---|---:|---:|---|
-| Загрузка ISO | Пройдено | Пройдено | Ядро сообщает `Local APIC virtual wire: enabled`. |
-| PIT IRQ0 | Пройдено | Пройдено | `ticks` увеличивается при частоте около 100 Гц. |
-| PIC mask | Пройдено | Пройдено | Маска `0xFFFC`: разрешены только IRQ0 и IRQ1. |
-| PS/2 scanning | Пройдено | Пройдено | Драйвер получил ACK на `0xF4` и снял маску IRQ1. |
-| QMP `sendkey` | Пройдено | Пройдено | `help`, `keyboard`, `halt` набраны только через виртуальную PS/2-клавиатуру. |
-| Keyboard IRQ counter | Пройдено | Пройдено | Счётчик IRQ1 вырос; переполнений кольцевого буфера нет. |
+| Booting the ISO | Passed | Passed | The kernel reports `Local APIC virtual wire: enabled`. |
+| PIT IRQ0 | Passed | Passed | `ticks` increases at a rate of about 100 Hz. |
+| PIC mask | Passed | Passed | Mask `0xFFFC`: only IRQ0 and IRQ1 enabled. |
+| PS/2 scanning | Passed | Passed | Driver received ACK for `0xF4` and unmasked IRQ1. |
+| QMP `sendkey` | Passed | Passed | `help`, `keyboard`, `halt` typed only via the virtual PS/2 keyboard. |
+| Keyboard IRQ counter | Passed | Passed | IRQ1 counter grew; no ring buffer overflows. |
 
-> Для теста клавиши инъецировались командой QEMU HMP `sendkey` через QMP-сокет. Это проверяет путь «виртуальная PS/2-клавиатура → PIC IRQ1 → Local APIC → IDT → IRQ dispatcher → keyboard ring buffer → shell», а не COM1-serial input.
+> For the test, keys were injected with the QEMU HMP `sendkey` command over the QMP socket. This verifies the path "virtual PS/2 keyboard → PIC IRQ1 → Local APIC → IDT → IRQ dispatcher → keyboard ring buffer → shell", not COM1-serial input.
 
-## Наблюдаемые результаты
+## Observed results
 
-В BIOS-сценарии счётчик PIT вырос приблизительно от `0xA4` до `0x16C` за двухсекундный интервал. В UEFI-сценарии он вырос от `0xD01` до `0x118D` между двумя запросами `ticks`. Команда `keyboard` в UEFI показала `IRQ1` count `0x2A` и `dropped characters: 0x0` после ввода команд `ticks`, `keyboard` и `halt`.
+In the BIOS scenario the PIT counter rose approximately from `0xA4` to `0x16C` over a two-second interval. In the UEFI scenario it rose from `0xD01` to `0x118D` between two `ticks` queries. The `keyboard` command in UEFI showed `IRQ1` count `0x2A` and `dropped characters: 0x0` after entering the `ticks`, `keyboard` and `halt` commands.
 
-| Подсистема | Реализованное поведение | Явное ограничение |
+| Subsystem | Implemented behavior | Explicit limitation |
 |---|---|---|
-| PIC 8259A | Remap `0x20–0x2F`, маскирование линий, EOI master/slave. | Нет корректной логики spurious IRQ7/IRQ15. |
-| Local APIC | LINT0 ExtINT, TPR 0, software-enable через SVR, LAPIC EOI. | Нет Local APIC timer, IPI, SMP или IOAPIC. |
-| PIT | Channel 0, rate generator, около 100 Гц. | PIT устаревший и не является долговременным источником времени. |
-| PS/2 | Enable-scanning `0xF4`, ACK/Resend, Set 1 US QWERTY, Shift, Backspace, Enter. | Нет USB HID, Caps Lock, extended keys, командной очереди или раскладок. |
-| Shell | Опрос serial и keyboard-буфера; `hlt` без готового ввода. | Экранная текстовая консоль появится только в версии 0.6.0-dev. |
+| PIC 8259A | Remap `0x20–0x2F`, line masking, EOI master/slave. | No correct logic for spurious IRQ7/IRQ15. |
+| Local APIC | LINT0 ExtINT, TPR 0, software-enable via SVR, LAPIC EOI. | No Local APIC timer, IPI, SMP or IOAPIC. |
+| PIT | Channel 0, rate generator, around 100 Hz. | PIT is legacy and not a long-term time source. |
+| PS/2 | Enable scanning `0xF4`, ACK/Resend, Set 1 US QWERTY, Shift, Backspace, Enter. | No USB HID, Caps Lock, extended keys, command queue or keyboard layouts. |
+| Shell | Polls serial and keyboard buffer; `hlt` when no input is ready. | On-screen text console will appear only in version 0.6.0-dev. |
 
-## Повторение теста
+## Reproducing the test
 
-Стандартные быстрые проверки сохраняются:
+Standard quick checks are retained:
 
 ```bash
 cd /home/ubuntu/myos
@@ -40,11 +43,11 @@ make run
 make run-uefi
 ```
 
-Для автоматизированного аппаратного ввода QEMU должен быть запущен с QMP-сокетом и serial log. Затем QMP получает `qmp_capabilities`, после чего команды вида `human-monitor-command` с `sendkey h`, `sendkey e`, `sendkey l`, `sendkey p`, `sendkey ret`. После этого serial log должен содержать выполненную команду и рост `IRQ1 keyboard count`.
+For automated hardware input QEMU must be started with a QMP socket and serial log. Then QMP receives `qmp_capabilities`, after which `human-monitor-command` commands with `sendkey h`, `sendkey e`, `sendkey l`, `sendkey p`, `sendkey ret` are sent. After this the serial log should contain the executed command and the increase in `IRQ1 keyboard count`.
 
-## Следующий рубеж
+## Next milestone
 
-Следующим приоритетом будет расширение текущего точечного mapper до контролируемого 4-level paging: единая структура `boot_info`, резервирование страниц ядра/модулей/MMIO, kernel heap и безопасные API отображения. Затем появится текстовый терминал на framebuffer — ключевой шаг для запуска командной строки на обычном ПК без COM1.
+The next priority will be to expand the current flat mapper into a controlled 4-level paging: a unified `boot_info` structure, reservation of pages for the kernel/modules/MMIO, a kernel heap and safe mapping APIs. Then a text terminal on the framebuffer will appear — a key step to run a command line on a regular PC without COM1.
 
 ## References
 

@@ -1,43 +1,46 @@
-# Проверка paging и kernel heap в MyOS 0.5.0-dev
-> **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README.md).
+# Validation of paging and kernel heap in MyOS 0.5.0-dev
+
+> **Language:** [English](paging-validation.md) | [Русский](paging-validation_RU.md)
+
+> **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and the [documentation index](README.md).
 
 
-## Реализованный рубеж
+## Implemented milestone
 
-MyOS 0.5.0-dev создаёт собственную PML4-страницу через PMM, копирует в неё существующие bootstrap-записи Limine и загружает физический адрес нового корня в `CR3`. Такой переход сохраняет проверенные higher-half и HHDM-отображения, но переводит все новые изменения MyOS под её собственный контроль. Четырёхуровневый walker создаёт PDPT, PD и PT по требованию, отображает 4 KiB страницы и выполняет `invlpg` после изменения доступного виртуального адреса. [1] [2]
+MyOS 0.5.0-dev creates its own PML4 page via the PMM, copies existing Limine bootstrap entries into it, and loads the physical address of the new root into `CR3`. This transition preserves the proven higher-half and HHDM mappings while bringing all new MyOS changes under its own control. A four-level walker creates PDPT, PD and PT on demand, maps 4 KiB pages and performs `invlpg` after modifying the affected virtual address. [1] [2]
 
-| Компонент | Реализация | Проверяемый признак |
+| Component | Implementation | Verification indicator |
 |---|---|---|
-| Собственный корень | Отдельная PML4-страница, выделенная PMM и загруженная в CR3. | Команда `paging` показывает новый физический адрес PML4. |
-| 4 KiB mapper | PML4 → PDPT → PD → PT; новые таблицы обнуляются перед публикацией present-entry. | В `paging` растёт счётчик созданных MyOS mappings. |
-| Local APIC | Одна некэшируемая MMIO-страница в `0xFFFFFFFFC0000000`. | `paging` переводит её в `0xFEE00000` в QEMU. |
-| Kernel heap | 1 GiB supervisor-only диапазон `0xFFFF900000000000`; 16-byte alignment; страницы выдаются лениво. | `heaptest` пересекает страницу и возвращает корректно записанные байты. |
-| TLB | Новое PML4 активируется через CR3; поздние изменения сбрасывают одну TLB-запись `invlpg`. | PIT, Local APIC и PS/2 продолжают работать после switch. |
+| Own root | A separate PML4 page allocated from the PMM and loaded into CR3. | The `paging` command shows the new physical PML4 address. |
+| 4 KiB mapper | PML4 → PDPT → PD → PT; new tables are zeroed before publishing the present entry. | The `paging` command increments the count of created MyOS mappings. |
+| Local APIC | One uncached MMIO page at `0xFFFFFFFFC0000000`. | `paging` maps it to `0xFEE00000` in QEMU. |
+| Kernel heap | 1 GiB supervisor-only range `0xFFFF900000000000`; 16-byte alignment; pages are issued lazily. | `heaptest` crosses a page boundary and returns correctly written bytes. |
+| TLB | The new PML4 is activated via CR3; later changes invalidate a single TLB entry with `invlpg`. | PIT, Local APIC and PS/2 continue to work after the switch. |
 
-> Эта версия не освобождает heap и не создаёт независимые пользовательские адресные пространства. Bootstrap-таблицы загрузчика намеренно не освобождаются: ранний переход приоритизирует сохранение работающего окружения над агрессивной рекультивацией памяти.
+> This release does not free the heap nor create independent user address spaces. The bootloader's bootstrap tables are intentionally not freed: the early transition prioritizes keeping a working environment over aggressive memory reclamation.
 
-## Матрица проверок
+## Validation matrix
 
-| Сценарий | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Результат |
+| Scenario | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Result |
 |---|---:|---:|---|
-| Смена CR3 на собственный PML4 | Пройдено | Пройдено | Ядро продолжает последовательный вывод и обрабатывает IRQ. |
-| Перевод Local APIC mapping | Пройдено | Пройдено | `paging` показывает physical `0xFEE00000`. |
-| Heap multi-page test | Пройдено | Пройдено | Выделены 64 байта и `4096 + 64` байта; чтение/запись пройдены. |
-| Статистика heap | Пройдено | Пройдено | После `heaptest`: used `0x1080`, mapped pages `0x2`, allocations `0x2`. |
-| PIT IRQ0 после CR3 switch | Пройдено | Пройдено | `ticks` увеличивается; IRQ0 счётчик не равен нулю. |
-| PS/2 IRQ1 после CR3 switch | Пройдено через QMP `sendkey` | Регрессия сохранена из 0.4 | `heaptest`, `keyboard`, `halt` введены виртуальной клавиатурой; ошибок буфера нет. |
+| Switch CR3 to the new PML4 | Passed | Passed | The kernel continues serial output and handles IRQs. |
+| Remap Local APIC | Passed | Passed | `paging` shows physical `0xFEE00000`. |
+| Heap multi-page test | Passed | Passed | 64 bytes and `4096 + 64` bytes allocated; read/write passed. |
+| Heap statistics | Passed | Passed | After `heaptest`: used `0x1080`, mapped pages `0x2`, allocations `0x2`. |
+| PIT IRQ0 after CR3 switch | Passed | Passed | `ticks` increases; IRQ0 counter is non-zero. |
+| PS/2 IRQ1 after CR3 switch | Passed via QMP `sendkey` | Regression retained from 0.4 | `heaptest`, `keyboard`, `halt` entered via the virtual keyboard; no buffer errors. |
 
-## Ограничения и следующий шаг
+## Limitations and next steps
 
-| Ограничение | Причина | Следующая работа |
+| Limitation | Reason | Next steps |
 |---|---|---|
-| Bootstrap entries копируются целиком. | Требуется безопасно сохранить путь старта. | Ввести `boot_info` и явное резервирование страниц ядра/модулей. |
-| Heap — monotonic bump allocator. | Нужна простая доверенная база. | Добавить free list, `kfree` и защиту от повреждения метаданных. |
-| Нет page-fault policy. | Обработчик исключения пока диагностический. | Расшифровывать error code и реализовать guard/unmapped policy. |
-| Нет user mappings. | Ring 3 ещё отсутствует. | Выделить низкую половину адресов и U/S mapping перед процессами. |
-| Нет framebuffer-терминала. | Проверка остаётся serial-first. | Добавить шрифт и текстовую консоль как следующий визуальный этап. |
+| Bootstrap entries are copied in full. | The boot path must be preserved safely. | Introduce `boot_info` and explicit reservation of kernel/module pages. |
+| Heap is a monotonic bump allocator. | A simple trusted base is required. | Add a free list, `kfree` and protection against metadata corruption. |
+| No page-fault policy. | The exception handler is currently diagnostic. | Decode the error code and implement guard/unmapped policies. |
+| No user mappings. | Ring 3 is not yet present. | Reserve the lower half of addresses and U/S mappings before processes. |
+| No framebuffer terminal. | Validation remains serial-first. | Add a font and a text console as the next visual stage. |
 
-## Повторение базовой проверки
+## Re-running the basic validation
 
 ```bash
 cd /home/ubuntu/myos
@@ -46,7 +49,7 @@ make run
 make run-uefi
 ```
 
-В serial-shell выполните `paging`, `heap`, `heaptest`, `heap`, `ticks` и `irqs`. Ожидается успешный `Heap multi-page write/read test passed.`, активный PML4, mapping Local APIC и растущий счётчик PIT.
+In the serial shell run `paging`, `heap`, `heaptest`, `heap`, `ticks` and `irqs`. Expect a successful `Heap multi-page write/read test passed.`, an active PML4, a mapped Local APIC and a growing PIT counter.
 
 ## References
 
