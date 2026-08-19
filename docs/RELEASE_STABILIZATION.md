@@ -10,7 +10,7 @@
 | Command | What it checks | Isolation |
 |---|---|---|
 | `make smoke` | Raw-image BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. | Uses `myos.img`; does not write user test files. |
-| `make regression` | BIOS default `startgui` navigation through M/H/N/H/Q with clean return, QMP-injected PS/2 click activation of the centered `NOTES` tile with a PPM framebuffer transition, plus the retained `startgui home` alias, GUI note create/edit/save, paced console-editor ordinary text save/readback, SDK `cp` copying of a 305-byte file across the 256-byte VFS boundary with overwrite rejection, editor-authored `.mya` source → `build` → `install` → `run`, conditional rejection cases, then UEFI repetition of desktop-home navigation, text/copied-file/native persistence and clean GUI enter/exit. | Creates a temporary copy of `myos.img` and deletes it after the check. The user's working image is not modified. |
+| `make regression` | BIOS default `startgui` navigation through M/H/N/H/Q with clean return, QMP-injected PS/2 mouse activation of the centered `NOTES` tile, `SYSTEM` and `MONITOR` window close controls, MONITOR title-bar raise, viewer close-to-home and editor cancel-to-viewer; PPM framebuffer transitions validate the visible mouse steps in BIOS and UEFI. The harness also retains the `startgui home` alias, performs GUI note create/edit/save, paced console-editor ordinary text save/readback, SDK `cp` copying of a 305-byte file across the 256-byte VFS boundary with overwrite rejection, editor-authored `.mya` source → `build` → `install` → `run`, conditional rejection cases, text/copied-file/native persistence and clean GUI enter/exit. | Creates a temporary copy of `myos.img` and deletes it after the check. The user's working image is not modified. |
 | `make release-check` | Requires a clean Git tree, rebuilds ISO/IMG from scratch, runs `make smoke` and `make regression`, then prints the exact source commit and SHA-256 of both artifacts. | Local-only: does not create a tag, GitHub Release, Pre-release or remote push. |
 
 `make smoke`, `make regression` and `make release-check` require QEMU and OVMF. `make regression` uses a fixed Q35 configuration and `-drive if=ide,format=raw`, because this is the supported persistent AHCI path. `make release-check` additionally requires a clean Git tree and itself runs a clean `make all img`.
@@ -39,7 +39,7 @@ Automated commands are intentionally limited. Before a new GUI release tag is cr
 
 | Gate | Required evidence |
 |---|---|
-| Framebuffer visual check | Desktop, windows, pointer, focus, note editor, and return to shell remain readable in a graphical QEMU session. |
+| Framebuffer visual check | Desktop, windows, pointer, focus, title-bar raise, per-window `X` behavior, note editor, and return to shell remain readable in a graphical QEMU session. |
 | Fresh persistent workflow | On a fresh `myos.img` create a note and a native package, then reboot the guest separately and verify both results. |
 | Migration fixtures | MYPFS003→MYPFS004 and MYPFS002→MYPFS004 fixtures complete recovery/migration and are readable after a second clean mount. |
 | Physical x86_64 PC | Boot from a disposable USB, test keyboard input, framebuffer output, and clean poweroff/reboot smoke. This cannot be replaced by QEMU. |
@@ -47,7 +47,7 @@ Automated commands are intentionally limited. Before a new GUI release tag is cr
 
 ## What these tests do not prove
 
-`make smoke` and `make regression` do not establish networking, USB HID, SMP, production security, long-duration stress reliability, physical-hardware compatibility or a full native C toolchain. They are release-stabilization evidence for the currently implemented GUI including its bounded mouse-first desktop launcher, MYPFS004, public SDK VFS copy workflow, and the restricted native development workflow only.
+`make smoke` and `make regression` do not establish networking, USB HID, SMP, production security, long-duration stress reliability, physical-hardware compatibility or a full native C toolchain. They are release-stabilization evidence for the currently implemented GUI including its bounded mouse-first launcher and window chrome, MYPFS004, public SDK VFS copy workflow, and the restricted native development workflow only.
 
 ## Publication rule
 

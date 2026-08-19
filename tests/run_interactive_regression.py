@@ -157,6 +157,25 @@ class Guest:
             raise RegressionFailure(f"{self.name}: QMP did not create {path.name}")
         return path.read_bytes()
 
+    def require_framebuffer_transition(self, before, after, label):
+        changed = sum(left != right for left, right in zip(before, after))
+        if len(before) != len(after) or changed < 4096:
+            raise RegressionFailure(f"{self.name}: {label} did not produce the expected framebuffer transition")
+
+    def ppm_pixel(self, image, x, y):
+        header_end = image.find(b"\n255\n")
+        if header_end < 0:
+            raise RegressionFailure(f"{self.name}: QMP screendump is not a binary PPM image")
+        header = image[:header_end].split()
+        if len(header) != 3 or header[0] != b"P6":
+            raise RegressionFailure(f"{self.name}: QMP screendump header is invalid")
+        width = int(header[1])
+        payload_start = header_end + len(b"\n255\n")
+        offset = payload_start + ((y * width) + x) * 3
+        if offset + 3 > len(image):
+            raise RegressionFailure(f"{self.name}: PPM pixel coordinate is outside the screendump")
+        return image[offset:offset + 3]
+
     def qmp_move(self, delta_x=0, delta_y=0):
         for axis, delta in (("x", delta_x), ("y", delta_y)):
             remaining = delta
@@ -294,10 +313,63 @@ class Guest:
         self.qmp_left_click()
         time.sleep(0.25)
         after = self.qmp_screendump("desktop-after-click")
-        changed = sum(left != right for left, right in zip(before, after))
-        if len(before) != len(after) or changed < 4096:
-            raise RegressionFailure(f"{self.name}: launcher mouse click did not produce a viewer framebuffer change")
+        self.require_framebuffer_transition(before, after, "launcher NOTES click")
         self.qmp_move(delta_x=600, delta_y=390)
+        self.qmp_left_click()
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
+    def gui_mouse_window_chrome_and_exit(self):
+        start = len(self.output)
+        self.send(f"startgui {NOTE_PATH}\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        before = self.qmp_screendump("window-chrome-before")
+        self.qmp_move(delta_x=151, delta_y=329)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        system_closed = self.qmp_screendump("window-chrome-system-closed")
+        self.require_framebuffer_transition(before, system_closed, "SYSTEM window close")
+        self.qmp_move(delta_x=-134, delta_y=-39)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        monitor_raised = self.qmp_screendump("window-chrome-monitor-raised")
+        self.require_framebuffer_transition(system_closed, monitor_raised, "MONITOR title-bar raise")
+        self.qmp_move(delta_x=385, delta_y=1)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        monitor_closed = self.qmp_screendump("window-chrome-monitor-closed")
+        self.require_framebuffer_transition(monitor_raised, monitor_closed, "MONITOR window close")
+        self.qmp_move(delta_x=20, delta_y=-98)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        launcher = self.qmp_screendump("window-chrome-viewer-closed")
+        self.require_framebuffer_transition(monitor_closed, launcher, "viewer window close")
+        self.qmp_move(delta_x=174, delta_y=191)
+        self.qmp_left_click()
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
+    def gui_mouse_editor_close_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        launcher = self.qmp_screendump("editor-close-launcher")
+        self.qmp_move(delta_x=115)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        editor = self.qmp_screendump("editor-close-editor")
+        self.require_framebuffer_transition(launcher, editor, "launcher EDIT NOTE click")
+        self.qmp_move(delta_x=309, delta_y=193)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        viewer = self.qmp_screendump("editor-close-viewer")
+        editor_title = self.ppm_pixel(editor, 338, 210)
+        viewer_title = self.ppm_pixel(viewer, 338, 210)
+        if editor_title == viewer_title:
+            raise RegressionFailure(f"{self.name}: editor close did not cancel to the viewer")
+        self.qmp_move(delta_x=174, delta_y=191)
         self.qmp_left_click()
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
@@ -345,6 +417,8 @@ def run_bios(image_path, work_dir):
         guest.command(f"cat {NOTE_PATH}", "base!")
         guest.gui_desktop_navigate_and_exit()
         guest.gui_mouse_notes_and_exit()
+        guest.gui_mouse_window_chrome_and_exit()
+        guest.gui_mouse_editor_close_and_exit()
         guest.gui_desktop_navigate_and_exit("startgui home")
         guest.console_edit_and_save(EDITOR_TEXT_PATH, b"first\nsecond\n")
         text_start = len(guest.output)
@@ -481,6 +555,8 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_open_and_exit()
         guest.gui_desktop_navigate_and_exit()
         guest.gui_mouse_notes_and_exit()
+        guest.gui_mouse_window_chrome_and_exit()
+        guest.gui_mouse_editor_close_and_exit()
     finally:
         guest.close()
 

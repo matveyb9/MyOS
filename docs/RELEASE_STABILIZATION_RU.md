@@ -10,7 +10,7 @@
 | Команда | Что проверяет | Изоляция |
 |---|---|---|
 | `make smoke` | Raw-image BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. | Использует `myos.img`; не записывает пользовательские test files. |
-| `make regression` | BIOS default navigation `startgui` через M/H/N/H/Q с clean return, QMP-injected PS/2 activation centered tile `NOTES` с PPM framebuffer transition, плюс retained alias `startgui home`, GUI note create/edit/save, paced console-editor ordinary text save/readback, SDK `cp` copying 305-byte file через 256-byte VFS boundary с overwrite rejection, editor-authored `.mya` source → `build` → `install` → `run`, conditional rejection cases, затем UEFI повтор desktop-home navigation, text/copied-file/native persistence и clean GUI enter/exit. | Создаёт temporary copy `myos.img` и удаляет её после проверки. Рабочий image пользователя не изменяется. |
+| `make regression` | BIOS default navigation `startgui` через M/H/N/H/Q с clean return, QMP-injected PS/2 mouse activation centered tile `NOTES`, оконных controls закрытия `SYSTEM` и `MONITOR`, подъёма MONITOR по title bar, viewer close-to-home и editor cancel-to-viewer; PPM framebuffer transitions подтверждают видимые mouse steps в BIOS и UEFI. Harness также сохраняет alias `startgui home`, выполняет GUI note create/edit/save, paced console-editor ordinary text save/readback, SDK `cp` copying 305-byte file через 256-byte VFS boundary с overwrite rejection, editor-authored `.mya` source → `build` → `install` → `run`, conditional rejection cases, text/copied-file/native persistence и clean GUI enter/exit. | Создаёт temporary copy `myos.img` и удаляет её после проверки. Рабочий image пользователя не изменяется. |
 | `make release-check` | Требует clean Git tree, rebuilds ISO/IMG from scratch, runs `make smoke` и `make regression`, затем печатает exact source commit и SHA-256 обоих artifacts. | Local-only: не создаёт tag, GitHub Release, Pre-release или remote push. |
 
 `make smoke`, `make regression` и `make release-check` требуют QEMU и OVMF. `make regression` uses fixed Q35 configuration and `-drive if=ide,format=raw`, because this is the supported persistent AHCI path. `make release-check` additionally requires a clean Git tree and itself runs a clean `make all img`.
@@ -39,7 +39,7 @@ release candidate: automated checks passed
 
 | Gate | Требуемое evidence |
 |---|---|
-| Framebuffer visual check | Desktop, windows, pointer, focus, note editor and return to shell остаются readable in a graphical QEMU session. |
+| Framebuffer visual check | Desktop, windows, pointer, focus, title-bar raise, per-window `X` behavior, note editor and return to shell остаются readable in a graphical QEMU session. |
 | Fresh persistent workflow | На fresh `myos.img` создать note и native package, затем отдельно перезагрузить guest и проверить оба результата. |
 | Migration fixtures | MYPFS003→MYPFS004 и MYPFS002→MYPFS004 fixtures завершают recovery/migration и читаются после second clean mount. |
 | Physical x86_64 PC | Boot от disposable USB, keyboard input, framebuffer output и clean poweroff/reboot smoke. Это нельзя заменить QEMU. |
@@ -47,7 +47,7 @@ release candidate: automated checks passed
 
 ## Что не доказывают эти tests
 
-`make smoke` and `make regression` do not establish networking, USB HID, SMP, production security, long-duration stress reliability, physical-hardware compatibility or a full native C toolchain. They are release-stabilization evidence for the currently implemented GUI, включая bounded mouse-first desktop launcher, MYPFS004, public SDK VFS copy workflow and restricted native development workflow only.
+`make smoke` and `make regression` do not establish networking, USB HID, SMP, production security, long-duration stress reliability, physical-hardware compatibility or a full native C toolchain. They are release-stabilization evidence for the currently implemented GUI, включая bounded mouse-first launcher и window chrome, MYPFS004, public SDK VFS copy workflow and restricted native development workflow only.
 
 ## Publication rule
 

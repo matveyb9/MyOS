@@ -22,6 +22,11 @@
 #define GUI_LAUNCHER_TILE_WIDTH 180U
 #define GUI_LAUNCHER_TILE_HEIGHT 96U
 #define GUI_LAUNCHER_TILE_GAP 24U
+#define GUI_WINDOW_TITLE_HEIGHT 24U
+#define GUI_WINDOW_CLOSE_LEFT_INSET 22U
+#define GUI_WINDOW_CLOSE_TOP_INSET 7U
+#define GUI_WINDOW_CLOSE_WIDTH 14U
+#define GUI_WINDOW_CLOSE_HEIGHT 12U
 
 typedef struct gui_window {
     uint64_t x;
@@ -464,6 +469,43 @@ static void gui_toggle_window(uint8_t window_id) {
         gui_focus_next_window();
     }
 }
+static int gui_window_title_contains(const gui_window_t *window, uint64_t x, uint64_t y) {
+    return gui_point_in_rect(x, y, window->x + 2U, window->y + 2U,
+                             window->width - 4U, GUI_WINDOW_TITLE_HEIGHT);
+}
+static int gui_window_close_contains(const gui_window_t *window, uint64_t x, uint64_t y) {
+    return gui_point_in_rect(x, y, window->x + window->width - GUI_WINDOW_CLOSE_LEFT_INSET,
+                             window->y + GUI_WINDOW_CLOSE_TOP_INSET,
+                             GUI_WINDOW_CLOSE_WIDTH, GUI_WINDOW_CLOSE_HEIGHT);
+}
+static char gui_window_action_at_pointer(int *handled) {
+    if (handled == (int *)0) {
+        return '\0';
+    }
+    *handled = 0;
+    for (uint64_t slot = GUI_WINDOW_COUNT; slot > 0U; slot--) {
+        const uint8_t candidate = console.gui_z_order[slot - 1U];
+        const gui_window_t *window = &console.gui_windows[candidate];
+
+        if (window->visible == 0U) {
+            continue;
+        }
+        if (gui_window_close_contains(window, console.gui_pointer_x, console.gui_pointer_y) != 0) {
+            *handled = 1;
+            if (candidate == GUI_WINDOW_NOTES) {
+                return (console.gui_content_flags & MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U ? '\x1b' : 'h';
+            }
+            gui_toggle_window(candidate);
+            return '\0';
+        }
+        if (gui_window_title_contains(window, console.gui_pointer_x, console.gui_pointer_y) != 0) {
+            *handled = 1;
+            gui_raise_window(candidate);
+            return '\0';
+        }
+    }
+    return '\0';
+}
 
 static void draw_gui_window(const gui_window_t *window, int focused) {
     const uint32_t border = focused != 0 ? console_rgb(36U, 170U, 224U) : console_rgb(92U, 112U, 138U);
@@ -473,9 +515,13 @@ static void draw_gui_window(const gui_window_t *window, int focused) {
 
     fill_rect(window->x, window->y, window->width, window->height, border);
     fill_rect(window->x + 2U, window->y + 2U, window->width - 4U, window->height - 4U, surface);
-    fill_rect(window->x + 2U, window->y + 2U, window->width - 4U, 24U, header);
+    fill_rect(window->x + 2U, window->y + 2U, window->width - 4U, GUI_WINDOW_TITLE_HEIGHT, header);
     draw_gui_text(window->x + 14U, window->y + 10U, window->title, surface);
-    fill_rect(window->x + window->width - 22U, window->y + 7U, 10U, 10U, surface);
+    fill_rect(window->x + window->width - GUI_WINDOW_CLOSE_LEFT_INSET,
+              window->y + GUI_WINDOW_CLOSE_TOP_INSET,
+              GUI_WINDOW_CLOSE_WIDTH, GUI_WINDOW_CLOSE_HEIGHT, console_rgb(170U, 70U, 80U));
+    draw_gui_text(window->x + window->width - GUI_WINDOW_CLOSE_LEFT_INSET + 4U,
+                  window->y + GUI_WINDOW_CLOSE_TOP_INSET + 2U, "X", surface);
     if (window == &console.gui_windows[GUI_WINDOW_NOTES]) {
         draw_gui_content(window, text);
     } else {
@@ -568,7 +614,7 @@ static void redraw_gui_desktop(void) {
             }
         }
         fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-        draw_gui_text(30U, console.height - 36U, "CLICK WINDOW TO FOCUS  CLICK X TO EXIT  HOTKEYS H E N Q  WASD TAB 1-3 X R", text);
+        draw_gui_text(30U, console.height - 36U, "CLICK TITLE TO RAISE  WINDOW X CLOSES  TOP X EXITS  HOTKEYS H E N Q", text);
     }
     draw_gui_pointer();
 }
@@ -806,6 +852,9 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
     console.gui_launcher_active = (flags & MYOS_GUI_CONTENT_FLAG_LAUNCHER) != 0U;
     console.gui_content_cursor = cursor;
     console.gui_content_viewport = gui_content_line_start(viewport);
+    if (console.gui_launcher_active == 0) {
+        gui_raise_window(GUI_WINDOW_NOTES);
+    }
     redraw_gui_desktop();
     return 1;
 }
@@ -872,6 +921,7 @@ static uint64_t gui_pointer_offset(uint64_t position, int64_t delta, uint64_t li
 char framebuffer_gui_handle_mouse(int64_t delta_x, int64_t delta_y, int left_pressed, int left_was_pressed) {
     const uint8_t previous_focus = console.gui_focus;
     char action = '\0';
+    int window_chrome_handled = 0;
 
     if (console.gui_active == 0) {
         return '\0';
@@ -888,10 +938,13 @@ char framebuffer_gui_handle_mouse(int64_t delta_x, int64_t delta_y, int left_pre
             action = 'q';
         }
         if (action == '\0' && console.gui_launcher_active == 0) {
-            gui_focus_pointer_window();
+            action = gui_window_action_at_pointer(&window_chrome_handled);
+            if (action == '\0' && window_chrome_handled == 0) {
+                gui_focus_pointer_window();
+            }
         }
     }
-    if (console.gui_focus != previous_focus) {
+    if (console.gui_focus != previous_focus || window_chrome_handled != 0) {
         redraw_gui_desktop();
     } else {
         draw_gui_pointer();
