@@ -8,13 +8,12 @@
 |---|---|---|
 | `make smoke` | Raw-image BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. | Использует `myos.img`; не записывает пользовательские test files. |
 | `make regression` | BIOS GUI note create/edit/save, native `.mya` source → `build` → `install` → `run`, затем UEFI remount/readback, persisted native run и clean GUI enter/exit. | Создаёт temporary copy `myos.img` и удаляет её после проверки. Рабочий image пользователя не изменяется. |
+| `make release-check` | Требует clean Git tree, rebuilds ISO/IMG from scratch, runs `make smoke` и `make regression`, затем печатает exact source commit и SHA-256 обоих artifacts. | Local-only: не создаёт tag, GitHub Release, Pre-release или remote push. |
 
-Перед запуском обе команды требуют QEMU, OVMF и `myos.img`; `make regression` использует fixed Q35 configuration and `-drive if=ide,format=raw`, because this is the supported persistent AHCI path.
+`make smoke`, `make regression` и `make release-check` требуют QEMU и OVMF. `make regression` uses fixed Q35 configuration and `-drive if=ide,format=raw`, because this is the supported persistent AHCI path. `make release-check` additionally requires a clean Git tree and itself runs a clean `make all img`.
 
 ```bash
-make all img
-make smoke
-make regression
+make release-check
 ```
 
 Ожидаемый итог:
@@ -24,6 +23,11 @@ boot smoke: BIOS passed
 boot smoke: UEFI passed
 interactive regression: BIOS GUI/native workflow passed
 interactive regression: UEFI persistence workflow passed
+release candidate: source commit <full-SHA>
+release candidate: artifacts
+<SHA-256>  myos.iso
+<SHA-256>  myos.img
+release candidate: automated checks passed
 ```
 
 ## Ручные release gates
@@ -36,7 +40,7 @@ interactive regression: UEFI persistence workflow passed
 | Fresh persistent workflow | На fresh `myos.img` создать note и native package, затем отдельно перезагрузить guest и проверить оба результата. |
 | Migration fixtures | MYPFS003→MYPFS004 и MYPFS002→MYPFS004 fixtures завершают recovery/migration и читаются после second clean mount. |
 | Physical x86_64 PC | Boot от disposable USB, keyboard input, framebuffer output и clean poweroff/reboot smoke. Это нельзя заменить QEMU. |
-| Release scope | Зафиксировать known limitations, release notes, artifact SHA-256 и exact immutable tag target. |
+| Release scope | Зафиксировать known limitations, release notes и exact immutable tag target. `make release-check` предоставляет reproducible source SHA и artifact SHA-256, но не создаёт public release. |
 
 ## Что не доказывают эти tests
 

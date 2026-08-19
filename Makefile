@@ -48,7 +48,7 @@ ASM_SOURCES    := $(shell find kernel -name '*.asm' | sort)
 OBJECTS        := $(patsubst %.c,$(BUILD_DIR)/obj/%.c.o,$(C_SOURCES)) \
                   $(patsubst %.asm,$(BUILD_DIR)/obj/%.asm.o,$(ASM_SOURCES))
 
-.PHONY: all kernel initramfs iso img run run-graphic run-uefi run-uefi-graphic smoke regression debug clean distclean inspect help sdk-stage
+.PHONY: all kernel initramfs iso img run run-graphic run-uefi run-uefi-graphic smoke regression release-check debug clean distclean inspect help sdk-stage
 
 all: iso
 kernel: $(KERNEL)
@@ -216,6 +216,9 @@ smoke: $(PROJECT).img tests/run_qemu_boot_smoke.sh
 regression: $(PROJECT).img tests/run_interactive_regression.py
 	tests/run_interactive_regression.py $(PROJECT).img
 
+release-check: tests/run_release_candidate_check.sh
+	tests/run_release_candidate_check.sh
+
 debug: $(PROJECT).iso
 	qemu-system-x86_64 -machine q35 -m 256M -cdrom $(PROJECT).iso -boot d \
 		-serial stdio -display none -no-reboot -no-shutdown -S -s
@@ -238,6 +241,7 @@ help:
 		'make run-uefi-graphic Start UEFI QEMU with framebuffer window and COM1 output.' \
 		'make smoke          Run headless BIOS and UEFI boot smoke checks against myos.img.' \
 		'make regression     Run isolated GUI, persistent-storage and native-workflow BIOS/UEFI regression.' \
+		'make release-check  Clean rebuild, artifact hashes, BIOS/UEFI smoke and interactive regression; creates no tag.' \
 		'make img            Build a raw hybrid GPT disk/USB image. Flash only to a dedicated test device.' \
 		'make debug          Start QEMU paused with a GDB server on TCP port 1234.'
 

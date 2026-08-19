@@ -103,11 +103,12 @@ cat /users/myos/files/note.txt
 | UEFI ISO test | `make run-uefi` |
 | BIOS + UEFI raw-image boot smoke | `make smoke` |
 | Isolated GUI/native BIOS + UEFI regression | `make regression` |
+| Local release-candidate rebuild, tests and hashes | `make release-check` |
 | Inspect kernel ELF | `make inspect` |
 | Clean generated files | `make clean` |
 | Deep-clean Limine dependency too | `make distclean` |
 
-`make img` intentionally recreates `myos.img`; any existing persistent MYPFS004 files and application packages inside the prior image are erased. `make smoke` boots that raw image headlessly through BIOS and UEFI, verifies firmware, persistent AHCI mount and automatic `[myos]$` entry, then stops both guests. `make regression` creates a disposable copy of `myos.img` and drives GUI note editing plus native build/install/run in BIOS, then verifies the persisted results through UEFI. These checks are release-stabilization evidence, not a substitute for physical-PC testing; see [the full checklist](docs/RELEASE_STABILIZATION_RU.md).
+`make img` intentionally recreates `myos.img`; any existing persistent MYPFS004 files and application packages inside the prior image are erased. `make smoke` boots that raw image headlessly through BIOS and UEFI, verifies firmware, persistent AHCI mount and automatic `[myos]$` entry, then stops both guests. `make regression` creates a disposable copy of `myos.img` and drives GUI note editing plus native build/install/run in BIOS, then verifies the persisted results through UEFI. `make release-check` requires a clean Git tree, rebuilds artifacts, runs both checks and prints source/artifact SHA-256; it creates **no** tag, GitHub Release or Pre-release. These checks are release-stabilization evidence, not a substitute for physical-PC testing; see [the full checklist](docs/RELEASE_STABILIZATION_RU.md).
 
 ## Git model
 
