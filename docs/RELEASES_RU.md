@@ -1,81 +1,128 @@
-# Releases, branches and project scope
+# Ветки, релизы и история изменений
 
-MyOS uses Git references to keep completed console releases separate from subsequent GUI development and future work. The public repository is [matveyb9/MyOS](https://github.com/matveyb9/MyOS). A new console patch release may advance `main` and `console-stable`, but it never rewrites an earlier immutable tag.
+> **Язык:** [English](RELEASES.md) | [Русский](RELEASES_RU.md)
 
-## Current references
+Этот документ объясняет, какую линию MyOS выбрать, какие refs нельзя изменять и как оформлять будущие commits и releases на двух языках.
 
-| Reference | Role | Current meaning |
+## Линии проекта
+
+| Reference | Назначение | Статус |
 |---|---|---|
-| `main` | Active console-maintenance branch | Contains approved console-only maintenance changes, including shell UX and signed `calc` improvements. |
-| `console-stable` | Latest stable console baseline | Points to the reviewed source snapshot released as `v0.12.1-console`. |
-| `v0.12.1-console` | Immutable annotated tag | Marks the refreshed MyOS Console 0.12.1 release with console UX improvements. |
-| `v0.12.0-console` | Immutable annotated tag | Preserves the original completed MyOS Console 0.12.0 release. Never move or rewrite it. |
-| `v0.12.2-gui-preview` | Immutable annotated preview tag | Marks the tested framebuffer GUI scope at the first experimental GUI checkpoint; it is not a stable console or production GUI release. |
-| `gui/bringup` | Separate GUI development branch | Contains the tagged GUI preview plus MYPFS004, persistent user-program execution, MyOS SDK, restricted native `asm`/`build` workflow and cursor-only GUI pointer hardening. It is not a stable GUI release and does not change `main` or `console-stable`. |
-| `feature/console-ux` | Historical console UX feature branch | Preserves a focused branch for quieter calculator output; it is published for history and comparison, not the default development target. |
+| `console-stable` | Проверенный baseline консольной ОС. | Стабильная линия на `v0.12.1-console`. |
+| `main` | Поддерживаемая консольная линия. | Только console maintenance и документация. |
+| `gui/bringup` | GUI и native-development line. | Экспериментальная, не сливается в `main` автоматически. |
+| `feature/console-ux` | Историческая feature branch. | Сохранена для истории и сравнения. |
 
-## Which branch should I use?
+## Неизменяемые checkpoints
 
-| Goal | Use |
+| Tag | Значение |
 |---|---|
-| Build and use the latest finished console MyOS | `main`, `console-stable` or `v0.12.1-console`. |
-| Study the original console completion point before UX refreshes | `git checkout v0.12.0-console`. |
-| Maintain current console without GUI changes | Create a fix branch from `main` or `console-stable`. |
-| Inspect the fixed GUI preview checkpoint | `git switch --detach v0.12.2-gui-preview`. |
-| Continue GUI and user-program development | `git switch gui/bringup`. |
-| Inspect the current GUI development line | `git switch gui/bringup`; it contains the latest documented development work but remains pre-release scope. |
-| Publish the whole project | The public repository already contains the intended branches and immutable tags; future publication must preserve their history. |
+| `v0.12.0-console` | Исходная граница завершения console OS. |
+| `v0.12.1-console` | Проверенный console UX refresh. |
+| `v0.12.2-gui-preview` | Первый tested framebuffer GUI checkpoint. |
+| `v0.13.0-gui-rc.1` | Опубликованный GitHub Pre-release GUI release candidate. |
 
-## Safe Git commands
+> Immutable tag нельзя передвигать, заменять force-push или использовать повторно. Новый release или pre-release всегда получает **новый tag** и отдельные notes.
 
-Show the available references:
+## Какую ветку выбрать
 
-```bash
-git branch -a
-git tag
-git log --oneline --decorate --all --graph
+| Цель | Действие |
+|---|---|
+| Использовать проверенную консольную ОС | `git switch main` или `git switch console-stable`. |
+| Изучить конкретный checkpoint | `git switch --detach <tag>`. |
+| Продолжить GUI или native-development work | `git switch gui/bringup`. |
+| Исправить консольную линию | Создать отдельную branch от `main`. |
+
+## Двуязычные commits
+
+Git subject остаётся коротким **английским** imperative summary. Это делает историю, GitHub lists и command-line output компактными и удобными для поиска. Каждое изменение с заметным смыслом получает ниже короткий **русский body**, который объясняет цель и затронутые user-visible contracts.
+
+```text
+Add labels and forward jumps to native assembler
+
+RU: Добавлены метки `label name:` и безусловные переходы `jump name`
+только на более позднюю метку. Обновлены `help asm`, regression и
+двуязычная документация.
 ```
 
-Return to the current console maintenance branch:
+| Поле | Правило |
+|---|---|
+| Subject | English, imperative, до 72 characters; без точки в конце. |
+| Body | Пустая строка после subject, затем `RU:` и 1–3 короткие строки по-русски. |
+| Scope | Укажите ключевой subsystem при необходимости: `docs:`, `fs:`, `gui:`, `native:`. |
+| Breaking or user-visible change | В body явно назовите command, path, artifact или compatibility consequence. |
+| Documentation | Если меняется public behavior, английская и русская страницы обновляются в том же commit. |
 
-```bash
-git switch main
+Для простого исключительно documentation maintenance commit допустим компактный формат:
+
+```text
+docs: add bilingual navigation
+
+RU: Добавлены парные English/Russian страницы, переключатели языка и
+проверяемые внутренние ссылки.
 ```
 
-Inspect the stable refreshed console release:
+## Двуязычные release notes
 
-```bash
-git switch --detach v0.12.1-console
+Release description всегда содержит два равноправных раздела: сначала **English**, затем **Русский**. Они описывают один и тот же scope; не нужно смешивать два языка в одной строке или таблице.
+
+```md
+# MyOS vX.Y.Z — Short release name
+
+## English
+
+**Status:** Release | Pre-release | Release candidate
+
+### Highlights
+
+- Clear user-facing result.
+- Compatibility or migration note.
+
+### Verification
+
+- Exact checks that passed.
+
+### Known limits
+
+- Explicit remaining gaps.
+
+## Русский
+
+**Статус:** Релиз | Предрелиз | Кандидат в релизы
+
+### Главное
+
+- Тот же пользовательский результат.
+- Та же информация о совместимости или миграции.
+
+### Проверка
+
+- Те же успешно пройденные проверки.
+
+### Известные ограничения
+
+- Те же оставшиеся границы.
 ```
 
-Inspect the original console release instead:
+| Release element | Обязательное содержание |
+|---|---|
+| Title | Version и короткое английское название; Russian section повторяет смысл. |
+| Status | Явно обозначить `Release`, `Pre-release` или `Release candidate`. |
+| Scope | Что включено и что намеренно не включено. |
+| Verification | Commands, firmware paths, hardware scope и status. |
+| Compatibility | Storage format, migration, boot artifact или API changes. |
+| Artifacts | Exact filenames и SHA-256, если artifacts приложены. |
+| Limits | Known gaps; pre-release не представляется stable release. |
+
+## Безопасная публикация
+
+Перед новым tag выполните applicable checks, убедитесь в clean Git tree и получите явное подтверждение на Release или Pre-release. Build artifacts `myos.iso` и `myos.img` не добавляются в source history; они attach only to an explicitly approved GitHub Release or Pre-release.
 
 ```bash
-git switch --detach v0.12.0-console
-```
-
-Inspect the immutable experimental GUI preview:
-
-```bash
-git switch --detach v0.12.2-gui-preview
-```
-
-Create a safe branch before making a change:
-
-```bash
-git switch main
-git switch -c docs/my-change
-```
-
-## GitHub publication
-
-The public `origin` is `https://github.com/matveyb9/MyOS.git`. Publish new commits through their existing tracking branches; when a new branch is deliberately introduced, push it explicitly and verify remote refs afterwards.
-
-```bash
+make release-check
+git status --short
+git tag --list
 git push origin main console-stable feature/console-ux gui/bringup
-git push origin --tags
 ```
 
-Generated files (`build/`, `myos.iso`, `myos.img`) remain untracked. They are reproducible with `make all img` and must be attached only to an explicitly approved GitHub Release or Pre-release.
-
-A future GUI Pre-release must use a **new immutable tag** on a documented `gui/bringup` commit, include clean reproducible ISO/IMG artifacts plus SHA-256 manifest, state that it is not a stable GUI release, and receive explicit publication confirmation. Do not force-push or retag any release checkpoint. `v0.12.0-console` is the historical first completion point; `v0.12.1-console` is the reviewed console UX refresh; `v0.12.2-gui-preview` is the fixed experimental GUI scope. The preview does not change `main` or `console-stable` and must not be presented as a production GUI release.
+Публикация tag, GitHub Release или Pre-release выполняется только после отдельного подтверждения. Она не является побочным эффектом обычного documentation или code commit.

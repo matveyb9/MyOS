@@ -1,17 +1,17 @@
-# Платформы: сборка и запуск MyOS
+# Platforms: building and running MyOS
 
-> **Язык:** [English](PLATFORMS.md) | [Русский](PLATFORMS_RU.md)
+> **Language:** [English](PLATFORMS.md) | [Русский](PLATFORMS_RU.md)
 
 
-Этот документ объясняет, как использовать исходники MyOS на разных host-платформах. **Target остаётся x86_64 PC**; host-платформа — это компьютер, на котором вы собираете artifacts и запускаете QEMU.
+This document explains how to use the MyOS sources on different host platforms. **Target remains x86_64 PC**; the host platform is the computer where you build artifacts and run QEMU.
 
-> Самый надёжный путь для MyOS сегодня — Linux или Ubuntu внутри WSL 2. Он использует GNU toolchain, GNU Make, Linux utilities и QEMU exactly as the project Makefile expects.
+> The most reliable path for MyOS today is Linux or Ubuntu inside WSL 2. It uses the GNU toolchain, GNU Make, Linux utilities and QEMU exactly as the project Makefile expects.
 
-## Матрица поддержки
+## Support matrix
 
 | Host platform | Build | QEMU run | Support level | Recommended use |
 |---|---:|---:|---|---|
-| Ubuntu/Debian Linux x86_64 | Yes | Yes | **Verified** | Основной development path. |
+| Ubuntu/Debian Linux x86_64 | Yes | Yes | **Verified** | Primary development path. |
 | Other mainstream Linux | Yes | Yes | Supported with package-name adjustments | Fedora, Arch, openSUSE and similar. |
 | Windows 10/11 + WSL 2 Ubuntu | Yes | Yes | **Recommended Windows path** | Build/run in Linux environment from Windows. |
 | Windows native + MSYS2 | Expected to be possible | Yes | Experimental | For users who specifically need native Windows tools. |

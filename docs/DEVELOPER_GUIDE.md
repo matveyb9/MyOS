@@ -1,40 +1,40 @@
-# Руководство разработчика MyOS
+# MyOS Developer Guide
 
-> **Язык:** [English](DEVELOPER_GUIDE.md) | [Русский](DEVELOPER_GUIDE_RU.md)
-
-
+> **Language:** [English](DEVELOPER_GUIDE.md) | [Русский](DEVELOPER_GUIDE_RU.md)
 
 
-Этот документ описывает текущую development line **`gui/bringup`** MyOS. Он предназначен для разработчиков, системных программистов и читателей, которым нужна карта исходного кода и технические инварианты. Стабильная console boundary остаётся immutable тегом `v0.12.1-console`; текущие GUI, SDK и MYPFS004 changes не переносятся в неё без отдельного release decision.
 
-> `main` и `console-stable` сохраняют console scope. GUI experiments, MYPFS004 и user-program platform развиваются только в `gui/bringup` и не должны менять console release автоматически.
 
-## 1. Build и test contract
+This document describes the current development line **`gui/bringup`** of MyOS. It is intended for developers, systems programmers and readers who need a map of the source tree and the technical invariants. The stable console boundary remains the immutable tag `v0.12.1-console`; current GUI, SDK and MYPFS004 changes are not merged into it without a separate release decision.
+
+> `main` and `console-stable` keep the console scope. GUI experiments, MYPFS004 and the user-program platform are developed only in `gui/bringup` and must not change the console release automatically.
+
+## 1. Build and test contract
 
 ### Host dependencies
 
-| Инструмент | Использование |
+| Tool | Purpose |
 |---|---|
-| `gcc`, `ld`, `nasm`, `make` | Сборка freestanding C11 kernel, user ELF и ASM. |
-| `xorriso`, `mtools` | Создание ISO и FAT EFI partition. |
-| `sgdisk` | Создание GPT raw image. |
-| `qemu-system-x86_64` | BIOS и UEFI regression. |
+| `gcc`, `ld`, `nasm`, `make` | Build the freestanding C11 kernel, user ELF and ASM. |
+| `xorriso`, `mtools` | Create ISO and FAT EFI partition. |
+| `sgdisk` | Create GPT raw image. |
+| `qemu-system-x86_64` | BIOS and UEFI regression. |
 | OVMF | UEFI firmware for QEMU. |
 
 ### Make targets
 
 | Target | Output / purpose |
 |---|---|
-| `make` or `make all` | Собирает hybrid BIOS/UEFI ISO `myos.iso`. |
-| `make img` | Пересоздаёт 128 MiB raw GPT image `myos.img`. |
+| `make` or `make all` | Builds the hybrid BIOS/UEFI ISO `myos.iso`. |
+| `make img` | Recreates the 128 MiB raw GPT image `myos.img`. |
 | `make run` | BIOS ISO test in headless serial mode. |
-| `make run-graphic` | BIOS ISO test with framebuffer window. |
+| `make run-graphic` | BIOS ISO test with a framebuffer window. |
 | `make run-uefi` | UEFI ISO test in headless serial mode. |
-| `make run-uefi-graphic` | UEFI ISO test with framebuffer window. |
+| `make run-uefi-graphic` | UEFI ISO test with a framebuffer window. |
 | `make smoke` | Headless BIOS and UEFI raw-image boot smoke: checks firmware marker, persistent AHCI mount and automatic `[myos]$` entry. |
 | `make regression` | Creates a disposable raw-image copy; validates BIOS GUI note edit/save, native forward-jump build/install/run and backward-target rejection, then UEFI persistence/readback and GUI enter/exit. |
 | `make release-check` | Requires a clean Git tree, rebuilds ISO/IMG, runs smoke/regression and prints the source commit plus artifact SHA-256; does not tag or publish. |
-| `make debug` | Starts QEMU paused with GDB server on TCP 1234. |
+| `make debug` | Starts QEMU paused with a GDB server on TCP 1234. |
 | `make inspect` | Prints ELF headers and sections. |
 
 The raw image is the authoritative storage test target because AHCI read/write and persistent files require a Q35 IDE-attached raw disk:
@@ -65,7 +65,7 @@ qemu-system-x86_64 \
 |---|---|
 | `boot/` | Higher-half linker script and Limine boot menu/configuration. |
 | `include/` | Kernel/user ABI contracts: scheduling, paging, syscalls, VFS, pipes, AHCI and architecture helpers. |
-| `kernel/main.c` | Limine requests, bootstrap ordering, diagnostics and handoff to kernel shell. |
+| `kernel/main.c` | Limine requests, bootstrap ordering, diagnostics and handoff to the kernel shell. |
 | `kernel/arch/x86_64/` | GDT, IDT, TSS, APIC, syscall entry and low-level NASM primitives. |
 | `kernel/console/` | COM1 mirror, framebuffer text console and kernel shell. |
 | `kernel/mm/` | PMM, four-level page tables, user address spaces and kernel heap. |
@@ -139,12 +139,12 @@ The VFS lookup order and implementation are in `kernel/fs/vfs.c`.
 
 | Namespace | Backend | Lifetime |
 |---|---|---|
-| `/system/core/` | Read-only newc CPIO | Built into image. |
+| `/system/core/` | Read-only newc CPIO | Built into the image. |
 | `/system/data/`, `/system/config/`, `/apps/`, `/users/myos/` | MYPFS004 persistent hierarchy over guarded AHCI data LBAs | Survives reboot of the same `myos.img`. |
 | `/temp/` | In-memory bounded tmpfs | Lost at reboot. |
 | `/system/live/` | Kernel-generated virtual projection | Current boot only; read-only. |
 
-MYPFS004 has 128 persistent object records, dynamic multi-extent regular-file allocation, six extents per file and an 8 MiB per-file ceiling. Empty files reserve no payload. Growth is batched at 128 sectors (64 KiB); offset-based VFS calls stream large files through 256-byte user ABI chunks. See [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md) and [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md) for the public and on-disk contracts.
+MYPFS004 has 128 persistent object records, dynamic multi-extent regular-file allocation, six extents per file and an 8 MiB per-file ceiling. Empty files reserve no payload. Growth is batched at 128 sectors (64 KiB); offset-based VFS calls stream large files through 256-byte user ABI chunks. See [FILESYSTEM_SPEC.md](FILESYSTEM_SPEC.md) and [MYPFS004_STORAGE.md](MYPFS004_STORAGE.md) for the public and on-disk contracts.
 
 ### Raw image invariant
 
@@ -160,9 +160,9 @@ MYPFS004 has 128 persistent object records, dynamic multi-extent regular-file al
 
 ## 6. Input, console and user shell
 
-COM1 output is mirrored to the framebuffer text console. The keyboard driver handles PS/2 Set 1 US QWERTY characters and wakes tasks in `INPUT` state. After bootstrap, `kernel/console/shell.c` waits three seconds for `K` from PS/2 or COM1: no cancellation starts `/init` automatically; `K` retains the diagnostic kernel shell, where `init` still launches the same user shell manually. If `/init` is unavailable or automatic loading fails, the kernel reports the condition and remains in kernel shell without retry looping.
+COM1 output is mirrored to the framebuffer text console. The keyboard driver handles PS/2 Set 1 US QWERTY characters and wakes tasks in `INPUT` state. After bootstrap, `kernel/console/shell.c` waits three seconds for `K` from PS/2 or COM1: no cancellation starts `/init` automatically; `K` retains the diagnostic kernel shell, where `init` still launches the same user shell manually. If `/init` is unavailable or automatic loading fails, the kernel reports the condition and remains in the kernel shell without retry looping.
 
-The user shell provides deterministic history navigation and unique-prefix Tab completion. Its command list and command semantics are the source of truth for end-user documentation. Changes to `command_help()`, `execute_command()` or a user program should be reflected in `docs/USER_GUIDE_RU.md` and `README.md`.
+The user shell provides deterministic history navigation and unique-prefix Tab completion. Its command list and command semantics are the source of truth for end-user documentation. Changes to `command_help()`, `execute_command()` or a user program should be reflected in `docs/USER_GUIDE.md` and `README.md`.
 
 ## 7. Validation baseline
 
@@ -185,7 +185,7 @@ Before committing a console change, at minimum perform:
 | Migration check | Boot deterministic MYPFS003 and MYPFS002 fixtures, then confirm durable `MYPFS004` superblock, cleared journal and second-mount payload readback. |
 | IPC check | `pipe sample`; run `wc` or `grep` against a file. |
 
-`make smoke` is a boot baseline. `make regression` extends it with GUI, persistent storage and restricted native workflow evidence, but it deliberately uses a disposable image copy and therefore does not replace focused migration fixtures or a manual physical-PC check. `make release-check` is the local reproducibility gate before release discussion; it only produces evidence and never creates a tag or performs network publication. For storage code, test both firmware paths on **the same image**: write in BIOS, then read in UEFI. Never test raw AHCI writes on a host block device unless an isolated disposable test device is explicitly intended. The current release gate order is in [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md).
+`make smoke` is a boot baseline. `make regression` extends it with GUI, persistent storage and restricted native workflow evidence, but it deliberately uses a disposable image copy and therefore does not replace focused migration fixtures or a manual physical-PC check. `make release-check` is the local reproducibility gate before release discussion; it only produces evidence and never creates a tag or performs network publication. For storage code, test both firmware paths on **the same image**: write in BIOS, then read in UEFI. Never test raw AHCI writes on a host block device unless an isolated disposable test device is explicitly intended. The current release gate order is in [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md).
 
 ## 8. Git workflow
 
@@ -206,4 +206,4 @@ The native build and first control-flow milestones are complete: `asm` emits a b
 
 ## 10. Documentation maintenance
 
-Documentation changes are part of feature maintenance. Any change to build/run behavior, public shell behavior, ABI, storage layout, host support, branch policy or safety guidance must update the corresponding documentation in the same commit. The authoritative checklist is [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md).
+Documentation changes are part of feature maintenance. Any change to build/run behavior, public shell behavior, ABI, storage layout, host support, branch policy or safety guidance must update the corresponding documentation in the same commit. The authoritative checklist is [DOCUMENTATION_POLICY.md](DOCUMENTATION_POLICY.md).

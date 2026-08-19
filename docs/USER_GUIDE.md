@@ -1,0 +1,266 @@
+# MyOS User Guide
+
+> **Language:** [English](USER_GUIDE.md) | [Русский](USER_GUIDE_RU.md)
+
+
+This guide is intended for someone who wants to build, run, and try MyOS without studying kernel internals. MyOS is an experimental tutorial-and-practice OS for `x86_64`, written from scratch in freestanding C11 and x86_64 NASM. Use QEMU first; running on real hardware should be done only with a separate test USB stick.
+
+> **Current development branch:** `gui/bringup`, version `0.12.2-dev`. The stable console boundary is preserved by the immutable tag `v0.12.1-console`; the GUI and MYPFS004 are not yet merged into that boundary automatically.
+
+To install the toolchain on Windows, WSL, macOS, and other host platforms, first open the [platforms guide](PLATFORMS.md). Below is how to use MyOS after preparing the build environment.
+
+## 1. What you'll need
+
+To build and run in QEMU you need GNU-compatible build tools, NASM, image-creation utilities, and QEMU. On Ubuntu/Debian the minimal set is installed like this:
+
+```bash
+sudo apt update
+sudo apt install build-essential nasm xorriso mtools gdisk qemu-system-x86 ovmf
+```
+
+All examples assume your terminal is open at the repository root:
+
+```bash
+cd /home/ubuntu/myos
+```
+
+## 2. Building artifacts
+
+Run:
+
+```bash
+make all img
+```
+
+| File | When to use |
+|---|---|
+| `myos.iso` | Quick boot test as an ISO/CD in QEMU. |
+| `myos.img` | Recommended raw disk/USB image with GPT, a BIOS boot partition, an EFI partition, and a persistent MyOS data partition. |
+
+> `make img` intentionally recreates `myos.img`. All data from the persistent MYPFS004 partition of the previous image will be removed. If you need test files, copy the image before rebuilding.
+
+## 3. Recommended QEMU invocation
+
+For the full scenario including persistent files and applications, attach the raw image as an IDE drive:
+
+```bash
+qemu-system-x86_64 \
+  -machine q35 -m 256M \
+  -drive if=ide,format=raw,file=myos.img \
+  -boot c
+```
+
+After boot MyOS shows diagnostics in blocks `BOOT ENVIRONMENT`, `KERNEL SERVICES`, `STORAGE AND RUNTIME`, and `USER ENVIRONMENT`. Then a three-second countdown begins, after which the user shell is started automatically. The framebuffer is cleared before switching:
+
+```text
+[myos]$
+```
+
+Press `K` during the countdown if you want the diagnostic kernel shell. In that mode the boot log stays on screen and the user shell is started manually:
+
+```text
+kernel>
+init
+```
+
+For serial output to the terminal add `-serial stdio`. If you don't need the QEMU window, add `-display none`:
+
+```bash
+qemu-system-x86_64 \
+  -machine q35 -m 256M \
+  -drive if=ide,format=raw,file=myos.img \
+  -boot c -serial stdio -display none
+```
+
+## 4. Quick check
+
+After automatic startup or manual `init`, try:
+
+```text
+help
+uname
+ps
+meminfo
+date
+uptime
+ls /
+ls /system/live/processes
+cat /system/core/resources/motd.txt
+```
+
+These commands exercise the user shell, scheduler, memory, clock, initramfs, root hierarchy, and the read-only runtime projection.
+
+## 5. Files and directories
+
+MyOS provides a single logical root `/`. Paths preserve the original casing of names, but ASCII lookup is case-insensitive: `Notes`, `NOTES`, and `notes` refer to the same object in a directory. The detailed tree specification is in [FILESYSTEM_SPEC.md](FILESYSTEM_SPEC.md).
+
+| Path | Purpose | Persisted after reboot |
+|---|---|---:|
+| `/system/core/` | Read-only initramfs: built-in programs, resources, and SDK example. | Yes, as part of the boot image. |
+| `/system/data/`, `/system/config/` | Shared mutable machine-wide data and configuration. | Yes. |
+| `/system/live/` | Read-only snapshot of processes and devices for the current boot. | No. |
+| `/apps/` | Global persistent application packages. | Yes. |
+| `/users/myos/files/` | Personal ordinary files, notes, and imported legacy files. | Yes. |
+| `/users/myos/projects/` | Projects, sources, and future build outputs. | Yes. |
+| `/users/myos/data/`, `/users/myos/config/` | Personal data and configuration. | Yes. |
+| `/temp/` | Temporary RAM files. | No. |
+
+### Common file operations
+
+Create a directory and a text file in your personal profile:
+
+```text
+mkdir /users/myos/projects/demo
+write /users/myos/projects/demo/readme.txt My first MyOS project
+ls /users/myos/projects/demo
+cat /users/myos/projects/demo/readme.txt
+```
+
+For a temporary file use `/temp/`:
+
+```text
+write /temp/session.txt temporary text
+cat /temp/session.txt
+rm /temp/session.txt
+```
+
+After closing QEMU, reboot using the same `myos.img` and read the persistent file at the same absolute path. Do not run `make img` beforehand, because that command creates a new empty data partition.
+
+### MYPFS004 practical limits
+
+| Limit | Value |
+|---|---:|
+| Persistent object records | Up to 128 files and directories total. |
+| Regular file | Up to 8 MiB. |
+| Extents regular file | Up to 6 non-contiguous extents. |
+| Interactive `write` command | Up to 256 ASCII bytes per command line. |
+| Path | Up to 111 visible ASCII bytes plus NUL. |
+| Name | Up to 63 visible ASCII bytes. |
+| Path depth | Up to 8 components below `/`. |
+
+MYPFS004 allocates storage lazily and grows a file as it is written. Large programs and tools should read and write files in offset-based chunks rather than assuming the entire file will be simultaneously mapped into a continuous kernel buffer.
+
+## 6. Most useful shell commands
+
+| Command | Example | Purpose |
+|---|---|---|
+| `help` | `help` | Brief shell capability map. |
+| `ls` | `ls /users/myos` | Show directory contents. |
+| `cat` | `cat /system/core/resources/motd.txt` | Display a file. |
+| `touch` | `touch /users/myos/files/note.txt` | Create an empty persistent file. |
+| `mkdir` | `mkdir /users/myos/projects/demo` | Create a directory. |
+| `write` | `write /users/myos/files/note.txt Hello` | Overwrite a file with a single line. |
+| `rm` | `rm /users/myos/files/note.txt` | Remove a file or an empty directory. |
+| `edit` | `run edit /users/myos/files/note.txt` | Open the simple text editor. |
+| `ps` | `ps` | Show processes. |
+| `calc` | `calc -5 + 2` | Perform signed 64-bit arithmetic. |
+| `run` | `run hello` | Run a foreground user program. |
+| `spawn` | `spawn sleeper 3` | Run a program in the background. |
+| `wait` / `kill` | `wait 4`, `kill 4` | Wait for or stop a child process. |
+| `set` / `get` / `env` | `set NAME MyOS` | Work with environment variables. |
+| `startgui` | `startgui` | Start the experimental framebuffer GUI. |
+| `reboot` / `poweroff` | `reboot` | Reboot or power off the virtual machine. |
+| `clear` | `clear` | Clear the text console. |
+
+Most built-in programs are started via `run` or `spawn`. Examples:
+
+```text
+run hello
+run wc /system/core/resources/motd.txt
+run grep MyOS /system/core/resources/motd.txt
+run argshow one two three
+calc 12 / 3
+```
+
+`calc` accepts two signed 64-bit integers and an operator `+`, `-`, `*`, or `/`. Division is integer; division by zero and overflow are safely rejected.
+
+## 7. User programs and the MyOS SDK
+
+The built-in reference ELF is at `/system/core/examples/sdk/hello.elf`. It is copied into a global application package and then run by its short name:
+
+```text
+install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf
+run sdk-hello external SDK validation
+```
+
+After reboot reinstallation is not required:
+
+```text
+run sdk-hello persisted
+```
+
+The SDK builds freestanding C11 programs on the host computer. The detailed workflow, ABI, and linker contract are in [SDK.md](SDK.md). For the first in-OS workflow use the restricted assembler described in the next section; a richer native C frontend is a later milestone.
+
+## 8. Native build directly in MyOS
+
+The first native build workflow uses the restricted assembler and the `build` command. Sources are stored in `/users/myos/projects/`, the generated ELF remains next to the source, and to run the program it is installed into the global package `/apps/<name>/main.elf`.
+
+```text
+mkdir /users/myos/projects/native
+write /users/myos/projects/native/forward.mya write "Before jump\n"; jump done; write "Skipped\n"; label done:; exit 37
+build /users/myos/projects/native/forward.mya /users/myos/projects/native/forward.elf
+install /users/myos/projects/native/forward.elf /apps/native-forward/main.elf
+run native-forward
+```
+
+The source language supports `label name:`, `write "text"`, `jump name`, and a final `exit <0..255>`. A jump target must be a defined label located later in the source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\`, and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` for the command summary and [NATIVE_BUILD.md](NATIVE_BUILD.md) for all bounds and syntax rules.
+
+> Project ELF files are intentionally not directly runnable. The loader accepts installed user applications only from `/apps/<name>/main.elf`, so `install` remains the explicit package boundary.
+
+## 9. Experimental GUI
+
+The GUI is available only on the `gui/bringup` branch and is started from the console rather than automatically:
+
+```text
+startgui
+```
+
+Without an argument the viewer opens `/system/core/resources/motd.txt`. For a personal note you can pass an absolute path:
+
+```text
+startgui /users/myos/files/notes/note
+```
+
+`Q` or `Esc` outside the editor closes the GUI session and returns to the same user shell. Normal PS/2 mouse movement or keyboard fallback `W`/`A`/`S`/`D` now repaints only an 11×11 pointer region; full desktop refresh is reserved for content, focus, window visibility, and layout changes. The full description of controls, the notes editor, and known limitations is in [GUI_BRINGUP.md](GUI_BRINGUP.md).
+
+## 10. UEFI and ISO
+
+The ISO is suitable for a simple boot test, but is not intended for the persistent data workflow:
+
+```bash
+qemu-system-x86_64 -machine q35 -m 256M -cdrom myos.iso -boot d
+```
+
+For UEFI with the raw image on Linux use OVMF:
+
+```bash
+cp /usr/share/OVMF/OVMF_VARS_4M.fd /tmp/myos-vars.fd
+qemu-system-x86_64 \
+  -machine q35 -m 256M \
+  -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+  -drive if=pflash,format=raw,file=/tmp/myos-vars.fd \
+  -drive if=ide,format=raw,file=myos.img \
+  -boot c
+```
+
+## 11. Writing to a USB flash drive
+
+For a physical computer use **`myos.img`**, not the ISO. The image contains GPT, a BIOS boot partition, an EFI partition, and the MYPFS004 data partition.
+
+1. Insert a separate flash drive with no important data on it.
+2. Find its device name, for example with `lsblk`.
+3. Make sure you select the whole disk, e.g. `/dev/sdb`, not a partition like `/dev/sdb1`.
+4. Write the image:
+
+   ```bash
+   sudo dd if=myos.img of=/dev/sdX bs=4M conv=fsync status=progress
+   sync
+   ```
+
+> `dd` will completely erase the contents of the selected device. A wrong `/dev/sdX` can destroy data on your system or other disks. Do not run this command if you are not sure about the device name.
+
+## 12. Limitations of the current branch
+
+MyOS is not a replacement for Linux, Windows, or BSD. On `gui/bringup` there is currently no networking, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, a full native C compiler, or production security hardening. The restricted native assembler is implemented, but the GUI remains a bounded framebuffer environment rather than a general-purpose desktop.
+
+If a build or run fails, do `make clean`, then `make all img`, `make smoke`, and `make regression`. The `smoke` command headlessly checks BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. The `regression` command uses a disposable image copy: it creates and saves a GUI note, builds/installs the forward-jump native program in BIOS, verifies the rejected backward target, then verifies the note and the persisted program through UEFI. Both commands do not replace a physical-PC test. After that repeat the QEMU command from section 3. For host-platform setup use [PLATFORMS.md](PLATFORMS.md), for release gates use [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md), and for technical diagnostics use [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).

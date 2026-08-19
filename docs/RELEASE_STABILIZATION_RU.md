@@ -1,5 +1,8 @@
 # GUI release stabilization checklist
 
+> **Язык:** [English](RELEASE_STABILIZATION.md) | [Русский](RELEASE_STABILIZATION_RU.md)
+
+
 > **Статус:** активный checklist для ветки `gui/bringup`. Он не создаёт release tag и не разрешает перенос в `main` автоматически. Его задача — дать воспроизводимые доказательства перед отдельным решением о первом stable GUI release.
 
 ## Автоматизированные проверки

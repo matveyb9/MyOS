@@ -1,0 +1,174 @@
+# GUI bring-up: native framebuffer desktop
+
+> **Language:** [English](GUI_BRINGUP.md) | [Русский](GUI_BRINGUP_RU.md)
+
+
+This document describes the experimental GUI only for the `gui/bringup` branch. It is not part of the stable console release `v0.12.1-console` and does not change the purpose of the `main` or `console-stable` branches. The GUI remains a native x86_64 component of MyOS: it is drawn directly into the RGB framebuffer, without a web runtime, external graphical toolkit or dynamic memory allocation.
+
+## Launch
+
+First switch to the GUI branch and build the raw image. For testing persistent storage, the image should be attached to QEMU as an IDE disk.
+
+```bash
+git switch gui/bringup
+make all img
+qemu-system-x86_64 \
+  -machine q35 -m 256M \
+  -drive if=ide,format=raw,file=myos.img \
+  -boot c
+```
+
+After kernel bootstrap MyOS automatically launches the user shell after a three-second countdown. Press `K` during the countdown if you need the diagnostic kernel shell; in that case `init` is left as a manual way to start the user shell. Then start the graphical viewer. Without an argument the viewer loads `/system/core/resources/motd.txt`; an optional argument specifies an absolute path to a readable VFS file.
+
+```text
+startgui
+# либо: startgui /users/myos/files/notes/note
+```
+
+`startgui` is an ordinary ring-3 program. It creates a restricted GUI session through the existing syscall boundary, reads and edits only bounded user-space payloads, and the kernel receives only validated syscall requests. `startgui /users/myos/files/notes/<name>` selects a persistent note even before it exists: the viewer will indicate absence, and `E` opens an empty draft which `Ctrl-S` will create. `Q` or `Esc` outside the editor ends the graphical session and returns to the same user shell.
+
+## Persistent user programs
+
+The GUI branch can now launch separate MyOS ELF64 files from global persistent application packages at `/apps/<name>/main.elf`. First the built-in initramfs program can be copied into a package, after which it can be launched by a short shell name or an absolute path as a separate ring-3 process.
+
+```text
+install /system/core/apps/hello.elf /apps/hello/main.elf
+run hello
+
+install /system/core/apps/argshow.elf /apps/args/main.elf
+run args alpha beta
+```
+
+| Boundary | Rule |
+|---|---|
+| Install source | Existing absolute VFS file up to 8 MiB. |
+| Target | Only `/apps/<name>/main.elf`; `install` creates the package directory. |
+| Loader | Accepts only little-endian x86_64 ELF64 `ET_EXEC` with valid load segments and an entry inside a mapped load segment. |
+| Storage | MYPFS004 provides up to 128 persistent file/directory objects, regular files up to 8 MiB and up to six extents per file; `install` copies in 256-byte VFS chunks. |
+| Failure | Invalid content, oversized source, invalid path or impossible load are safely rejected; the shell remains usable. |
+
+## MyOS SDK for external build
+
+The `sdk/` directory now contains a compact public SDK for freestanding C11 user programs. It includes `include/myos.h`, a startup object, linker script, a GNU Make template and a validation source `sdk/examples/hello.c`. A program defines `myos_main(uint64_t argc, const char *arguments)` instead of the usual `main`; the startup object calls it and passes the return code to `MYOS_SYS_EXIT`. In the current ABI `argc` is always `1`, and `arguments` is a single NUL-terminated string after the program path.
+
+```bash
+make -C sdk APP=sdk/examples/hello.c OUT=sdk/build/sdk-hello.elf
+make img
+```
+
+The image build adds this reference ELF to the initramfs as `/system/core/examples/sdk/hello.elf`. Therefore the complete regression does not require manual disk image modification:
+
+```text
+install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf
+run sdk-hello external SDK validation
+```
+
+The validation program prints a greeting and the accepted argument string. After a fresh BIOS boot the saved `/apps/sdk-hello/main.elf` can be run again with `run sdk-hello`, which validates external build, loader and AHCI-backed persistent storage as an end-to-end path. A detailed public contract, limits and host workflow are provided in [SDK.md](SDK.md).
+
+## Current behavior
+
+| Component | Implemented behavior |
+|---|---|
+| Renderer | Native direct drawing into the Limine RGB framebuffer without an external GUI runtime. |
+| Session ownership | Exactly one GUI owner is allowed at a time; the kernel rejects a second concurrent session. |
+| Desktop | Dark desktop, a top status bar and a bottom row of available controls. |
+| Windows | Three static bounded window records: `SYSTEM`, `NOTES` and `MONITOR`. |
+| Z-order | Focused window is raised to the front; focus, visibility, layout and content events perform a bounded full redraw composition, whereas ordinary pointer movement updates only the cursor region. |
+| Viewer | `NOTES` displays up to 128 bytes of the selected VFS file. |
+| File loading | `startgui [absolute-path]` reads the first 128 bytes of the specified VFS file; without an argument `/system/core/resources/motd.txt` is used. |
+| Persistent selection | `D` selects the default `/users/myos/files/notes/note`; `N` cycles to the next existing note via a directory-scoped VFS enumeration. |
+| Named launch | `startgui /users/myos/files/notes/<name>` selects a specific personal note; the NOTES title shows the basename of the selected file. |
+| Editor entry | `E` opens a bounded editor for the selected personal note; a missing selected path starts as an empty draft. |
+| Editor input | Printable ASCII is inserted at the caret position; `Enter` inserts a newline; `Backspace` deletes the byte to the left, `Delete` deletes the byte under the caret. |
+| Caret and navigation | `Left`/`Right` move the caret by one byte, `Up`/`Down` move by logical lines preserving column, `Home`/`End` go to line boundaries. |
+| Bounded scrolling | The renderer displays up to 20 logical newline-separated lines; the viewport automatically follows the caret line. |
+| Save and cancel | `Ctrl-S` replaces the selected file in `/users/myos/files/notes/`, writes the draft and returns to its viewer. `Esc` cancels the draft and reloads the previously saved content. |
+| Built-in choices | `M` or `m` reloads `/system/core/resources/motd.txt`. |
+| Focus | `Tab`, `Enter` or `Space` outside the editor move focus to the next visible window. |
+| Hardware pointer | PS/2 mouse relative motion moves a bounded crosshair pointer; the rising edge of the left button focuses the topmost visible window under the pointer. |
+| Keyboard fallback | Lowercase `W`, `A`, `S`, `D` move the pointer by 16 pixels; `F` locks keyboard focus to the top window under the pointer. |
+| Visibility | `1`, `2`, `3` toggle `SYSTEM`, `NOTES`, `MONITOR`; `X` hides the focused window, with no option to hide all windows. |
+| Reset and exit | `R` restores the original layout and z-order. `Q` or `Esc` outside the editor ends the session and returns to the framebuffer text console. |
+
+The letter `D` is used only in uppercase to select `/users/myos/files/notes/note`; `N` or `n` cycles the next existing note inside `/users/myos/files/notes/`. This preserves lowercase `d` as pointer-right movement. In the editor ordinary printable keys become draft text and are not forwarded to the window manager, so `D`, `N`, `Q` and other characters can be typed as part of a note.
+
+## Editor limits and ABI boundary
+
+`NOTES` uses the descriptor `MYOS_GUI_SET_CONTENT = 3` in `MYOS_SYS_GUI_SESSION`. The kernel accepts content requests only from the current GUI owner with an active session, copies the request after validating the user buffer mapping and does not retain user pointers. The framebuffer owns its own static copies of title and data. The GUI periodically uses directory-scoped `MYOS_SYS_VFS_LIST` for `/users/myos/files/notes/` and keeps the selected absolute path in bounded static storage. The editor removes the selected file, creates it via the unified VFS and writes one bounded payload at offset `0`.
+
+| Field or operation | Limit | Purpose |
+|---|---:|---|
+| `MYOS_GUI_CONTENT_TITLE_MAX` | 16 bytes | NUL-terminated title for the NOTES window. |
+| `MYOS_GUI_CONTENT_MAX` | 128 bytes | Maximum viewer content and editor draft length. |
+| `struct myos_gui_content_request` | 176 bytes | `length`, `flags`, `cursor`, `viewport`, `title[16]`, `data[128]`; fits within the syscall user-copy limit of 256 bytes. |
+| `struct myos_vfs_write_request` | 384 bytes | Unified bounded write request; fits within the syscall user-copy limit of 512 bytes. |
+| File read | Up to 256 bytes | One bounded `MYOS_SYS_VFS_READ` request from ring 3; the GUI viewer applies its own 128-byte content limit. |
+| Persistent selection | Up to 64 scanned directory indices | `N` uses `MYOS_SYS_VFS_LIST` only in the notes directory. |
+| Selected path | Up to 111 ASCII bytes plus NUL | The GUI stores absolute note paths in `/users/myos/files/notes/`; `/apps/` is intended for executable workflow. |
+| Persistent save | Up to 128 bytes per editor update | `VFS_REMOVE`, `VFS_CREATE_FILE`, then bounded `VFS_WRITE`; the GUI editor intentionally does not edit binary ELF files. |
+| Allocation | Static storage | No heap allocations or background operations; selected path, cursor and viewport remain bounded state. |
+
+Text wraps within the internal surface of NOTES. Characters outside printable ASCII are rendered as `?` by the renderer; newline starts the next logical line. In the editor the kernel draws a cyan caret at the index passed by the ring-3 program; the viewport starts at a logical line boundary and keeps the caret line visible in the window up to 20 lines. Content updates trigger a redraw but do not run layout initialization, thus preserving current visibility, focus and window manager z-order. A draft that reaches 128 bytes will not accept new bytes until reduced by `Backspace` or `Delete`.
+
+## Architectural boundaries
+
+`kernel/console/framebuffer.c` owns drawing primitives, static window records, z-order, pointer state and a copy of the viewer content. `kernel/drivers/mouse.c` includes the PS/2 auxiliary port, assembles bounded three-byte packets on IRQ12, drops overflows and forwards relative movement with a left-click edge to the framebuffer. `user/startgui.c` owns the ring-3 event loop, editor state, VFS reading, draft cancellation and the persistent save sequence. `kernel/sys/syscall.c` owns owner validation, user-memory copy and framebuffer setter. On termination or forced destruction of the GUI owner the dispatcher closes the GUI session and clears ownership.
+
+| Boundary | Policy |
+|---|---|
+| Window records | Three static bounded records. |
+| Input | Existing scheduler-safe console input path; the PS/2 auxiliary port emits three-byte packets via IRQ12. PS/2 arrows, Home, End and Delete are translated into internal bounded key bytes; in the editor keys belong to the draft, not the window manager. |
+| Rendering | Full desktop composition runs on content update, focus, visibility or layout change. Ordinary pointer movement restores a bounded 11×11 cursor underlay and draws the cursor in the new place without a full redraw. |
+| Files | The viewer reads any available absolute VFS file; the editor modifies the selected note in `/users/myos/files/notes/`. |
+| Atomicity | Save removes and recreates the file before writing; MYPFS004 preserves bounded metadata and allocation state, and a full application-level atomic replace is not implemented yet. |
+| Mouse hardware | PS/2 relative motion and left-button focus are implemented. Ordinary motion uses a bounded cursor-only refresh; higher-level actions, dragging, wheel and multi-button semantics are not yet present. |
+| General window API | Not implemented; records remain internal to the framebuffer renderer. |
+
+## Milestone verification
+
+Strict build and firmware regressions were run on QEMU Q35 before commit. BIOS and UEFI used the same `myos.img` as an IDE drive, so readback confirms data persistence on the same AHCI-backed persistent partition rather than only in memory for the current run.
+
+| Check | Result |
+|---|---|
+| `make all img` | Passed without compiler warnings or build errors. |
+| `git diff --check` | Passed. |
+| BIOS direct named launch | Passed: the console created `disk/todo` with `alpha`; `startgui disk/todo` showed `DISK:TODO` and the content. |
+| BIOS cycle | Passed: `N` cycled `DISK:TODO` to `DISK:LOG` and `beta` via existing VFS enumeration. |
+| BIOS create on save | Passed: `startgui disk/draft`, then `E`, `x` and `Ctrl-S` created the previously missing selected path; the viewer showed `DISK:DRAFT` and `X`. |
+| BIOS selected save | Passed: `E`, append `x` and `Ctrl-S` saved `disk/log`; the title remained `DISK:LOG`, the viewer showed `BETAX`. |
+| BIOS PS/2 mouse | Passed: QEMU relative mouse motion moved the crosshair; left-button edge over MONITOR raised that window to the foreground. |
+| UEFI PS/2 mouse | Passed: OVMF reported IRQ12 enabled; identical QEMU movement and click moved the crosshair and focused MONITOR. |
+| BIOS reliability lifecycle | Passed: `startgui disk/reliability` created and saved `BIOSOK`; `Q` returned with status `0`; user shell `cat` read the file; the same path was relaunched and exited again. |
+| UEFI persistent continuity | Passed: OVMF directly read the BIOS-created `BIOSOK`, appended and saved `UEFIOK`, then user-shell `cat` read both lines after GUI exit. |
+| Reliability outcome | Passed: no regression observed in GUI owner cleanup, repeatable `startgui`, keyboard input, PS/2 mouse input, return-to-console or AHCI-backed persistence. |
+| Legacy persistent ELF baseline | Superseded by MYPFS003: disk/bin ELF workflow was migrated into `/apps/<name>/main.elf`; loader validation remains unchanged. |
+| Invalid persistent ELF | Passed: text content at an application `main.elf` target is rejected by the loader without disrupting the user shell. |
+| Legacy persistent migration | Passed: prior MYPFS001→MYPFS002 migration remains historical; current MYPFS002→MYPFS003 fixture preservation is recorded below. |
+| External MyOS SDK host build | Passed: `make -C sdk APP=sdk/examples/hello.c OUT=sdk/build/sdk-hello.elf` produced a static x86_64 `ELF64 ET_EXEC` with valid loadable segments. |
+| MYPFS003 root and runtime | Passed (BIOS): `/system`, `/apps`, `/users/myos`, `/temp`, `/system/live/processes` and `cat /system/live/processes/3/info` returned expected virtual state. |
+| MYPFS003 user workflow | Passed (BIOS): `mkdir /users/myos/projects/demo`, persistent write/read, mixed-case `/UsErS/MyOs` lookup, and `/apps` package installation all worked. |
+| SDK install, arguments and persistence | Passed: `/system/core/examples/sdk/hello.elf` installed as `/apps/sdk-hello/main.elf`, `run sdk-hello external SDK validation` printed its argument string; a fresh BIOS boot ran the persisted app again. |
+| MYPFS003 → MYPFS004 migration | Passed (BIOS): fixture hierarchy and payload migrated through durable `M4MG` recovery marker; `MYPFS004` superblock and cleared journal confirmed before second clean mount. |
+| MYPFS002 legacy migration | Passed (BIOS): `disk/note` fixture migrated to `/users/myos/files/notes/note`; `MYPFS004` superblock, cleared journal and second-mount readback confirmed. |
+| MYPFS004 large-file I/O | Passed (BIOS): 1 MiB fragmented two-extent pattern write/readback, fresh-mount `wc` of all 1,048,576 bytes, SDK install/run after reboot and UEFI persisted SDK execution. |
+| Pointer refresh hardening | Passed: two 1280×800 BIOS framebuffer captures before/after keyboard pointer movement differed in only 726 PPM byte positions, consistent with old/new 11×11 cursor regions; desktop composition remained intact. |
+| Automated `make regression` | Passed: the disposable-image harness created/edited/saved a BIOS GUI note, built/installed/ran a forward-jump native program, rejected a backward target, then UEFI read the persisted note, reran the package and entered/exited GUI cleanly. See [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md). |
+| GUI note and native workflow | Passed: BIOS GUI editor changed persistent note `base` → `base!`; the same note and a BIOS-built native program were read/executed under UEFI. |
+| Existing GUI boundaries | Retained: bounded window state, GUI owner checks, direct viewer launch and return to shell. |
+
+Screenshots and brief test findings are located outside the source tree in the local directories `/home/ubuntu/myos-mouse-validation/`, `/home/ubuntu/myos-reliability-validation/` and `/home/ubuntu/myos-disk-elf-validation/`; they are not included in the Git commit.
+
+## Boot UX, inherited from main
+
+Automatic user-space initialization is now implemented and integrated into the GUI branch. After bootstrap the kernel prints a three-second countdown; if not canceled it launches `/init`, after which `startgui` may be invoked immediately. This preserves a fast normal path and a separate diagnostic mode without starting the GUI.
+
+| Post-boot scenario | Implemented behavior |
+|---|---|
+| Normal boot | The kernel groups diagnostics into four stage headers, prints a countdown and automatically launches `/init` after **3 seconds**; the framebuffer is cleared before the user shell. |
+| Cancel | Pressing `K` during the countdown cancels auto-init; the cancel key is not delivered to the user shell. |
+| Kernel shell | After `K` the system remains in the diagnostic kernel shell. The `init` command manually starts the same user shell. |
+| Init failure | If `/init` is missing or automatic loading fails, the kernel prints diagnostics and remains in the kernel shell without a retry loop. |
+| Input source | The cancel path works via existing PS/2 keyboard and serial console input paths. |
+| Verification | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback and UEFI normal boot with a clean user-shell framebuffer passed on QEMU Q35. |
+
+The GUI preview boundary is fixed at the immutable tag `v0.12.2-gui-preview`, and the GitHub Pre-release `v0.13.0-gui-rc.1` was published separately. The current `gui/bringup` branch contains the MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, the MyOS SDK for external build, a restricted in-OS `asm`/`build` workflow with `label name:` and forward-only `jump name`, and cursor-only GUI pointer refresh. The directory layout was jointly agreed with the user and recorded in [FILESYSTEM_SPEC.md](FILESYSTEM_SPEC.md); the next native-toolchain milestone is limited conditional jumps, followed by multi-line project editing.

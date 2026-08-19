@@ -1,64 +1,54 @@
-# Политика актуальности документации MyOS
+# Политика документации MyOS
 
-Документация — часть проекта, а не завершающий необязательный этап. Каждый commit, который меняет публичное поведение MyOS, обязан обновлять соответствующие документы **в том же commit**.
+> **Язык:** [English](DOCUMENTATION_POLICY.md) | [Русский](DOCUMENTATION_POLICY_RU.md)
 
-## Обязательное правило
+Документация — часть продукта. Изменение public behavior не считается завершённым, пока его English и Russian descriptions не обновлены в том же commit.
 
-> Если изменение влияет на то, как пользователь собирает, запускает, использует, тестирует или понимает MyOS, документация обновляется одновременно с кодом.
+## Двуязычный стандарт
 
-Не допускается считать README или manual «временно устаревшими» после принятого изменения. Если функциональность экспериментальная, это должно быть явно отмечено в документации вместе с веткой, ограничениями и безопасным способом проверки.
+| Место | English | Русский |
+|---|---|---|
+| Корень repository | `README.md` | `README_RU.md` |
+| Документация | `docs/NAME.md` | `docs/NAME_RU.md` |
+| Language switcher | `> **Language:** [English](NAME.md) \| [Русский](NAME_RU.md)` | `> **Язык:** [English](NAME.md) \| [Русский](NAME_RU.md)` |
 
-## Матрица обновлений
+Каждая Markdown page в корне и `docs/` содержит language switcher сразу после heading. English page ссылается на English counterpart, Russian page — на Russian counterpart. Commands, paths, identifiers, source code, version numbers, SHA-256 values и URLs не переводятся.
+
+## Что должно обновляться
 
 | Изменение | Обновить обязательно |
 |---|---|
-| Build command, dependency, Make target или artifact name | `README.md`, `PLATFORMS_RU.md`, при необходимости `USER_GUIDE_RU.md`. |
-| Shell command, utility, argument, environment variable или file behavior | `README.md` и `USER_GUIDE_RU.md`. |
-| Syscall, ABI structure, scheduler, memory, driver или storage invariant | `DEVELOPER_GUIDE_RU.md`; при user-visible effect — также user guide. |
-| Supported host platform, package name or QEMU invocation | `PLATFORMS_RU.md` и concise table in `README.md`. |
-| Branch, tag, release scope, merge policy | `RELEASES_RU.md` и `README.md`. |
-| Security or destructive-operation warning | `USER_GUIDE_RU.md`, `PLATFORMS_RU.md` and any affected command example. |
-| Historical document becomes obsolete | Add an explicit historical banner and link to the current manual in `docs/README.md`. |
+| Build/run command, dependency, Make target или artifact | Оба root README, Platform Guide и User Guide. |
+| Shell command, utility, argument, file behavior | Оба root README и оба User Guide. |
+| ABI, scheduler, memory, driver или storage invariant | Оба Developer Guide; при user-visible effect — оба User Guide. |
+| Branch, tag, release scope или merge rule | Обе страницы Release Guide и root README. |
+| Experimental feature, known limit или safety warning | Все затронутые language pairs рядом с affected instruction. |
+| Historical record | Сохранить historical banner, оба language files и link из documentation index. |
 
-## Review checklist before commit
+## Правила ясности
 
-Before committing a feature or maintenance change, answer the following questions.
+Каждая страница должна отвечать на одну основную задачу. Root README ограничивается project description, status, quick start, documentation links и footer. Detailed procedures находятся в `docs/`, а historical records явно отделены от current guides. Не дублируйте большую инструкцию в нескольких местах: root README ссылается на guide, а guide содержит detail.
 
-| Check | Expected answer |
+## Проверка перед commit
+
+| Проверка | Ожидаемый результат |
 |---|---|
-| Has a public command or output changed? | Update the user-facing guide and README command tables. |
-| Has a build/run instruction changed? | Update README and platform manual. |
-| Has an internal interface or invariant changed? | Update developer guide. |
-| Did a new platform become tested or untested? | Update the support matrix. |
-| Is a dangerous action shown? | Keep the warning beside the command. |
-| Did a previous guide become historical? | Mark it explicitly rather than silently leaving it misleading. |
-| Do internal links still resolve? | Validate them before commit. |
+| Есть ли language pair? | Каждая новая или переименованная Markdown page имеет `NAME.md` и `NAME_RU.md`. |
+| Есть ли switcher? | Обе страницы содержат точные reciprocal links после H1. |
+| Совпадает ли смысл? | English и Russian sections описывают один scope, limits и status. |
+| Верны ли links? | English links ведут на English docs, Russian links — на `_RU` docs. |
+| Есть ли user-visible change? | Обновлены root README, relevant guides и current status if needed. |
+| Изменяются ли release rules? | Обновлён Release Guide; commits and release notes follow its bilingual convention. |
 
-## Documentation structure
+## История изменений и публикация
 
-| Location | Role |
+Commit subject пишется коротким English imperative summary. Body после пустой строки начинается с `RU:` и кратко объясняет изменение по-русски. Future release notes содержат отдельные equivalent sections `## English` и `## Русский`; template и required fields находятся в [Release Guide](RELEASES_RU.md).
+
+## Термины
+
+| Термин | Значение |
 |---|---|
-| `README.md` | Project overview and concise first-run guide. It must remain easy to read from a GitHub repository page. |
-| `docs/USER_GUIDE_RU.md` | Detailed plain-language guide for ordinary users. |
-| `docs/PLATFORMS_RU.md` | Host platform setup and support status. |
-| `docs/DEVELOPER_GUIDE_RU.md` | Source architecture, ABI and contributor workflow. |
-| `docs/RELEASES_RU.md` | Branches, tags and release boundaries. |
-| `docs/README.md` | Documentation map and explicit separation of current versus historical files. |
-| Historical `docs/*.md` | Earlier decision or validation records; not authoritative instructions. |
-
-## Terminology
-
-Use these terms consistently.
-
-| Term | Meaning |
-|---|---|
-| **console release** | Completed text-mode MyOS milestone at `v0.12.0-console`. |
-| **current project** | All current Git branches, including separate GUI experiments. |
-| **verified** | Reproduced on the listed configuration by project validation. |
-| **supported** | Expected to work with documented prerequisites, but may not have the same validation depth. |
-| **experimental** | Useful path with known gaps or limited validation; state the gaps. |
-| **historical** | A preserved early document that must not be used as the current specification. |
-
-## Language
-
-Current user-facing documentation is maintained in Russian because that is the project owner’s working language. Technical identifiers, shell commands, file names and code symbols remain in their exact English/source form.
+| **verified** | Воспроизведено на указанной configuration project validation. |
+| **supported** | Ожидаемо работает при documented prerequisites, но может иметь меньшую глубину validation. |
+| **experimental** | Полезный путь с явно указанными gaps или limits. |
+| **historical** | Сохранённый record, не являющийся current specification. |

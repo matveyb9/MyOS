@@ -1,53 +1,33 @@
-# Документация MyOS
+# MyOS Documentation
 
-[`README.md`](../README.md) в корне public repository [`matveyb9/MyOS`](https://github.com/matveyb9/MyOS) — короткая главная страница проекта: scope, branch selection, basic build/run commands and links. Все подробные материалы находятся в этой папке.
+> **Language:** [English](README.md) | [Русский](README_RU.md)
 
-## Актуальная документация
+This folder contains the detailed documentation for the current branch. Start with the guide that matches your goal; you do not need to read every page.
 
-| Документ | Для кого | Что отвечает |
-|---|---|---|
-| [USER_GUIDE_RU.md](USER_GUIDE_RU.md) | Обычные пользователи | Сборка, QEMU, shell, files, utilities and USB safety. |
-| [PLATFORMS_RU.md](PLATFORMS_RU.md) | Users of Linux, Windows and macOS | Host prerequisites, WSL, MSYS2, QEMU and support status. |
-| [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md) | Developers | Source tree, kernel architecture, ABI, storage invariants and validation. |
-| [RELEASES_RU.md](RELEASES_RU.md) | Everyone using Git | Branches, tags, console boundary, GUI branch and publication commands. |
-| [ROADMAP_RU.md](ROADMAP_RU.md) | Everyone following development | Completed milestones, current GUI work, priorities and deferred research. |
-| [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md) | Testers and maintainers | Automated BIOS/UEFI checks, manual physical-PC gate and conditions before a GUI release decision. |
-| [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md) | Maintainers | Mandatory same-commit documentation update rules. |
-| [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md) | `gui/bringup` users | Experimental framebuffer GUI, VFS viewer, note editor, cursor-only pointer refresh and GUI validation. |
-| [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md) | Users and contributors | Unified root layout, absolute-path contract and runtime projection. |
-| [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md) | Users and contributors | 8 MiB dynamic multi-extent persistent storage and migration contract. |
-| [SDK_RU.md](SDK_RU.md) | User-program authors | External freestanding C11 build and persistent ELF package workflow. |
-| [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) | User-program authors | Restricted in-MyOS assembler, project-to-package workflow, bounds and validation. |
+## Current guides
 
-## How to choose a guide
-
-| Need | Start with |
+| Guide | Use it for |
 |---|---|
-| «Как запустить MyOS?» | `../README.md`, then `USER_GUIDE_RU.md`. |
-| «Как установить инструменты на Windows/macOS/Linux?» | `PLATFORMS_RU.md`. |
-| «Как устроены kernel, syscall или filesystem?» | `DEVELOPER_GUIDE_RU.md`, затем `FILESYSTEM_SPEC_RU.md` и `MYPFS004_STORAGE_RU.md`. |
-| «Почему есть несколько branches?» | `RELEASES_RU.md`. |
-| «Что уже завершено и что будет дальше?» | `ROADMAP_RU.md`. |
-| «Как проверить GUI line перед release?» | `RELEASE_STABILIZATION_RU.md`. |
-| «Как пользоваться experimental GUI?» | `GUI_BRINGUP_RU.md` после перехода на `gui/bringup`. |
-| «Как написать и собрать первую программу прямо в MyOS?» | `NATIVE_BUILD_RU.md`. |
-| «Как не допустить устаревшей документации?» | `DOCUMENTATION_POLICY_RU.md`. |
+| [User Guide](USER_GUIDE.md) | Running MyOS in QEMU, shell commands, files, persistence and USB safety. |
+| [Platform Guide](PLATFORMS.md) | Host setup on Linux, Windows/WSL and macOS. |
+| [Developer Guide](DEVELOPER_GUIDE.md) | Source tree, architecture, ABI, storage invariants and validation. |
+| [Release Guide](RELEASES.md) | Branch roles, tags, release notes and bilingual commit format. |
+| [Roadmap](ROADMAP.md) | Completed milestones and planned work. |
+| [Documentation Policy](DOCUMENTATION_POLICY.md) | Required same-commit updates, translations and link review. |
 
-## Historical development notes
+## Feature guides
 
-The files below are preserved records from early milestones `0.3.0-dev`–`0.7.0-dev`. Each now has an explicit **Исторический документ** banner. They are useful for tracking design evolution, but they are not current build instructions or specifications for console release `0.12.0-dev`.
-
-| File | Historical topic |
+| Guide | Use it for |
 |---|---|
-| `architecture.md` | Early architecture and framebuffer console plan. |
-| `validation.md` | Early artifact and boot validation; references obsolete `myos.hdd`. |
-| `interrupt-model.md`, `irq-validation.md` | Initial PIC/APIC/PIT/PS2 work. |
-| `paging-model.md`, `paging-validation.md` | Initial owned PML4 and heap work. |
-| `memory-safety-model.md`, `memory-safety-validation.md` | Early memory-safety milestone. |
-| `framebuffer-console-model.md`, `framebuffer-validation.md`, `framebuffer-visual-check.md` | First framebuffer text-console milestone. |
-| `research-apic-virtual-wire.md` | APIC virtual-wire research reference. |
-| `architecture-decision-32bit.md` | Active decision record: MyOS remains x86_64-only. |
+| [GUI Bring-up](GUI_BRINGUP.md) | The experimental framebuffer desktop in `gui/bringup`. |
+| [Native Build](NATIVE_BUILD.md) | Writing, building, installing and running bounded `.mya` programs. |
+| [MyOS SDK](SDK.md) | Building freestanding C11 programs on the host. |
+| [Filesystem Specification](FILESYSTEM_SPEC.md) | Root layout, paths and runtime projection. |
+| [MYPFS004 Storage](MYPFS004_STORAGE.md) | Persistent-file capacity, extents and migration. |
+| [Release Stabilization](RELEASE_STABILIZATION.md) | Automated checks and the remaining physical-PC release gate. |
 
-## Maintenance rule
+## Historical notes
 
-Any change that affects the build, run flow, host support, shell, user-visible behavior, storage, public ABI, safety warning, branch or release must update the relevant current document in the same commit. Full rules are in [DOCUMENTATION_POLICY_RU.md](DOCUMENTATION_POLICY_RU.md).
+The following records are retained for design history. They are **not** current build instructions or specifications: [architecture](architecture.md), [validation](validation.md), [interrupts](interrupt-model.md), [paging](paging-model.md), [memory safety](memory-safety-model.md), [framebuffer console](framebuffer-console-model.md), and [x86_64 decision](architecture-decision-32bit.md).
+
+Return to the project overview: [root README](../README.md).

@@ -1,24 +1,27 @@
-# Проверка безопасности памяти MyOS 0.6.0-dev
-> **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README.md).
+# MyOS 0.6.0-dev memory safety validation
+
+> **Language:** [English](memory-safety-validation.md) | [Русский](memory-safety-validation_RU.md)
+
+> **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and [documentation index](README.md).
 
 
-## Контрольный результат
+## Validation results
 
-MyOS 0.6.0-dev усиливает память поверх собственного PML4 из предыдущего этапа. PMM различает пригодные и свободные физические кадры, free-list heap повторно использует освобождённые blocks, а vector 14 печатает сохранённый CR2 и decoded error code. Эти изменения не добавляют demand paging: любой page fault является диагностическим и завершает текущий запуск.
+MyOS 0.6.0-dev strengthens memory on top of the custom PML4 from the previous stage. The PMM distinguishes usable and free physical frames, the free-list heap reuses freed blocks, and vector 14 prints the saved CR2 and the decoded error code. These changes do not add demand paging: any page fault is diagnostic and terminates the current run.
 
-| Проверка | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Результат |
+| Test | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Result |
 |---|---:|---:|---|
-| PMM allocate/reserve/free | Пройдено | Пройдено | `pmmtest` возвращает исходный `free_frames` и печатает `passed`. |
-| Heap multi-page write/read | Пройдено | Пройдено | Блок `4096 + 64` байта пересекает page boundary и сохраняет маркеры. |
-| Heap free/reuse | Пройдено | Пройдено | После `kfree` адрес первого 64-byte блока повторно возвращён allocator. |
-| Heap diagnostics | Пройдено | Пройдено | После теста `active allocations = 0`, `free blocks = 1`, `reuses = 1`. |
-| Page fault CR2 | Пройдено | Пройдено | Контролируемый unmapped access сообщает `0xFFFF900040000000`. |
-| Page fault error code | Пройдено | Пройдено | Сообщение: non-present, read, supervisor, error code `0`. |
-| PIT/IRQ после memory changes | Пройдено | Пройдено | `ticks` и IRQ0 продолжают расти. |
+| PMM allocate/reserve/free | Passed | Passed | `pmmtest` returns the original `free_frames` and prints `passed`. |
+| Heap multi-page write/read | Passed | Passed | A `4096 + 64`-byte block crosses a page boundary and preserves markers. |
+| Heap free/reuse | Passed | Passed | After `kfree` the address of the first 64-byte block is returned again to the allocator. |
+| Heap diagnostics | Passed | Passed | After the test `active allocations = 0`, `free blocks = 1`, `reuses = 1`. |
+| Page fault CR2 | Passed | Passed | A controlled unmapped access reports `0xFFFF900040000000`. |
+| Page fault error code | Passed | Passed | Message: non-present, read, supervisor, error code `0`. |
+| PIT/IRQ after memory changes | Passed | Passed | `ticks` and IRQ0 continue to increase. |
 
-## Наблюдаемая page-fault диагностика
+## Observed page-fault diagnostics
 
-Команда `pagefault` читает адрес ровно за выделенным heap virtual range. Она должна остановить ядро и сформировать следующий смысловой отчёт:
+The `pagefault` command reads the address just beyond the allocated heap virtual range. It should stop the kernel and produce the following diagnostic report:
 
 ```text
 Vector: 0x000000000000000E (Page fault)
@@ -27,16 +30,16 @@ Fault address (CR2): 0xFFFF900040000000
 Page fault cause: non-present page; access: read; privilege: supervisor
 ```
 
-Процессор сохраняет faulting linear address в CR2, а биты error code описывают presence, write/read, user/supervisor, reserved-bit и instruction fetch свойства fault. MyOS читает CR2 до вывода диагностики, потому что следующий page fault может перезаписать этот регистр. [1]
+The processor saves the faulting linear address in CR2, and the bits of the error code describe presence, write/read, user/supervisor, reserved-bit and instruction fetch properties of the fault. MyOS reads CR2 before printing diagnostics because the next page fault can overwrite that register. [1]
 
-| Компонент | Гарантия 0.6.0-dev | Ограничение |
+| Component | Guarantee in 0.6.0-dev | Limitation |
 |---|---|---|
-| PMM | `free` отвергает невыравненный, непригодный, свободный или вне диапазона кадр. | Нет owner tags и памяти выше 4 GiB. |
-| Heap | `kfree` отвергает NULL, не-heap address, double free, плохой magic или плохой размер. | Нет lock, red-zone или page reclamation. |
-| Paging | Новые heap/MMIO страницы маппятся через собственный PML4. | Нет `unmap`, NX и user mappings. |
-| Fault handler | Сохраняет CR2, декодирует cause и fail-stop halt. | Нет recovery, COW или demand paging. |
+| PMM | `free` rejects unaligned, unsuitable, already-free, or out-of-range frame. | No owner tags and no memory above 4 GiB. |
+| Heap | `kfree` rejects NULL, non-heap addresses, double-free, bad magic or bad size. | No locks, red-zone or page reclamation. |
+| Paging | New heap/MMIO pages are mapped via its own PML4. | No `unmap`, NX or user mappings. |
+| Fault handler | Saves CR2, decodes the cause, and performs a fail-stop halt. | No recovery, COW or demand paging. |
 
-## Повторение теста
+## Re-running the test
 
 ```bash
 cd /home/ubuntu/myos
@@ -45,7 +48,7 @@ make run
 make run-uefi
 ```
 
-В обычной shell выполните `pmmtest`, `heaptest`, `heap`, `paging`, `ticks` и `irqs`. Команда `pagefault` должна выполняться отдельно, потому что корректное поведение заканчивается диагностической остановкой ядра.
+In a normal shell run `pmmtest`, `heaptest`, `heap`, `paging`, `ticks` and `irqs`. The `pagefault` command must be run separately because correct behavior ends with a diagnostic kernel halt.
 
 ## References
 

@@ -1,5 +1,8 @@
 # GUI bring-up: native framebuffer desktop
 
+> **Язык:** [English](GUI_BRINGUP.md) | [Русский](GUI_BRINGUP_RU.md)
+
+
 Этот документ описывает **экспериментальный GUI** только для ветки `gui/bringup`. Он не входит в стабильный console release `v0.12.1-console` и не изменяет назначение веток `main` или `console-stable`. GUI остаётся нативным x86_64-компонентом MyOS: он рисуется непосредственно в RGB framebuffer, без web runtime, внешнего graphical toolkit или dynamic memory allocation.
 
 ## Запуск

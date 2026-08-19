@@ -1,31 +1,34 @@
-# Архитектурное решение: 32-битная поддержка MyOS
+# Architecture decision: 32-bit MyOS support
 
-## Контекст
+> **Language:** [English](architecture-decision-32bit.md) | [Русский](architecture-decision-32bit_RU.md)
 
-MyOS уже является x86_64-ядром: Limine передаёт управление в long mode, ядро использует System V x86_64 ABI, 64-битные GDT/IDT stubs, четырёхуровневые таблицы страниц, CR3 и higher-half virtual addresses. Полноценная i686 версия не является флагом компиляции: это отдельный архитектурный port с собственными boot/entry path, ABI, protected-mode paging/PAE, interrupt frame и тестовой матрицей.
 
-## Внешние сигналы 2025–2026
+## Context
 
-| Наблюдение | Значение для MyOS |
+MyOS is already an x86_64 kernel: Limine hands off control in long mode, the kernel uses the System V x86_64 ABI, 64-bit GDT/IDT stubs, four-level page tables, CR3 and higher-half virtual addresses. A full i686 version is not a compilation flag: it is a separate architecture port with its own boot/entry path, ABI, protected-mode paging/PAE, interrupt frame and test matrix.
+
+## External signals 2025–2026
+
+| Observation | Implication for MyOS |
 |---|---|
-| Современный массовый desktop software ориентирован на 64-bit CPUs и UEFI. | Базовой целевой платформой нового ПК-ядра должен оставаться x86_64. [1] |
-| Debian продолжает выпускать i386 как **partial** port и описывает его как поддержку IA-32 processors. | 32-bit не исчез полностью: он оправдан для legacy hardware, совместимости и обучения, но не определяет основной путь MyOS. [2] |
-| Современный Linux/x86 сохраняет документацию для 32-bit boot protocol. | Поддержка совместимости существует, однако наличие её в зрелом Linux не уменьшает стоимость отдельного port для маленького ядра. [3] |
+| Contemporary mainstream desktop software targets 64-bit CPUs and UEFI. | The primary target platform for the new PC kernel should remain x86_64. [1] |
+| Debian continues to release i386 as a **partial** port and describes it as support for IA-32 processors. | 32-bit has not disappeared entirely: it is justified for legacy hardware, compatibility, and education, but it should not define MyOS's main path. [2] |
+| Modern Linux/x86 keeps documentation for the 32-bit boot protocol. | Compatibility support exists; however, its presence in a mature Linux does not reduce the cost of maintaining a separate port for a small kernel. [3] |
 
-## Решение
+## Decision
 
-**Не добавлять 32-битную поддержку сейчас.** Основной ствол MyOS остаётся x86_64. Это совпадает с уже реализованными MMU, framebuffer, UEFI/BIOS образами и будущими планами user space и GUI.
+**Do not add 32-bit support now.** The mainline MyOS remains x86_64. This aligns with already implemented MMU, framebuffer, UEFI/BIOS images and planned user space and GUI.
 
-| Вариант | Польза | Цена сейчас | Решение |
+| Option | Benefit | Cost now | Decision |
 |---|---|---|---|
-| x86_64-only mainline | Современные ПК, UEFI, больше памяти, один ABI и одна MMU-модель. | Не загрузится на i686-only hardware. | Выбран. |
-| Полный i686 kernel port сейчас | Старые ПК, практическая работа с protected mode, наглядное сравнение архитектур. | Практически дублирует low-level дерево: boot, paging, GDT/IDT, syscall ABI, драйверные границы, CI/QEMU. Замедлит завершение первой пригодной версии. | Отложить. |
-| Учебный i386 bootstrap later | Даёт понимание real/protected mode и совместим с обучающей целью. | Не должен сдерживать основной x86_64 roadmap. | Возможен после стабильного release как отдельный lab/branch. |
-| 32-bit user compatibility на x86_64 | Полезно только при появлении user processes и конкретной цели запуска 32-bit программ. | Требует compat ABI/syscalls, ELF loader policy и испытаний. | Не рассматривать до ring 3 и ELF. |
+| x86_64-only mainline | Modern PCs, UEFI, more memory, one ABI and one MMU model. | Will not boot on i686-only hardware. | Chosen. |
+| Full i686 kernel port now | Old PCs, hands-on work with protected mode, a clear comparison of architectures. | Practically duplicates the low-level tree: boot, paging, GDT/IDT, syscall ABI, driver boundaries, CI/QEMU. Will slow completion of the first usable release. | Postpone. |
+| Educational i386 bootstrap later | Provides understanding of real/protected mode and suits educational purposes. | Should not hold back the main x86_64 roadmap. | Possible after a stable release as a separate lab/branch. |
+| 32-bit user compatibility on x86_64 | Useful only once user processes exist and there is a concrete goal to run 32-bit programs. | Requires compat ABI/syscalls, ELF loader policy and testing. | Do not consider until ring 3 and ELF. |
 
-## Триггеры для пересмотра
+## Triggers for reconsideration
 
-К решению следует вернуться только при появлении конкретной причины: целевое i686-only оборудование; требование запустить MyOS на старом ПК; учебный модуль по 32-bit protected mode; либо потребность запускать 32-bit пользовательские программы. До этого полезнее не создавать второй kernel port, а поддерживать в документации краткое сравнение x86 protected mode и x86_64 long mode.
+Return to the decision only if a concrete reason appears: target i686-only hardware; a requirement to run MyOS on an old PC; an educational module on 32-bit protected mode; or the need to run 32-bit user programs. Until then, it is more useful not to create a second kernel port, and instead maintain in documentation a brief comparison of x86 protected mode and x86_64 long mode.
 
 ## References
 

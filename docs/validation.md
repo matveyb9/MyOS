@@ -1,21 +1,24 @@
-# Проверка MyOS 0.3.0-dev
-> **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README.md).
+# Validation of MyOS 0.3.0-dev
+
+> **Language:** [English](validation.md) | [Русский](validation_RU.md)
+
+> **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and [documentation index](README.md).
 
 
-## Область проверки
+## Scope of validation
 
-Проверка выполнена для двух артефактов: `myos.iso` — гибридного оптического ISO-образа, и `myos.hdd` — сырого 64 MiB HDD/USB-образа с FAT EFI System Partition. Оба артефакта собраны из одного `build/kernel.elf`; загрузчик Limine поддерживает x86_64 и может работать и с BIOS, и с UEFI. [1]
+Validation was performed for two artifacts: `myos.iso` — a hybrid optical ISO image, and `myos.hdd` — a raw 64 MiB HDD/USB image with a FAT EFI System Partition. Both artifacts are built from the same `build/kernel.elf`; the Limine bootloader supports x86_64 and can operate with both BIOS and UEFI. [1]
 
-| Артефакт | BIOS QEMU | UEFI QEMU / OVMF | Проверенный сценарий | Итог |
+| Artifact | BIOS QEMU | UEFI QEMU / OVMF | Verified scenario | Result |
 |---|---:|---:|---|---|
-| `myos.iso` | Пройдено | Пройдено | Старт ядра, COM1 shell, `help`, `echo`, `meminfo`, `pmm`, `alloc`, `halt`. | Успех. |
-| `myos.iso` | Пройдено | Пройдено | `crash` вызывает divide-error и печатает vector `0x0`, code `0x0`, RIP. | Успех. |
-| `myos.hdd` | Пройдено | Пройдено | Старт ядра, PMM, serial-shell. | Успех. |
-| `myos.hdd` | Не выполнялось на физическом ПК | Не выполнялось на физическом ПК | Физическая запись намеренно не выполнялась. | Ожидает отдельный тестовый USB. |
+| `myos.iso` | Passed | Passed | Kernel start, COM1 shell, `help`, `echo`, `meminfo`, `pmm`, `alloc`, `halt`. | Success. |
+| `myos.iso` | Passed | Passed | `crash` triggers a divide-error and prints vector `0x0`, code `0x0`, RIP. | Success. |
+| `myos.hdd` | Passed | Passed | Kernel start, PMM, serial-shell. | Success. |
+| `myos.hdd` | Not performed on a physical PC | Not performed on a physical PC | Physical write intentionally not performed. | Awaiting a separate test USB. |
 
-Тесты использовали QEMU Q35 с 256 MiB RAM. Для UEFI использовались OVMF code/vars-образы пакета Ubuntu. Остановка после `halt` или `crash` считается ожидаемой: процессор отключает прерывания и выполняет `hlt`, а QEMU завершается ограничением времени теста.
+Tests used QEMU Q35 with 256 MiB RAM. For UEFI, OVMF code/vars images from the Ubuntu package were used. Shutdown after `halt` or `crash` is considered expected: the CPU disables interrupts and executes `hlt`, and QEMU exits due to the test time limit.
 
-## Как повторить QEMU-проверку
+## How to reproduce the QEMU test
 
 ```bash
 cd /home/ubuntu/myos
@@ -24,7 +27,7 @@ make run
 make run-uefi
 ```
 
-В любом из первых двух запусков дождитесь `myos>` и выполните:
+In either of the first two runs, wait for `myos>` and run:
 
 ```text
 help
@@ -33,30 +36,30 @@ alloc
 crash
 ```
 
-После `crash` должен быть напечатан диагностический блок `*** KERNEL EXCEPTION ***`, а ядро намеренно остановится. В отдельном запуске используйте `halt` для обычной остановки.
+After `crash` a diagnostic block `*** KERNEL EXCEPTION ***` should be printed, and the kernel will intentionally stop. In a separate run use `halt` for a normal shutdown.
 
-## Подготовленный USB/HDD-образ
+## Prepared USB/HDD image
 
-Создание образа не выполняет запись на реальные устройства:
+Creating the image does not write to real devices:
 
 ```bash
 make hdd
 ```
 
-Команда создаёт `myos.hdd`, строит GPT с EFI System Partition и размещает в ней `EFI/BOOT/BOOTX64.EFI`, `boot/kernel.elf`, `boot/limine.conf` и файл второго этапа BIOS Limine. Перед физическим запуском следует проверить содержимое только в QEMU, затем выбрать **пустой выделенный USB-носитель**.
+The command creates `myos.hdd`, builds a GPT with an EFI System Partition and places `EFI/BOOT/BOOTX64.EFI`, `boot/kernel.elf`, `boot/limine.conf` and the Limine BIOS second-stage file into it. Before physical boot, verify the contents only in QEMU, then select an **empty dedicated USB drive**.
 
-> Не выполняйте запись образа на системный диск, диск с резервными копиями или единственный рабочий USB. Операция перезаписи уничтожает прежнюю таблицу разделов и данные на выбранном устройстве.
+> Do not write the image to your system disk, a backup disk, or your only working USB. The overwrite operation destroys the previous partition table and data on the selected device.
 
-Когда будет выбран отдельный USB-накопитель, команда должна выполняться вручную и только после тщательной проверки его идентификатора:
+When a separate USB device is chosen, the command must be executed manually and only after carefully verifying its identifier:
 
 ```bash
-# Пример: замените /dev/sdX только после самостоятельной проверки lsblk.
+# Example: replace /dev/sdX only after verifying with lsblk yourself.
 sudo dd if=myos.hdd of=/dev/sdX bs=4M conv=fsync status=progress
 sync
 ```
 
-MyOS 0.3.0-dev не поддерживает Secure Boot, USB-клавиатуру, сеть, SATA/NVMe-драйверы и запись в файловую систему. Физический тест на этой стадии предназначен исключительно для проверки того, что UEFI/BIOS передаёт управление ядру и serial-log доступен; при отсутствии COM1-консоли нужен дальнейший этап текстового рендеринга framebuffer и PS/2-клавиатуры.
+MyOS 0.3.0-dev does not support Secure Boot, USB keyboard, networking, SATA/NVMe drivers or filesystem writing. A physical test at this stage is intended solely to verify that UEFI/BIOS hands control to the kernel and that the serial log is available; if there is no COM1 console, further work is required to add framebuffer text rendering and PS/2 keyboard support.
 
 ## References
 
-[1]: https://github.com/limine-bootloader/limine "Limine — официальный репозиторий загрузчика"
+[1]: https://github.com/limine-bootloader/limine "Limine — official bootloader repository"
