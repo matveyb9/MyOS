@@ -1,91 +1,106 @@
-# Native build в MyOS: первый in-OS workflow
+# Native build в MyOS: ограниченный in-OS workflow
 
-> **Статус:** реализовано и проверено в ветке `gui/bringup`. Это первый шаг к созданию собственных программ непосредственно внутри MyOS. Он не заменяет host SDK и не является полноценным C compiler.
+> **Статус:** реализовано и проверено в ветке `gui/bringup`. Встроенный инструмент `asm` поддерживает вывод текста, именованные метки и безусловные переходы только вперёд. Это первый контролируемый шаг к написанию собственных программ непосредственно внутри MyOS; он не заменяет host SDK и не является полноценным компилятором C.
 
 ## Назначение
 
-MyOS теперь содержит встроенный инструмент `asm` и user-shell команду `build`. Они читают restricted assembly source из persistent project directory, создают statically linked `x86_64 ELF64 ET_EXEC` без внешнего linker и сохраняют его как обычный persistent file. Полученный ELF затем устанавливается в approved application package `/apps/<name>/main.elf` штатной командой `install`.
+MyOS содержит встроенный инструмент `asm` и команду user shell `build`. Они читают ограниченный assembly source из persistent project directory, создают статически связанный `x86_64 ELF64 ET_EXEC` без внешнего linker и сохраняют его как обычный persistent file. Полученный ELF затем устанавливается в approved application package `/apps/<name>/main.elf` штатной командой `install`.
 
-Первый language intentionally small. Он позволяет написать программу, которая выводит один или несколько text fragments через MyOS syscall boundary и завершает task выбранным status code. Это даёт полный, воспроизводимый workflow **source → ELF → package → ring-3 execution** прямо на целевой ОС, не вводя неподконтрольный general-purpose compiler.
+Язык `.mya` намеренно мал. Он позволяет вывести один или несколько text fragments, пропустить участок линейного кода через именованный переход вперёд и завершить task выбранным status code. Тем самым внутри целевой ОС подтверждён воспроизводимый путь **source → ELF → package → ring-3 execution** без введения неподконтрольного general-purpose compiler.
 
 ## Быстрый workflow
 
-Создайте project directory и source file. Для первой версии source удобно хранить в одну строку с `;` между statements; `write` command shell передаёт до 256 text bytes за один вызов.
+Сначала создайте directory и source file. Для текущего shell удобна однострочная запись с `;` между statements: команда `write` передаёт не более 256 text bytes за один вызов.
 
 ```text
 mkdir /users/myos/projects/native
-write /users/myos/projects/native/hello.mya write "Hello from MyOS native build\n"; exit 37
+write /users/myos/projects/native/forward.mya write "before jump\n"; jump done; write "this text is skipped\n"; label done:; exit 37
 ```
 
-Соберите ELF в project directory, затем установите его в global application package и запустите коротким именем:
+Соберите ELF в project directory, установите его в global application package и запустите коротким именем:
 
 ```text
-build /users/myos/projects/native/hello.mya /users/myos/projects/native/hello.elf
-install /users/myos/projects/native/hello.elf /apps/native-hello/main.elf
-run native-hello
+build /users/myos/projects/native/forward.mya /users/myos/projects/native/forward.elf
+install /users/myos/projects/native/forward.elf /apps/native-forward/main.elf
+run native-forward
 ```
 
-Ожидаемый результат содержит строку `Hello from MyOS native build`, а user shell сообщает exit status `37`. Project source и intermediate ELF остаются в `/users/myos/projects/native/`; runnable package lives only under `/apps/native-hello/main.elf` because current loader accepts executable paths only from `/system/core/apps/` and `/apps/<name>/main.elf`.
+Ожидаемый результат содержит только строку `before jump`; строка `this text is skipped` не выводится, а user shell сообщает exit status `37`. Source и intermediate ELF остаются в `/users/myos/projects/native/`; runnable package находится только в `/apps/native-forward/main.elf`, поскольку текущий loader принимает executable paths лишь из `/system/core/apps/` и `/apps/<name>/main.elf`.
 
 ## Команды shell
 
 | Команда | Назначение |
 |---|---|
-| `build <source.mya> <output.elf>` | Public workflow wrapper. It starts the built-in `asm` tool in foreground. |
-| `run asm <source.mya> <output.elf>` | Direct invocation of the same assembler; useful for diagnostics. |
-| `help asm` | Показывает краткий syntax reference. |
-| `install <source> /apps/<name>/main.elf` | Copies built project ELF to the package location approved by the loader. |
-| `run <name>` | Resolves and starts `/apps/<name>/main.elf` as a separate ring-3 task. |
+| `build <source.mya> <output.elf>` | Public workflow wrapper. Запускает встроенный `asm` в foreground. |
+| `run asm <source.mya> <output.elf>` | Прямой вызов того же assembler, полезный для диагностики. |
+| `help asm` | Показывает краткий current syntax reference в user shell. |
+| `install <source> /apps/<name>/main.elf` | Копирует собранный ELF в package location, одобренный loader. |
+| `run <name>` | Разрешает и запускает `/apps/<name>/main.elf` как отдельную ring-3 task. |
 
-Все source и output paths должны быть absolute VFS paths. The assembler does not create parent directories; create project directories with `mkdir` first. It replaces an existing output file only after it successfully parses the source and emits the new ELF image.
+Все source и output paths должны быть absolute VFS paths. Assembler не создаёт parent directories: сначала используйте `mkdir`. Source разбирается и ELF полностью формируется в памяти до начала замены output file.
 
 ## Source language `.mya`
 
-A source consists of `write` and `exit` statements. Statements are separated by a semicolon or line ending. Comments start with `#` and continue through the end of the line. Exactly one final `exit` statement is required; no statement may follow it.
+Source состоит из `label`, `write`, `jump` и одного final `exit` statement. Statements разделяются `;` или концом строки. Комментарий начинается с `#` и действует до конца строки. После `exit` не допускается ни statement, ни label.
 
-| Statement | Meaning |
+| Statement | Значение |
 |---|---|
-| `write "text"` | Emits `text` to standard output through `MYOS_SYS_WRITE` with descriptor `1`. The string may use `\n`, `\r`, `\t`, `\\` and `\"` escapes. Empty strings are rejected. |
-| `exit <0..255>` | Calls `MYOS_SYS_EXIT` with the selected unsigned status code. |
+| `label name:` | Определяет именованную позицию перед следующим instruction. `name` начинается с ASCII letter или `_`, затем может содержать letters, digits и `_`. Метки case-sensitive, уникальны и обязательно оканчиваются `:`. |
+| `write "text"` | Выводит `text` в standard output через `MYOS_SYS_WRITE` с descriptor `1`. В строке допускаются `\n`, `\r`, `\t`, `\\` и `\"`; empty strings отклоняются. |
+| `jump name` | Генерирует безусловный x86_64 near jump на label `name`. Target label должен быть определён и располагаться **после** jump в source. Unknown labels, переходы на текущую позицию и backward jumps отклоняются. |
+| `exit <0..255>` | Вызывает `MYOS_SYS_EXIT` с выбранным unsigned status code. Это обязательный последний executable statement. |
 
-A multi-statement source can be written across lines when a future editor supports it, or authored as one line with separators today:
+Например, следующий source выводит `first line`, пропускает второй `write` и завершает task с кодом `0`:
 
 ```text
-# A native MyOS user program
+# Forward-only control flow
 write "first line\n";
-write "second line\n";
+jump finish;
+write "unreachable in this program\n";
+label finish:
 exit 0
 ```
 
-The output is a loader-valid little-endian `x86_64 ELF64 ET_EXEC`. It has one page-aligned RX `PT_LOAD` segment at virtual address `0x400000`, contains direct `SYSCALL` instructions for write and exit, and has no dynamic linker, relocations, libc or host dependencies.
+Assembler кодирует `jump` как fixed-size x86_64 `E9 rel32`. Поскольку target известен после разбора всех statements, assembler сначала собирает bounded instruction list, разрешает label targets, а затем формирует ELF. Эта модель не поддерживает loops и не разрешает переход на участок кода, уже выполненный или расположенный раньше.
+
+Выходные данные представляют собой loader-valid little-endian `x86_64 ELF64 ET_EXEC` с одним page-aligned RX `PT_LOAD` segment по virtual address `0x400000`. ELF содержит прямые `SYSCALL` instructions для write и exit; dynamic linker, relocations, libc и host dependencies отсутствуют.
 
 ## Bounds and safety policy
 
-| Boundary | Current rule |
+| Граница | Текущее правило |
 |---|---|
-| Source file | Up to 2,047 bytes; it is read through bounded 256-byte VFS requests. |
-| Text literals | Up to 2,048 bytes total across the program. |
-| `write` statements | Up to 32. |
-| Generated ELF | Up to 8,192 bytes; it is stored by bounded 256-byte VFS writes. |
-| ELF layout | One RX `PT_LOAD`, `ET_EXEC`, entry `0x400000`; no relocation or writable data segment. |
-| Execution policy | Project outputs are data. A program must be installed under `/apps/<name>/main.elf` before `run <name>` can load it. |
-| Scope | No labels, jumps, arithmetic, data directives, symbols, macros, object files, C syntax or external linking in this milestone. |
+| Source file | Не более 2 047 bytes; чтение выполняется bounded VFS requests по 256 bytes. |
+| Text literals | Не более 2 048 bytes суммарно на программу. |
+| Executable statements | Не более 64 суммарных `write`, `jump` и `exit` instructions. |
+| Labels | Не более 16 уникальных labels; identifier содержит от 1 до 31 ASCII character. |
+| Control flow | Только `jump` на строго более позднюю label. Loops, backward jumps, conditional branches и indirect jumps отсутствуют. |
+| Generated ELF | Не более 8 192 bytes; хранение выполняется bounded VFS writes по 256 bytes. |
+| ELF layout | Один RX `PT_LOAD`, `ET_EXEC`, entry `0x400000`; relocation и writable data segment отсутствуют. |
+| Execution policy | Project outputs являются data. Program необходимо установить в `/apps/<name>/main.elf`, прежде чем `run <name>` сможет его загрузить. |
+| Out of scope | Arithmetic, data directives, symbols beyond bounded labels, macros, object files, C syntax и external linking. |
 
-The bounds are part of the first security model. They keep parsing, code generation and VFS traffic static and auditable, avoid arbitrary relocation/linking logic, and prevent the assembler from reserving unbounded memory. Invalid syntax, oversized input, malformed paths or impossible output writes fail with a non-zero tool status; the shell remains usable.
+Границы являются частью начальной security model: они сохраняют parsing, target resolution, code generation и VFS traffic статичными и проверяемыми, исключают unbounded memory reservation и не вводят arbitrary relocation/linking logic. Неверный syntax, слишком большой input, duplicate label, missing/non-forward target, malformed path или невозможная запись output завершают инструмент с non-zero status; shell остаётся usable.
+
+Для structural errors и неверных targets `asm` сообщает:
+
+```text
+asm: syntax error; labels need ':' and jumps must target a later label
+```
 
 ## Relationship to the host SDK
 
-The host-side [MyOS SDK](SDK_RU.md) remains the supported path for larger freestanding C11 programs. It provides a public header, startup code, linker script and host build template. Native build does not duplicate that toolchain. Instead, it establishes the in-OS storage and execution path that future stages can extend with a richer assembler, a small linker, a restricted C frontend and eventually a broader native development environment.
+Host-side [MyOS SDK](SDK_RU.md) остаётся поддерживаемым путём для более крупных freestanding C11 programs. Он содержит public header, startup code, linker script и host build template. Native build не дублирует эту toolchain; он создаёт in-OS storage и execution path, который позднее можно расширить условными переходами, дополнительными syscalls, small linker, multi-line editor и ограниченным C frontend.
 
 ## Completed validation
 
-| Check | Result |
+| Проверка | Результат |
 |---|---|
-| Strict build | `make all img` completed with `-Werror`. |
-| BIOS source/build/install/run | A `.mya` source was created in `/users/myos/projects/native/`, `build` emitted `hello.elf`, `install` created `/apps/native-hello/main.elf`, and `run native-hello` printed its text and exited with status `37`. |
-| Fresh BIOS remount | The project source and ELF remained visible; the persisted installed program executed again with the same output and status. |
-| UEFI/OVMF | The same BIOS-created package executed successfully after an OVMF boot. |
+| Strict build | `make all img` завершилась с `-Werror`. |
+| BIOS forward jump | Source `write "bad\n"; jump done; write "good\n"; label done:; exit 23` был собран, установлен как `/apps/forward-jump/main.elf` и запущен. Отображается только `bad`; task завершается с status `23`. |
+| BIOS backward-target rejection | Source с `label start:`, `jump start` был отклонён с documented syntax diagnostic и status `2`; ELF не создан. |
+| UEFI/OVMF persistence | Package, созданный в BIOS, сохранился после переключения firmware и был успешно запущен в UEFI. Он снова вывел только `bad` и завершился с status `23`. |
+| Automated regression | `make regression` теперь включает forward-jump package, проверку skipped code в BIOS и UEFI, а также backward-jump rejection. |
 
 ## Next expansion
 
-The next native-toolchain decision is deliberately separate. Candidate work includes labels and restricted control flow, more syscalls, a small linker, a multi-line project editor, and a constrained C frontend. None of those changes should weaken the current project/package separation or bypass the loader’s approved executable paths.
+Следующим изолированным решением будет ограниченный conditional control flow с явными compare/set operations. Затем возможны дополнительные syscalls, multi-line project editor и small linker. Более полное C subset, базовая C-библиотека, build scripts и перенос крупного compiler могут рассматриваться только после стабилизации этих ограниченных шагов. Ни одно расширение не должно ослаблять project/package separation или обходить approved executable paths loader.

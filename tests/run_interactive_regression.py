@@ -15,6 +15,8 @@ NOTE_PATH = "/users/myos/files/notes/release-harness.txt"
 SOURCE_PATH = "/users/myos/projects/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
 APP_PATH = "/apps/release-harness/main.elf"
+BACKWARD_SOURCE_PATH = "/users/myos/projects/release-harness-backward.mya"
+BACKWARD_ELF_PATH = "/users/myos/projects/release-harness-backward.elf"
 
 
 class RegressionFailure(RuntimeError):
@@ -142,12 +144,17 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {NOTE_PATH}", "base!")
-        guest.command(f"write {SOURCE_PATH} write \"native\\n\"; exit 7")
+        guest.command(f"write {SOURCE_PATH} write \"native\\n\"; jump done; write \"skipped\\n\"; label done:; exit 7")
         guest.command(f"build {SOURCE_PATH} {ELF_PATH}", "exited with status 0")
         guest.command(f"install {ELF_PATH} {APP_PATH}", "exited with status 0")
+        run_start = len(guest.output)
         guest.command("run release-harness", "native")
-        if b"exited with status 7" not in guest.output:
-            raise RegressionFailure(f"BIOS: native program exit status 7 missing\n{guest._tail()}")
+        run_output = guest.output[run_start:]
+        if b"skipped" in run_output or b"exited with status 7" not in run_output:
+            raise RegressionFailure(f"BIOS: forward-jump native program did not skip code or return status 7\n{guest._tail()}")
+        guest.command(f"write {BACKWARD_SOURCE_PATH} label start:; write \"x\\n\"; jump start; exit 0")
+        guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}",
+                      "asm: syntax error; labels need ':' and jumps must target a later label")
     finally:
         guest.close()
 
@@ -161,9 +168,11 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.expect("[ok] Persistent storage mount: ready")
         guest.expect(PROMPT)
         guest.command(f"cat {NOTE_PATH}", "base!")
+        run_start = len(guest.output)
         guest.command("run release-harness", "native")
-        if b"exited with status 7" not in guest.output:
-            raise RegressionFailure(f"UEFI: persisted native program exit status 7 missing\n{guest._tail()}")
+        run_output = guest.output[run_start:]
+        if b"skipped" in run_output or b"exited with status 7" not in run_output:
+            raise RegressionFailure(f"UEFI: persisted forward-jump program did not skip code or return status 7\n{guest._tail()}")
         guest.gui_open_and_exit()
     finally:
         guest.close()

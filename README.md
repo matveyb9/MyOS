@@ -14,7 +14,7 @@
 | Console | Kernel shell, user shell, improved onboarding, history, Tab completion, signed `calc`, `clear` и environment variables. |
 | Files | Unified MYPFS004 root: read-only `/system/core`, persistent `/system/data`, `/apps`, `/users/myos`, RAM `/temp` и read-only runtime `/system/live`; regular files до 8 MiB. |
 | GUI | Framebuffer desktop, `SYSTEM`/`NOTES`/`MONITOR` windows, cursor-aware note editor, PS/2 pointer, cursor-only movement refresh и return to shell. |
-| Native development | SDK для host-built freestanding C11 apps, persistent `install`/`run`, and bounded in-OS `asm`/`build` workflow. |
+| Native development | SDK для host-built freestanding C11 apps, persistent `install`/`run`, and bounded in-OS `asm`/`build` workflow with labels and forward-only jumps. |
 
 ## Быстрый старт
 
@@ -90,7 +90,7 @@ cat /users/myos/files/note.txt
 | [Filesystem specification](docs/FILESYSTEM_SPEC_RU.md) | Users and contributors | Unified root layout, path contract and runtime projection. |
 | [MYPFS004 storage](docs/MYPFS004_STORAGE_RU.md) | Users and contributors | 8 MiB dynamic multi-extent persistent storage and migration contract. |
 | [MyOS SDK](docs/SDK_RU.md) | User-program authors | External freestanding C11 build and persistent ELF workflow. |
-| [Native build guide](docs/NATIVE_BUILD_RU.md) | User-program authors | In-MyOS restricted assembler, source syntax and project-to-package workflow. |
+| [Native build guide](docs/NATIVE_BUILD_RU.md) | User-program authors | In-MyOS restricted assembler, labels, forward-only jumps, limits and project-to-package workflow. |
 
 ## Build and repository actions
 
@@ -118,7 +118,7 @@ cat /users/myos/files/note.txt
 | `console-stable` | Latest reviewed console release baseline (`v0.12.1-console`). |
 | `v0.12.1-console` | Immutable annotated tag for the refreshed console UX release. |
 | `v0.12.0-console` | Immutable original console completion tag, preserved for history. |
-| `gui/bringup` | Актуальная GUI development branch: MYPFS004, SDK, native `asm`/`build` и GUI hardening. Она не является stable GUI release. |
+| `gui/bringup` | Актуальная GUI development branch: MYPFS004, SDK, native `asm`/`build` with labels/forward jumps и GUI hardening. Она не является stable GUI release. |
 
 ## Current limits
 

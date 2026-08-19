@@ -194,13 +194,13 @@ SDK собирает собственные freestanding C11 programs на host 
 
 ```text
 mkdir /users/myos/projects/native
-write /users/myos/projects/native/hello.mya write "Hello from MyOS native build\n"; exit 37
-build /users/myos/projects/native/hello.mya /users/myos/projects/native/hello.elf
-install /users/myos/projects/native/hello.elf /apps/native-hello/main.elf
-run native-hello
+write /users/myos/projects/native/forward.mya write "Before jump\n"; jump done; write "Skipped\n"; label done:; exit 37
+build /users/myos/projects/native/forward.mya /users/myos/projects/native/forward.elf
+install /users/myos/projects/native/forward.elf /apps/native-forward/main.elf
+run native-forward
 ```
 
-Source language currently supports `write "text"` and final `exit <0..255>`. Escapes `\n`, `\r`, `\t`, `\\` and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` for the command summary and [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) for all bounds and syntax rules.
+Source language supports `label name:`, `write "text"`, `jump name` and final `exit <0..255>`. A jump target must be a defined label located later in source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\` and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` for the command summary and [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) for all bounds and syntax rules.
 
 > Project ELF files are intentionally not directly runnable. The loader accepts installed user applications only from `/apps/<name>/main.elf`, so `install` remains the explicit package boundary.
 
@@ -260,4 +260,4 @@ qemu-system-x86_64 \
 
 MyOS не является заменой Linux, Windows или BSD. В `gui/bringup` пока нет сети, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, полноценного native C compiler или production security hardening. Restricted native assembler реализован, но GUI остаётся bounded framebuffer environment, а не general-purpose desktop.
 
-Если сборка или запуск не работают, выполните `make clean`, затем `make all img`, `make smoke` и `make regression`. Smoke command headlessly проверяет BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. Regression command использует disposable image copy: он создаёт и сохраняет GUI note, собирает/устанавливает native program в BIOS, затем проверяет note и program through UEFI. Обе команды не заменяют physical-PC test. После этого повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), для release gates — [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).
+Если сборка или запуск не работают, выполните `make clean`, затем `make all img`, `make smoke` и `make regression`. Smoke command headlessly проверяет BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. Regression command использует disposable image copy: он создаёт и сохраняет GUI note, собирает/устанавливает forward-jump native program в BIOS, проверяет rejected backward target, затем проверяет note и persisted program through UEFI. Обе команды не заменяют physical-PC test. После этого повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), для release gates — [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).

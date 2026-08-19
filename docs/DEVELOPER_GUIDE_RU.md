@@ -27,7 +27,7 @@
 | `make run-uefi` | UEFI ISO test in headless serial mode. |
 | `make run-uefi-graphic` | UEFI ISO test with framebuffer window. |
 | `make smoke` | Headless BIOS and UEFI raw-image boot smoke: checks firmware marker, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Creates a disposable raw-image copy; validates BIOS GUI note edit/save, native build/install/run, then UEFI persistence/readback and GUI enter/exit. |
+| `make regression` | Creates a disposable raw-image copy; validates BIOS GUI note edit/save, native forward-jump build/install/run and backward-target rejection, then UEFI persistence/readback and GUI enter/exit. |
 | `make release-check` | Requires a clean Git tree, rebuilds ISO/IMG, runs smoke/regression and prints the source commit plus artifact SHA-256; does not tag or publish. |
 | `make debug` | Starts QEMU paused with GDB server on TCP 1234. |
 | `make inspect` | Prints ELF headers and sections. |
@@ -167,7 +167,7 @@ Before committing a console change, at minimum perform:
 |---|---|
 | `make all img` | Strict `-Werror` build and both artifacts complete. |
 | `make smoke` | Reproducible raw-image BIOS and UEFI markers pass: expected firmware, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Disposable-image BIOS GUI note editing and native workflow pass; UEFI reads the persisted note, runs the persisted native package and returns cleanly from GUI. |
+| `make regression` | Disposable-image BIOS GUI note editing, forward-jump native workflow and backward-target rejection pass; UEFI reads the persisted note, runs the persisted native package and returns cleanly from GUI. |
 | `make release-check` | Clean source tree, clean rebuild, `make smoke`, `make regression`, source commit and SHA-256 artifacts all pass; no tag or remote publication occurs. |
 | BIOS raw image | Limine boot, automatic `/init` after three seconds, then user shell. |
 | BIOS cancellation | `K` during countdown keeps kernel shell; manual `init` reaches user shell. |
@@ -197,7 +197,7 @@ A normal GitHub publication should push `main`, `console-stable` and the annotat
 
 This is a console milestone, not a production OS. Current non-goals include networking, USB HID, SMP, IOAPIC routing, NVMe, demand paging, dynamic linker, Unix ABI compatibility, package management, full filesystem semantics, Secure Boot and production security hardening. AHCI is deliberately limited to one bounded sector operation and the known isolated data range.
 
-The first native build milestone is complete: `asm` emits a bounded one-segment x86_64 `ET_EXEC` from `.mya` source, and shell `build` provides the project workflow. The next project phase is restricted toolchain expansion: labels/control flow, richer syscall support, a multi-line editor and a small linker before any C frontend. Do not merge GUI, MYPFS004 or native-toolchain work into `main` or `console-stable` without an explicit release decision.
+The native build and first control-flow milestones are complete: `asm` emits a bounded one-segment x86_64 `ET_EXEC` from `.mya` source; shell `build` provides the project workflow; `label name:` and `jump name` compile to bounded forward-only near jumps. The next project phase is restricted conditional control flow using explicit compare/set operations, then richer syscall support, a multi-line editor and a small linker before any C frontend. Do not merge GUI, MYPFS004 or native-toolchain work into `main` or `console-stable` without an explicit release decision.
 
 ## 10. Documentation maintenance
 
