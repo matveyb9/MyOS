@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pathlib
+import re
 import select
 import shutil
 import socket
@@ -31,6 +32,10 @@ MISSING_SET_SOURCE_PATH = "/temp/release-missing-set.mya"
 MISSING_SET_ELF_PATH = "/users/myos/projects/release-missing-set.elf"
 CONDITIONAL_BACKWARD_SOURCE_PATH = "/temp/release-conditional-backward.mya"
 CONDITIONAL_BACKWARD_ELF_PATH = "/users/myos/projects/release-conditional-backward.elf"
+INPUT_TIME_SOURCE_PATH = "/temp/release-input-time.mya"
+INPUT_TIME_ELF_PATH = "/users/myos/projects/release-input-time.elf"
+INPUT_TIME_APP_PATH = "/apps/release-input-time/main.elf"
+TIME_LINE = re.compile(rb"(?m)^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\r?$")
 
 
 class RegressionFailure(RuntimeError):
@@ -107,6 +112,16 @@ class Guest:
             payload = payload.encode("utf-8")
         self.connection.sendall(payload)
 
+    def run_with_input(self, line, character, marker):
+        start = len(self.output)
+        self.send(line + "\n")
+        self.expect("Started process ", start)
+        time.sleep(0.10)
+        self.send(character)
+        self.expect(marker, start)
+        self.expect(PROMPT, start)
+        return bytes(self.output[start:])
+
     def command(self, line, marker=None):
         start = len(self.output)
         self.send(line + "\n")
@@ -159,6 +174,12 @@ def require_file(path):
         raise RegressionFailure(f"required file is missing: {path}")
 
 
+def require_time_line(name, output):
+    if TIME_LINE.search(output) is None:
+        decoded = output[-2048:].decode("utf-8", errors="replace")
+        raise RegressionFailure(f"{name}: native time output is not a valid HH:MM:SS line\n{decoded}")
+
+
 def run_bios(image_path, work_dir):
     guest = Guest("bios", image_path, work_dir)
     try:
@@ -207,15 +228,27 @@ def run_bios(image_path, work_dir):
         run_output = guest.output[run_start:]
         if b"B" in run_output or b"exited with status 9" not in run_output:
             raise RegressionFailure(f"BIOS: nonzero-true conditional program did not skip code or return status 9\n{guest._tail()}")
+        input_time_source = 'input;jump_if 65 a;write "B\\n";jump e;label a:;write "A\\n";label e:;time;exit 46'
+        guest.command(f"write {INPUT_TIME_SOURCE_PATH} {input_time_source}")
+        guest.command(f"build {INPUT_TIME_SOURCE_PATH} {INPUT_TIME_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {INPUT_TIME_ELF_PATH} {INPUT_TIME_APP_PATH}", "exited with status 0")
+        input_true_output = guest.run_with_input("run release-input-time", b"A", "exited with status 46")
+        if (b"B\n" in input_true_output or b"B\r\n" in input_true_output
+                or (b"A\n" not in input_true_output and b"A\r\n" not in input_true_output)):
+            raise RegressionFailure(f"BIOS: native input true branch did not match A\n{guest._tail()}")
+        require_time_line("BIOS", input_true_output)
+        input_false_output = guest.run_with_input("run release-input-time", b"B", "exited with status 46")
+        if (b"A\n" in input_false_output or b"A\r\n" in input_false_output
+                or (b"B\n" not in input_false_output and b"B\r\n" not in input_false_output)):
+            raise RegressionFailure(f"BIOS: native input false branch did not select B\n{guest._tail()}")
+        require_time_line("BIOS", input_false_output)
+        diagnostic = "asm: syntax error; input/set must precede conditional jumps, labels need ':' and jumps must target a later label"
         guest.command(f"write {BACKWARD_SOURCE_PATH} label start:;write \"x\\n\";jump start;exit 0")
-        guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}",
-                      "asm: syntax error; set <0..255>, labels need ':' and jumps must target a later label")
-        guest.command(f"write {MISSING_SET_SOURCE_PATH} jump_if_zero done;label done:;exit 0")
-        guest.command(f"build {MISSING_SET_SOURCE_PATH} {MISSING_SET_ELF_PATH}",
-                      "asm: syntax error; set <0..255>, labels need ':' and jumps must target a later label")
-        guest.command(f"write {CONDITIONAL_BACKWARD_SOURCE_PATH} label start:;set 1;jump_if_nonzero start;exit 0")
-        guest.command(f"build {CONDITIONAL_BACKWARD_SOURCE_PATH} {CONDITIONAL_BACKWARD_ELF_PATH}",
-                      "asm: syntax error; set <0..255>, labels need ':' and jumps must target a later label")
+        guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}", diagnostic)
+        guest.command(f"write {MISSING_SET_SOURCE_PATH} jump_if 65 done;label done:;exit 0")
+        guest.command(f"build {MISSING_SET_SOURCE_PATH} {MISSING_SET_ELF_PATH}", diagnostic)
+        guest.command(f"write {CONDITIONAL_BACKWARD_SOURCE_PATH} label start:;set 1;jump_if 1 start;exit 0")
+        guest.command(f"build {CONDITIONAL_BACKWARD_SOURCE_PATH} {CONDITIONAL_BACKWARD_ELF_PATH}", diagnostic)
     finally:
         guest.close()
 
@@ -244,6 +277,11 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         run_output = guest.output[run_start:]
         if b"B" in run_output or b"exited with status 7" not in run_output:
             raise RegressionFailure(f"UEFI: persisted zero-true program did not skip code or return status 7\n{guest._tail()}")
+        input_output = guest.run_with_input("run release-input-time", b"A", "exited with status 46")
+        if (b"B\n" in input_output or b"B\r\n" in input_output
+                or (b"A\n" not in input_output and b"A\r\n" not in input_output)):
+            raise RegressionFailure(f"UEFI: persisted native input program did not match A\n{guest._tail()}")
+        require_time_line("UEFI", input_output)
         guest.gui_open_and_exit()
     finally:
         guest.close()

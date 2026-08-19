@@ -32,7 +32,7 @@
 | `make run-uefi` | UEFI ISO test in headless serial mode. |
 | `make run-uefi-graphic` | UEFI ISO test with framebuffer window. |
 | `make smoke` | Headless BIOS and UEFI raw-image boot smoke: checks firmware marker, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Creates a disposable raw-image copy; validates BIOS GUI note edit/save, console-editor text/source persistence, bounded native conditional branches and rejection cases, then UEFI readback, package execution and GUI enter/exit. |
+| `make regression` | Создаёт disposable raw-image copy; проверяет BIOS GUI note edit/save, console-editor text/source persistence, legacy native branches, exact-match/fallback behavior инструкции `input`, RTC output `HH:MM:SS` и rejection cases, затем UEFI readback, persisted input/time package execution и GUI enter/exit. |
 | `make release-check` | Requires a clean Git tree, rebuilds ISO/IMG, runs smoke/regression and prints the source commit plus artifact SHA-256; does not tag or publish. |
 | `make debug` | Starts QEMU paused with GDB server on TCP 1234. |
 | `make inspect` | Prints ELF headers and sections. |
@@ -129,6 +129,8 @@ The release includes write/read, process lifecycle, task info, VFS read/enumerat
 | Pipe channels | 4 |
 | Pipe capacity per channel | 256 bytes |
 
+Native assembler использует существующий blocking syscall `MYOS_SYS_READ` для получения одного байта и `MYOS_SYS_RTC_TIME` для чтения `myos_rtc_time`; этот milestone не добавляет новый syscall number. Generated ELF содержит RX image по `0x400000` и fixed RW scratch mapping размером 32 bytes по `0x401000`. Syscall entry не сохраняет general argument registers через dispatcher, поэтому emitter заново загружает scratch pointer после каждого syscall, прежде чем снова использовать эту память.
+
 The source of truth is always the structures and constants in `include/syscall.h`, not this table, when changing the ABI.
 
 ## 5. Filesystem and storage design
@@ -172,7 +174,7 @@ Before committing a console change, at minimum perform:
 |---|---|
 | `make all img` | Strict `-Werror` build and both artifacts complete. |
 | `make smoke` | Reproducible raw-image BIOS and UEFI markers pass: expected firmware, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Disposable-image BIOS GUI note editing, editor text/source workflow, zero/nonzero native branches and rejected targets pass; UEFI reads persisted text, runs persisted editor-authored and conditional packages, and returns cleanly from GUI. |
+| `make regression` | Disposable-image BIOS GUI note editing, editor text/source workflow, legacy zero/nonzero branches, native `input` exact-match/fallback paths, valid RTC `HH:MM:SS` output и rejected targets проходят; UEFI читает persisted text, запускает persisted packages, включая input/time program, и корректно выходит из GUI. |
 | `make release-check` | Clean source tree, clean rebuild, `make smoke`, `make regression`, source commit and SHA-256 artifacts all pass; no tag or remote publication occurs. |
 | BIOS raw image | Limine boot, automatic `/init` after three seconds, then user shell. |
 | BIOS cancellation | `K` during countdown keeps kernel shell; manual `init` reaches user shell. |
@@ -202,7 +204,7 @@ A normal GitHub publication should push `main`, `console-stable` and the annotat
 
 This is a console milestone, not a production OS. Current non-goals include networking, USB HID, SMP, IOAPIC routing, NVMe, demand paging, dynamic linker, Unix ABI compatibility, package management, full filesystem semantics, Secure Boot and production security hardening. AHCI is deliberately limited to one bounded sector operation and the known isolated data range.
 
-Native build, bounded control-flow и general text-editor milestones завершены: `asm` emits a one-segment x86_64 `ET_EXEC` из `.mya` source; shell `build` предоставляет project workflow; `set <0..255>`, `label name:`, `jump name`, `jump_if_zero name` и `jump_if_nonzero name` компилируются в bounded forward-only code. Direct `edit <absolute-file>` предоставляет cursor-based multi-line editing для ordinary files и `.mya` source с all-in-memory limit 4 KiB; его contract описан в [TEXT_EDITOR_RU.md](TEXT_EDITOR_RU.md). Следующий project phase — selected input и time syscalls; C frontend или general linker не планируются до стабилизации этих limits. Не переносить GUI, MYPFS004 или native-toolchain work в `main` либо `console-stable` без explicit release decision.
+Native build, bounded control-flow, input/time и general text-editor milestones завершены: `asm` формирует x86_64 `ET_EXEC` с fixed private scratch segment из `.mya` source; shell `build` предоставляет project workflow; `input`, `time`, `set <0..255>`, `label name:`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name` и `jump_if <0..255> name` компилируются в bounded forward-only code. Direct `edit <absolute-file>` предоставляет cursor-based multi-line editing для ordinary files и `.mya` source с all-in-memory limit 4 KiB; его contract описан в [TEXT_EDITOR_RU.md](TEXT_EDITOR_RU.md). Будущая native work должна сохранять established storage, ABI и control-flow limits; C frontend или general linker не планируются до стабилизации этих limits. Не переносить GUI, MYPFS004 или native-toolchain work в `main` либо `console-stable` без explicit release decision.
 
 ## 10. Documentation maintenance
 

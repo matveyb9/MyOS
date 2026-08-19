@@ -197,20 +197,24 @@ The native build workflow uses the restricted assembler and the `build` command.
 
 ```text
 mkdir /users/myos/projects/native
-edit /users/myos/projects/native/forward.mya
-# Type source lines, then Ctrl-S:
-write "Before jump\n"
+edit /users/myos/projects/native/answer.mya
+# Type these source lines, then Ctrl-S:
+input
+jump_if 89 yes
+write "no\n"
 jump done
-write "Skipped\n"
+label yes:
+write "yes\n"
 label done:
+time
 exit 37
 
-build /users/myos/projects/native/forward.mya /users/myos/projects/native/forward.elf
-install /users/myos/projects/native/forward.elf /apps/native-forward/main.elf
-run native-forward
+build /users/myos/projects/native/answer.mya /users/myos/projects/native/answer.elf
+install /users/myos/projects/native/answer.elf /apps/native-answer/main.elf
+run native-answer
 ```
 
-The source language supports `set <0..255>`, `label name:`, `write "text"`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name`, and a final `exit <0..255>`. A conditional jump needs an earlier `set`; every target must be a defined label located later in the source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\`, and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` and `help edit` for concise command help, [Text Editor](TEXT_EDITOR.md) for editing controls, and [Native Build](NATIVE_BUILD.md) for all bounds and syntax rules.
+The program waits for a byte. Enter uppercase `Y` to print `yes`; another byte prints `no`. It then writes the current RTC time as `HH:MM:SS` and returns status `37`. The source language supports `input`, `time`, `set <0..255>`, `label name:`, `write "text"`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name`, `jump_if <0..255> name`, and a final `exit <0..255>`. A conditional jump needs an earlier `input` or `set`; every target must be a defined label located later in the source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\`, and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; use `help asm` and `help edit` for concise command help, [Text Editor](TEXT_EDITOR.md) for editing controls, and [Native Build](NATIVE_BUILD.md) for all bounds and syntax rules.
 
 > Project ELF files are intentionally not directly runnable. The loader accepts installed user applications only from `/apps/<name>/main.elf`, so `install` remains the explicit package boundary.
 
@@ -270,4 +274,4 @@ For a physical computer use **`myos.img`**, not the ISO. The image contains GPT,
 
 MyOS is not a replacement for Linux, Windows, or BSD. On `gui/bringup` there is currently no networking, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, a full native C compiler, or production security hardening. The restricted native assembler is implemented, but the GUI remains a bounded framebuffer environment rather than a general-purpose desktop.
 
-If a build or run fails, do `make clean`, then `make all img`, `make smoke`, and `make regression`. The `smoke` command headlessly checks BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. The `regression` command uses a disposable image copy: it creates and saves a GUI note, builds/installs the forward-jump native program in BIOS, verifies the rejected backward target, then verifies the note and the persisted program through UEFI. Both commands do not replace a physical-PC test. After that repeat the QEMU command from section 3. For host-platform setup use [PLATFORMS.md](PLATFORMS.md), for release gates use [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md), and for technical diagnostics use [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).
+If a build or run fails, do `make clean`, then `make all img`, `make smoke`, and `make regression`. The `smoke` command headlessly checks BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. The `regression` command uses a disposable image copy: it creates and saves a GUI note, builds and installs native packages in BIOS, verifies legacy forward-only branches, `input` exact-match and fallback paths, valid `HH:MM:SS` RTC output, and rejected invalid control flow, then verifies persisted files and the installed input/time package through UEFI. Both commands do not replace a physical-PC test. After that repeat the QEMU command from section 3. For host-platform setup use [PLATFORMS.md](PLATFORMS.md), for release gates use [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md), and for technical diagnostics use [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).

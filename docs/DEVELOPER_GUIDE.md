@@ -32,7 +32,7 @@ This document describes the current development line **`gui/bringup`** of MyOS. 
 | `make run-uefi` | UEFI ISO test in headless serial mode. |
 | `make run-uefi-graphic` | UEFI ISO test with a framebuffer window. |
 | `make smoke` | Headless BIOS and UEFI raw-image boot smoke: checks firmware marker, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Creates a disposable raw-image copy; validates BIOS GUI note edit/save, console-editor text/source persistence, bounded native conditional branches and rejection cases, then UEFI readback, package execution and GUI enter/exit. |
+| `make regression` | Creates a disposable raw-image copy; validates BIOS GUI note edit/save, console-editor text/source persistence, legacy native branches, `input` exact-match/fallback behavior, RTC `HH:MM:SS` output and rejection cases, then UEFI readback, persisted input/time package execution and GUI enter/exit. |
 | `make release-check` | Requires a clean Git tree, rebuilds ISO/IMG, runs smoke/regression and prints the source commit plus artifact SHA-256; does not tag or publish. |
 | `make debug` | Starts QEMU paused with a GDB server on TCP 1234. |
 | `make inspect` | Prints ELF headers and sections. |
@@ -129,6 +129,8 @@ The release includes write/read, process lifecycle, task info, VFS read/enumerat
 | Pipe channels | 4 |
 | Pipe capacity per channel | 256 bytes |
 
+The native assembler uses the existing blocking `MYOS_SYS_READ` syscall to receive its one byte and `MYOS_SYS_RTC_TIME` to read `myos_rtc_time`; this milestone does not add a new syscall number. Its generated ELF has an RX image at `0x400000` and a fixed 32-byte RW scratch mapping at `0x401000`. Syscall entry does not preserve general argument registers across dispatch, so the emitter reloads its scratch pointer after every syscall before it reuses that storage.
+
 The source of truth is always the structures and constants in `include/syscall.h`, not this table, when changing the ABI.
 
 ## 5. Filesystem and storage design
@@ -172,7 +174,7 @@ Before committing a console change, at minimum perform:
 |---|---|
 | `make all img` | Strict `-Werror` build and both artifacts complete. |
 | `make smoke` | Reproducible raw-image BIOS and UEFI markers pass: expected firmware, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Disposable-image BIOS GUI note editing, editor text/source workflow, zero/nonzero native branches and rejected targets pass; UEFI reads persisted text, runs persisted editor-authored and conditional packages, and returns cleanly from GUI. |
+| `make regression` | Disposable-image BIOS GUI note editing, editor text/source workflow, legacy zero/nonzero branches, native `input` exact-match/fallback paths, valid RTC `HH:MM:SS` output and rejected targets pass; UEFI reads persisted text, runs persisted packages including the input/time program, and returns cleanly from GUI. |
 | `make release-check` | Clean source tree, clean rebuild, `make smoke`, `make regression`, source commit and SHA-256 artifacts all pass; no tag or remote publication occurs. |
 | BIOS raw image | Limine boot, automatic `/init` after three seconds, then user shell. |
 | BIOS cancellation | `K` during countdown keeps kernel shell; manual `init` reaches user shell. |
@@ -202,7 +204,7 @@ A normal GitHub publication should push `main`, `console-stable` and the annotat
 
 This is a console milestone, not a production OS. Current non-goals include networking, USB HID, SMP, IOAPIC routing, NVMe, demand paging, dynamic linker, Unix ABI compatibility, package management, full filesystem semantics, Secure Boot and production security hardening. AHCI is deliberately limited to one bounded sector operation and the known isolated data range.
 
-The native build, bounded control-flow and general text-editor milestones are complete: `asm` emits a one-segment x86_64 `ET_EXEC` from `.mya` source; shell `build` provides the project workflow; `set <0..255>`, `label name:`, `jump name`, `jump_if_zero name` and `jump_if_nonzero name` compile to bounded forward-only code. Direct `edit <absolute-file>` provides cursor-based multi-line editing for ordinary files and `.mya` source, with a 4 KiB all-in-memory document limit; its contract is in [TEXT_EDITOR.md](TEXT_EDITOR.md). The next project phase is selected input and time syscalls; no C frontend or general linker is planned before those limits are stabilized. Do not merge GUI, MYPFS004 or native-toolchain work into `main` or `console-stable` without an explicit release decision.
+The native build, bounded control-flow, input/time and general text-editor milestones are complete: `asm` emits an x86_64 `ET_EXEC` with a fixed private scratch segment from `.mya` source; shell `build` provides the project workflow; `input`, `time`, `set <0..255>`, `label name:`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name` and `jump_if <0..255> name` compile to bounded forward-only code. Direct `edit <absolute-file>` provides cursor-based multi-line editing for ordinary files and `.mya` source, with a 4 KiB all-in-memory document limit; its contract is in [TEXT_EDITOR.md](TEXT_EDITOR.md). Future native work must preserve the established storage, ABI and control-flow limits; no C frontend or general linker is planned before those limits are stabilized. Do not merge GUI, MYPFS004 or native-toolchain work into `main` or `console-stable` without an explicit release decision.
 
 ## 10. Documentation maintenance
 

@@ -197,20 +197,24 @@ Native build workflow использует restricted assembler и command `buil
 
 ```text
 mkdir /users/myos/projects/native
-edit /users/myos/projects/native/forward.mya
-# Наберите source lines, затем Ctrl-S:
-write "Before jump\n"
+edit /users/myos/projects/native/answer.mya
+# Наберите эти source lines, затем Ctrl-S:
+input
+jump_if 89 yes
+write "no\n"
 jump done
-write "Skipped\n"
+label yes:
+write "yes\n"
 label done:
+time
 exit 37
 
-build /users/myos/projects/native/forward.mya /users/myos/projects/native/forward.elf
-install /users/myos/projects/native/forward.elf /apps/native-forward/main.elf
-run native-forward
+build /users/myos/projects/native/answer.mya /users/myos/projects/native/answer.elf
+install /users/myos/projects/native/answer.elf /apps/native-answer/main.elf
+run native-answer
 ```
 
-Source language supports `set <0..255>`, `label name:`, `write "text"`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name` and final `exit <0..255>`. Conditional jump требует более ранний `set`; every target must be a defined label located later in source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\` and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; используйте `help asm` и `help edit` для краткой command help, [Текстовый редактор](TEXT_EDITOR_RU.md) для controls и [Native Build](NATIVE_BUILD_RU.md) для всех bounds и syntax rules.
+Программа ожидает один байт. Введите заглавную `Y`, чтобы вывести `yes`; другой байт выводит `no`. Затем она выводит текущее время RTC в формате `HH:MM:SS` и возвращает status `37`. Source language supports `input`, `time`, `set <0..255>`, `label name:`, `write "text"`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name`, `jump_if <0..255> name` and final `exit <0..255>`. Conditional jump требует более ранний `input` или `set`; every target must be a defined label located later in source, so loops and backward jumps are rejected. Escapes `\n`, `\r`, `\t`, `\\` and `\"` are available inside text. The generated program runs in ring 3 and returns its authored exit status; используйте `help asm` и `help edit` для краткой command help, [Текстовый редактор](TEXT_EDITOR_RU.md) для controls и [Native Build](NATIVE_BUILD_RU.md) для всех bounds и syntax rules.
 
 > Project ELF files are intentionally not directly runnable. The loader accepts installed user applications only from `/apps/<name>/main.elf`, so `install` remains the explicit package boundary.
 
@@ -270,4 +274,4 @@ qemu-system-x86_64 \
 
 MyOS не является заменой Linux, Windows или BSD. В `gui/bringup` пока нет сети, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, полноценного native C compiler или production security hardening. Restricted native assembler реализован, но GUI остаётся bounded framebuffer environment, а не general-purpose desktop.
 
-Если сборка или запуск не работают, выполните `make clean`, затем `make all img`, `make smoke` и `make regression`. Smoke command headlessly проверяет BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. Regression command использует disposable image copy: он создаёт и сохраняет GUI note, собирает/устанавливает forward-jump native program в BIOS, проверяет rejected backward target, затем проверяет note и persisted program through UEFI. Обе команды не заменяют physical-PC test. После этого повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), для release gates — [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).
+Если сборка или запуск не работают, выполните `make clean`, затем `make all img`, `make smoke` и `make regression`. Smoke command headlessly проверяет BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. Regression command использует disposable image copy: он создаёт и сохраняет GUI note, собирает и устанавливает native packages в BIOS, проверяет legacy forward-only branches, exact-match и fallback paths инструкции `input`, корректный вывод RTC `HH:MM:SS` и rejected invalid control flow, затем проверяет persisted files и installed input/time package через UEFI. Обе команды не заменяют physical-PC test. После этого повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), для release gates — [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).
