@@ -365,7 +365,7 @@ static void environment_expand(const char *source, char *destination, uint64_t c
 static int built_in_program(const char *name) {
     static const char *const names[] = {
         "init", "hello", "sleeper", "orphaner", "safety", "argshow", "calc", "pipewrite",
-        "piperead", "wc", "grep", "edit", "startgui", "install", "asm"
+        "piperead", "wc", "grep", "edit", "startgui", "install", "asm", "cp"
     };
 
     for (uint64_t index = 0U; index < sizeof(names) / sizeof(names[0]); index++) {
@@ -425,6 +425,11 @@ static void command_help(const char *topic) {
         write_text("Uses signed 64-bit integers; division truncates toward zero.\n");
         return;
     }
+    if (text_equal(topic, "cp")) {
+        write_text("run cp <absolute-source> <new-absolute-target>\n");
+        write_text("Copies one regular file in bounded chunks; target must not exist and its parent must exist.\n");
+        return;
+    }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
         write_text("Source: input; time; args; set <0..255>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
@@ -447,7 +452,7 @@ static void command_help(const char *topic) {
     }
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
-    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run <program-or-absolute-path> [arguments]\n");
+    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run <program-or-absolute-path> [arguments]; help cp\n");
     write_text("Native: build <source.mya> <output.elf>; help asm/edit for syntax and controls\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");

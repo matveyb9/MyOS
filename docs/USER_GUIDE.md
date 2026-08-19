@@ -147,6 +147,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `help` | `help` | Brief shell capability map. |
 | `ls` | `ls /users/myos` | Show directory contents. |
 | `cat` | `cat /system/core/resources/motd.txt` | Display a file. |
+| `run cp` | `run cp /users/myos/files/a.txt /users/myos/files/b.txt` | Copy a regular file in bounded chunks. The target must be a new absolute path and its parent must already exist; it is never overwritten. |
 | `touch` | `touch /users/myos/files/note.txt` | Create an empty persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Create a directory. |
 | `write` | `write /users/myos/files/note.txt Hello` | Overwrite a file with a single line. |
@@ -168,6 +169,7 @@ Most built-in programs are started via `run` or `spawn`. Examples:
 run hello
 run wc /system/core/resources/motd.txt
 run grep MyOS /system/core/resources/motd.txt
+run cp /system/core/resources/motd.txt /users/myos/files/motd-copy.txt
 run argshow one two three
 calc 12 / 3
 ```
@@ -189,7 +191,7 @@ After reboot reinstallation is not required:
 run sdk-hello persisted
 ```
 
-The SDK builds freestanding C11 programs on the host computer. The detailed workflow, ABI, and linker contract are in [SDK.md](SDK.md). For the first in-OS workflow use the restricted assembler described in the next section; a richer native C frontend is a later milestone.
+The SDK builds freestanding C11 programs on the host computer. Its public header includes bounded VFS read/create/write/remove wrappers, demonstrated by the image’s live `cp` utility. `cp` requires two absolute paths, never overwrites an existing target and removes only a partial target it created after a failure. The detailed workflow, ABI, and linker contract are in [SDK.md](SDK.md). For the first in-OS workflow use the restricted assembler described in the next section; a richer native C frontend is a later milestone.
 
 ## 8. Native build directly in MyOS
 
@@ -270,4 +272,4 @@ For a physical computer use **`myos.img`**, not the ISO. The image contains GPT,
 
 MyOS is not a replacement for Linux, Windows, or BSD. On `gui/bringup` there is currently no networking, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, a full native C compiler, or production security hardening. The restricted native assembler is implemented, but the GUI remains a bounded framebuffer environment rather than a general-purpose desktop.
 
-If a build or run fails, do `make clean`, then `make all img`, `make smoke`, and `make regression`. The `smoke` command headlessly checks BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. The `regression` command uses a disposable image copy: it creates and saves a GUI note, builds and installs native packages in BIOS, verifies legacy forward-only branches, empty and forwarded native arguments, `input` exact-match and fallback paths, valid `HH:MM:SS` RTC output, and rejected invalid control flow, then verifies persisted files and the installed input/time/argument packages through UEFI. Both commands do not replace a physical-PC test. After that repeat the QEMU command from section 3. For host-platform setup use [PLATFORMS.md](PLATFORMS.md), for release gates use [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md), and for technical diagnostics use [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).
+If a build or run fails, do `make clean`, then `make all img`, `make smoke`, and `make regression`. The `smoke` command headlessly checks BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. The `regression` command uses a disposable image copy: it creates and saves a GUI note, uses SDK `cp` to copy an editor-authored 305-byte file across its 256-byte request boundary, verifies exact target data and rejects overwrite, builds and installs native packages in BIOS, verifies legacy forward-only branches, empty and forwarded native arguments, `input` exact-match and fallback paths, valid `HH:MM:SS` RTC output, and rejected invalid control flow, then verifies persisted files, the `cp` target and installed input/time/argument packages through UEFI. Both commands do not replace a physical-PC test. After that repeat the QEMU command from section 3. For host-platform setup use [PLATFORMS.md](PLATFORMS.md), for release gates use [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md), and for technical diagnostics use [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).

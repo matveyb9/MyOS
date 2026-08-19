@@ -32,7 +32,7 @@ This document describes the current development line **`gui/bringup`** of MyOS. 
 | `make run-uefi` | UEFI ISO test in headless serial mode. |
 | `make run-uefi-graphic` | UEFI ISO test with a framebuffer window. |
 | `make smoke` | Headless BIOS and UEFI raw-image boot smoke: checks firmware marker, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Creates a disposable raw-image copy; validates BIOS GUI note edit/save, console-editor text/source persistence, legacy native branches, empty and forwarded `args` output, `input` exact-match/fallback behavior, RTC `HH:MM:SS` output and rejection cases, then UEFI readback, persisted input/time/argument package execution and GUI enter/exit. |
+| `make regression` | Creates a disposable raw-image copy; validates BIOS GUI note edit/save, a paced editor-authored 305-byte SDK `cp` copy across the 256-byte VFS boundary, exact readback and no-overwrite behavior, console-editor source persistence, legacy native branches, empty and forwarded `args` output, `input` exact-match/fallback behavior, RTC `HH:MM:SS` output and rejection cases, then UEFI readback of the copied target, persisted input/time/argument package execution and GUI enter/exit. |
 | `make release-check` | Requires a clean Git tree, rebuilds ISO/IMG, runs smoke/regression and prints the source commit plus artifact SHA-256; does not tag or publish. |
 | `make debug` | Starts QEMU paused with a GDB server on TCP 1234. |
 | `make inspect` | Prints ELF headers and sections. |
@@ -76,6 +76,7 @@ qemu-system-x86_64 \
 | `kernel/ipc/` | Bounded one-way pipe table and endpoint lifetime. |
 | `kernel/drivers/` | PIT, PS/2 keyboard, RTC, PIC, PCI and AHCI. |
 | `user/` | Ring-3 shell, freestanding user programs and initramfs payload. |
+| `sdk/` | Public freestanding user ABI, build template, examples and the live SDK-built `cp` VFS developer tool. |
 | `tools/mkcpio.py` | Deterministic user-program/initramfs packaging helper. |
 
 ## 3. Bootstrap and execution model
@@ -131,6 +132,8 @@ The release includes write/read, process lifecycle, task info, VFS read/enumerat
 
 The native assembler uses the existing blocking `MYOS_SYS_READ` syscall to receive its one byte and `MYOS_SYS_RTC_TIME` to read `myos_rtc_time`; this milestone does not add a new syscall number. Its generated ELF has an RX image at `0x400000` and a fixed 32-byte RW private-data mapping at `0x401000`. The entry prologue preserves the loader-supplied argument pointer in bytes `0..7`; `args` scans at most the existing 127-byte `MYOS_SPAWN_ARGUMENTS_MAX - 1` payload and writes it only when non-empty. Bytes `8..31` remain input/time scratch. Syscall entry does not preserve general argument registers across dispatch, so the emitter reloads its scratch pointer after every syscall before it reuses that storage.
 
+The SDK republishes an additive, fixed-size subset of this ABI in `sdk/include/myos.h`: VFS read, create-file, write and remove wrappers with 256-byte request payloads. The SDK-built `cp` app uses only those public wrappers. It creates only an absent target with an existing parent, never overwrites it and removes only the partial target it created if copying fails.
+
 The source of truth is always the structures and constants in `include/syscall.h`, not this table, when changing the ABI.
 
 ## 5. Filesystem and storage design
@@ -174,7 +177,7 @@ Before committing a console change, at minimum perform:
 |---|---|
 | `make all img` | Strict `-Werror` build and both artifacts complete. |
 | `make smoke` | Reproducible raw-image BIOS and UEFI markers pass: expected firmware, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Disposable-image BIOS GUI note editing, editor text/source workflow, legacy zero/nonzero branches, empty and forwarded native `args`, native `input` exact-match/fallback paths, valid RTC `HH:MM:SS` output and rejected targets pass; UEFI reads persisted text, runs persisted packages including input/time/argument programs, and returns cleanly from GUI. |
+| `make regression` | Disposable-image BIOS GUI note editing, a paced editor-authored 305-byte SDK `cp` copy across the VFS chunk boundary, exact readback and overwrite rejection, editor source workflow, legacy zero/nonzero branches, empty and forwarded native `args`, native `input` exact-match/fallback paths, valid RTC `HH:MM:SS` output and rejected targets pass; UEFI reads persisted text and copied target, runs persisted packages including input/time/argument programs, and returns cleanly from GUI. |
 | `make release-check` | Clean source tree, clean rebuild, `make smoke`, `make regression`, source commit and SHA-256 artifacts all pass; no tag or remote publication occurs. |
 | BIOS raw image | Limine boot, automatic `/init` after three seconds, then user shell. |
 | BIOS cancellation | `K` during countdown keeps kernel shell; manual `init` reaches user shell. |
@@ -204,7 +207,7 @@ A normal GitHub publication should push `main`, `console-stable` and the annotat
 
 This is a console milestone, not a production OS. Current non-goals include networking, USB HID, SMP, IOAPIC routing, NVMe, demand paging, dynamic linker, Unix ABI compatibility, package management, full filesystem semantics, Secure Boot and production security hardening. AHCI is deliberately limited to one bounded sector operation and the known isolated data range.
 
-The native build, bounded control-flow, argument forwarding, input/time and general text-editor milestones are complete: `asm` emits an x86_64 `ET_EXEC` with a fixed private data segment from `.mya` source; shell `build` provides the project workflow; `args`, `input`, `time`, `set <0..255>`, `label name:`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name` and `jump_if <0..255> name` compile to bounded forward-only code. Direct `edit <absolute-file>` provides cursor-based multi-line editing for ordinary files and `.mya` source, with a 4 KiB all-in-memory document limit; its contract is in [TEXT_EDITOR.md](TEXT_EDITOR.md). Future native work must preserve the established storage, ABI and control-flow limits; no C frontend or general linker is planned before those limits are stabilized. Do not merge GUI, MYPFS004 or native-toolchain work into `main` or `console-stable` without an explicit release decision.
+The SDK VFS subset and live `cp` developer tool, native build, bounded control-flow, argument forwarding, input/time and general text-editor milestones are complete: `asm` emits an x86_64 `ET_EXEC` with a fixed private data segment from `.mya` source; shell `build` provides the project workflow; `args`, `input`, `time`, `set <0..255>`, `label name:`, `jump name`, `jump_if_zero name`, `jump_if_nonzero name` and `jump_if <0..255> name` compile to bounded forward-only code. Direct `edit <absolute-file>` provides cursor-based multi-line editing for ordinary files and `.mya` source, with a 4 KiB all-in-memory document limit; its contract is in [TEXT_EDITOR.md](TEXT_EDITOR.md). Future native work must preserve the established storage, ABI and control-flow limits; no C frontend or general linker is planned before those limits are stabilized. Do not merge GUI, MYPFS004 or native-toolchain work into `main` or `console-stable` without an explicit release decision.
 
 ## 10. Documentation maintenance
 

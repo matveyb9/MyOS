@@ -38,6 +38,8 @@ INPUT_TIME_APP_PATH = "/apps/release-input-time/main.elf"
 ARGS_SOURCE_PATH = "/temp/release-args.mya"
 ARGS_ELF_PATH = "/users/myos/projects/release-args.elf"
 ARGS_APP_PATH = "/apps/release-args/main.elf"
+COPY_SOURCE_PATH = "/users/myos/files/cp-harness-source.txt"
+COPY_TARGET_PATH = "/users/myos/files/cp-harness-target.txt"
 TIME_LINE = re.compile(rb"(?m)^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\r?$")
 
 
@@ -110,10 +112,30 @@ class Guest:
                 self.output.extend(chunk)
         raise RegressionFailure(f"{self.name}: timeout waiting for {marker!r}\n{self._tail()}")
 
+    def _drain_output(self):
+        while True:
+            ready, _, _ = select.select([self.connection], [], [], 0.0)
+            if not ready:
+                return
+            chunk = self.connection.recv(4096)
+            if not chunk:
+                raise RegressionFailure(f"{self.name}: serial connection closed while draining output\n{self._tail()}")
+            self.output.extend(chunk)
+
     def send(self, payload):
         if isinstance(payload, str):
             payload = payload.encode("utf-8")
-        self.connection.sendall(payload)
+        pending = memoryview(payload)
+        while len(pending) != 0:
+            self._drain_output()
+            try:
+                written = self.connection.send(pending)
+            except BlockingIOError:
+                select.select([self.connection], [self.connection], [], 0.20)
+                continue
+            if written == 0:
+                raise RegressionFailure(f"{self.name}: serial connection closed while sending input\n{self._tail()}")
+            pending = pending[written:]
 
     def run_with_input(self, line, character, marker):
         start = len(self.output)
@@ -146,7 +168,10 @@ class Guest:
         self.send(f"edit {path}\n")
         self.expect("MYOS TEXT EDITOR", start)
         time.sleep(0.10)
-        self.send(content + b"\x13")
+        for index in range(len(content)):
+            self.send(content[index:index + 1])
+            time.sleep(0.015)
+        self.send(b"\x13")
         self.expect(f"edit: saved {len(content)} byte(s)", start)
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
@@ -205,6 +230,19 @@ def run_bios(image_path, work_dir):
         text_output = guest.output[text_start:]
         if b"first\nsecond" not in text_output and b"first\r\nsecond" not in text_output:
             raise RegressionFailure(f"BIOS: editor text readback is not exact\n{guest._tail()}")
+        copy_payload = b"copy:" + b"x" * 300
+        guest.console_edit_and_save(COPY_SOURCE_PATH, copy_payload)
+        copy_start = len(guest.output)
+        guest.command(f"run cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "exited with status 0")
+        copy_output = bytes(guest.output[copy_start:])
+        if b"Copied 305 byte(s)" not in copy_output:
+            raise RegressionFailure(f"BIOS: SDK cp did not report a 305-byte copy\n{guest._tail()}")
+        copy_read_start = len(guest.output)
+        guest.command(f"cat {COPY_TARGET_PATH}", "copy:")
+        copy_read_output = bytes(guest.output[copy_read_start:])
+        if copy_payload not in copy_read_output:
+            raise RegressionFailure(f"BIOS: SDK cp target readback is not exact\n{guest._tail()}")
+        guest.command(f"run cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
         guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
@@ -291,6 +329,13 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         text_output = guest.output[text_start:]
         if b"first\nsecond" not in text_output and b"first\r\nsecond" not in text_output:
             raise RegressionFailure(f"UEFI: persisted editor text readback is not exact\n{guest._tail()}")
+        copy_payload = b"copy:" + b"x" * 300
+        copy_read_start = len(guest.output)
+        guest.command(f"cat {COPY_TARGET_PATH}", "copy:")
+        copy_read_output = bytes(guest.output[copy_read_start:])
+        if copy_payload not in copy_read_output:
+            raise RegressionFailure(f"UEFI: persisted SDK cp target readback is not exact\n{guest._tail()}")
+        guest.command(f"run cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
         run_start = len(guest.output)
         guest.command("run editor-harness", "editor")
         run_output = guest.output[run_start:]

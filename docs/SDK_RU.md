@@ -16,6 +16,7 @@
 | Linker script | `sdk/myos-user.ld` | Формирует статический ELF64 с entry point `_start` и loadable segments для MyOS loader. |
 | Build template | `sdk/Makefile` | Собирает заданный C-файл в готовый MyOS ELF. |
 | Проверочный пример | `sdk/examples/hello.c` | Выводит сообщение и принятую строку аргументов. |
+| Практический SDK tool | `sdk/examples/cp.c` | Копирует existing regular file в новый absolute target только через public SDK VFS wrappers. Образ stage-ит его как `/system/core/apps/cp.elf`. |
 
 ## Требования и сборка
 
@@ -53,6 +54,7 @@ Startup object получает ABI entry `_start(uint64_t argc, const char *arg
 | Завершение | Return code `myos_main` передаётся в `MYOS_SYS_EXIT`; явный выход возможен через `myos_exit(status)`. |
 | Текстовый вывод | `myos_write()` выполняет bounded write; `myos_write_text()` выводит NUL-terminated ASCII text на standard output. |
 | Дополнительные wrappers | `myos_getpid()` и `myos_ticks()` доступны как прямые read-only syscall wrappers. |
+| VFS subset | `myos_vfs_read()`, `myos_vfs_create_file()`, `myos_vfs_write()` и `myos_vfs_remove()` используют public fixed-size request structures. Read и write ограничены 256 bytes на request. |
 | Память и runtime | Нет libc allocation, constructors, dynamic linking или floating-point runtime. |
 | Формат | Только little-endian `x86_64 ELF64 ET_EXEC`; ELF32, PIE и dynamic ELF не поддерживаются. |
 
@@ -80,6 +82,16 @@ run sdk-hello external SDK validation
 
 Ожидаемый вывод содержит `Hello from MyOS SDK!` и строку `Arguments: external SDK validation`. `install` создаёт persistent package directory `/apps/sdk-hello/` и копирует ELF как `main.elf`; `run` создаёт новый user task и передаёт оставшуюся часть command line как аргументы. После reboot достаточно выполнить `run sdk-hello persisted`: повторная установка не требуется.
 
+Образ также stage-ит SDK-built practical copy tool как live app `cp`. Ему нужны два absolute paths; destination не должна существовать, а её parent directory уже должна существовать. Это conservative rule предотвращает accidental overwrite или source loss. Пример:
+
+```text
+write /users/myos/files/source.txt MyOS SDK copy
+run cp /users/myos/files/source.txt /users/myos/files/target.txt
+cat /users/myos/files/target.txt
+```
+
+Инструмент читает и записывает запросами по 256 bytes, поддерживает empty source files и files до existing 8 MiB regular-file ceiling и удаляет только свой newly-created partial target при неудаче copy.
+
 | Ограничение | Текущее значение |
 |---|---:|
 | Persistent VFS objects | До 128 файлов и каталогов в MYPFS004. |
@@ -88,6 +100,8 @@ run sdk-hello external SDK validation
 | Длина absolute program path | До 111 visible ASCII bytes плюс NUL terminator. |
 | Длина передаваемой строки arguments | До 127 visible bytes плюс NUL terminator. |
 | Initramfs staging path примера | `/system/core/examples/sdk/hello.elf`. |
+| Live SDK tool path | `/system/core/apps/cp.elf`, resolved как `run cp`. |
+| `cp` destination rule | Absolute path, absent target и already-existing parent directory; existing targets никогда не перезаписываются. |
 
 ## Как заменить пример своей программой
 
@@ -107,7 +121,8 @@ MYPFS004 предоставляет настоящую файловую иера
 | Install and run | `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`, затем `run sdk-hello external SDK validation` вывели приветствие и полную строку аргументов; status `0`. |
 | Persistence | После fresh BIOS boot `run sdk-hello persisted` успешно запускает ранее установленный ELF из MYPFS004 application package. |
 | UEFI execution | OVMF boot с тем же `myos.img` успешно запустил persisted app командой `run sdk-hello uefi`. |
+| SDK VFS copy | SDK-built live `cp` скопировал editor-authored persistent file размером 305 bytes через 256-byte request boundary, отклонил вторую overwrite attempt, а exact target data сохранились после UEFI. |
 
 ## Не входит в данный этап
 
-SDK не добавляет 32-bit compatibility, native C compiler, dynamic linking, process `argv[]` или package manager. Unified hierarchy и MYPFS004 large-file storage уже реализованы; symbolic links, GUI shortcuts и личная установка приложений остаются последующими расширениями. Текущая GUI branch и immutable tags остаются без изменений.
+SDK не добавляет 32-bit compatibility, native C compiler, dynamic linking, process `argv[]` или package manager. VFS subset намеренно не включает directory creation, listing, rename, metadata, overwrite flags или arbitrary I/O buffering. Unified hierarchy и MYPFS004 large-file storage уже реализованы; symbolic links, GUI shortcuts и личная установка приложений остаются последующими расширениями. Текущая GUI branch и immutable tags остаются без изменений.

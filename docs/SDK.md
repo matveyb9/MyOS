@@ -16,6 +16,7 @@ At this milestone the SDK is intentionally compact: it does not include POSIX, a
 | Linker script | `sdk/myos-user.ld` | Produces a static ELF64 with entry point `_start` and loadable segments for the MyOS loader. |
 | Build template | `sdk/Makefile` | Builds a given C file into a ready MyOS ELF. |
 | Validation example | `sdk/examples/hello.c` | Prints a message and the received argument string. |
+| Practical SDK tool | `sdk/examples/cp.c` | Copies an existing regular file to a new absolute target through only the public SDK VFS wrappers. The image stages it as `/system/core/apps/cp.elf`. |
 
 ## Requirements and build
 
@@ -53,6 +54,7 @@ The startup object receives the ABI entry `_start(uint64_t argc, const char *arg
 | Termination | `myos_main` return code is passed to `MYOS_SYS_EXIT`; explicit exit is possible via `myos_exit(status)`. |
 | Text output | `myos_write()` performs a bounded write; `myos_write_text()` writes a NUL-terminated ASCII text to standard output. |
 | Additional wrappers | `myos_getpid()` and `myos_ticks()` are available as direct read-only syscall wrappers. |
+| VFS subset | `myos_vfs_read()`, `myos_vfs_create_file()`, `myos_vfs_write()` and `myos_vfs_remove()` use public fixed-size request structures. Reads and writes are limited to 256 bytes per request. |
 | Memory and runtime | No libc allocation, constructors, dynamic linking or floating-point runtime. |
 | Format | Only little-endian `x86_64 ELF64 ET_EXEC`; ELF32, PIE and dynamic ELF are not supported. |
 
@@ -80,6 +82,16 @@ run sdk-hello external SDK validation
 
 The expected output contains `Hello from MyOS SDK!` and the line `Arguments: external SDK validation`. `install` creates a persistent package directory `/apps/sdk-hello/` and copies the ELF as `main.elf`; `run` creates a new user task and passes the remainder of the command line as arguments. After a reboot it is sufficient to run `run sdk-hello persisted`: reinstallation is not required.
 
+The image also stages the SDK-built practical copy tool as the live app `cp`. It needs two absolute paths; its destination must not yet exist and its parent directory must already exist. This conservative rule prevents an accidental overwrite or source loss. For example:
+
+```text
+write /users/myos/files/source.txt MyOS SDK copy
+run cp /users/myos/files/source.txt /users/myos/files/target.txt
+cat /users/myos/files/target.txt
+```
+
+The tool reads and writes in 256-byte requests, supports empty source files and files up to the existing 8 MiB regular-file ceiling, and removes only its newly-created partial target when a copy fails.
+
 | Limitation | Current value |
 |---|---:|
 | Persistent VFS objects | Up to 128 files and directories in MYPFS004. |
@@ -88,6 +100,8 @@ The expected output contains `Hello from MyOS SDK!` and the line `Arguments: ext
 | Length of absolute program path | Up to 111 visible ASCII bytes plus NUL terminator. |
 | Length of passed arguments string | Up to 127 visible bytes plus NUL terminator. |
 | Initramfs staging path of the example | `/system/core/examples/sdk/hello.elf`. |
+| Live SDK tool path | `/system/core/apps/cp.elf`, resolved as `run cp`. |
+| `cp` destination rule | Absolute path, absent target, and an already-existing parent directory; existing targets are never overwritten. |
 
 ## How to replace the example with your own program
 
@@ -107,7 +121,8 @@ Validation was performed on the `gui/bringup` branch in QEMU Q35 BIOS with raw `
 | Install and run | `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`, then `run sdk-hello external SDK validation` printed the greeting and the full argument string; status `0`. |
 | Persistence | After a fresh BIOS boot `run sdk-hello persisted` successfully runs the previously installed ELF from the MYPFS004 application package. |
 | UEFI execution | OVMF boot with the same `myos.img` successfully ran the persisted app with `run sdk-hello uefi`. |
+| SDK VFS copy | The SDK-built live `cp` copied an editor-authored 305-byte persistent file across the 256-byte request boundary, rejected a second overwrite attempt, and its exact target data persisted through UEFI. |
 
 ## Not included in this milestone
 
-The SDK does not add 32-bit compatibility, a native C compiler, dynamic linking, process `argv[]` or a package manager. The unified hierarchy and MYPFS004 large-file storage are already implemented; symbolic links, GUI shortcuts and per-user app installation remain future extensions. The current GUI branch and immutable tags remain unchanged.
+The SDK does not add 32-bit compatibility, a native C compiler, dynamic linking, process `argv[]` or a package manager. The VFS subset deliberately omits directory creation, listing, rename, metadata, overwrite flags and arbitrary I/O buffering. The unified hierarchy and MYPFS004 large-file storage are already implemented; symbolic links, GUI shortcuts and per-user app installation remain future extensions. The current GUI branch and immutable tags remain unchanged.

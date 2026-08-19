@@ -147,6 +147,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `help` | `help` | Краткая карта возможностей shell. |
 | `ls` | `ls /users/myos` | Показать содержимое каталога. |
 | `cat` | `cat /system/core/resources/motd.txt` | Показать file. |
+| `run cp` | `run cp /users/myos/files/a.txt /users/myos/files/b.txt` | Скопировать regular file bounded chunks. Target должна быть новым absolute path, а её parent уже должна существовать; она никогда не перезаписывается. |
 | `touch` | `touch /users/myos/files/note.txt` | Создать пустой persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Создать каталог. |
 | `write` | `write /users/myos/files/note.txt Hello` | Перезаписать file одной строкой. |
@@ -168,6 +169,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 run hello
 run wc /system/core/resources/motd.txt
 run grep MyOS /system/core/resources/motd.txt
+run cp /system/core/resources/motd.txt /users/myos/files/motd-copy.txt
 run argshow one two three
 calc 12 / 3
 ```
@@ -189,7 +191,7 @@ run sdk-hello external SDK validation
 run sdk-hello persisted
 ```
 
-SDK собирает собственные freestanding C11 programs на host computer. Подробный workflow, ABI и linker contract приведены в [SDK_RU.md](SDK_RU.md). Для первого in-OS workflow используйте restricted assembler из следующего раздела; более богатый native C frontend остаётся последующим milestone.
+SDK собирает собственные freestanding C11 programs на host computer. Его public header содержит bounded VFS read/create/write/remove wrappers, которые демонстрирует live utility `cp` в образе. `cp` требует два absolute paths, никогда не перезаписывает existing target и удаляет только partial target, созданный им при failure. Подробный workflow, ABI и linker contract приведены в [SDK_RU.md](SDK_RU.md). Для первого in-OS workflow используйте restricted assembler из следующего раздела; более богатый native C frontend остаётся последующим milestone.
 
 ## 8. Native build прямо в MyOS
 
@@ -270,4 +272,4 @@ qemu-system-x86_64 \
 
 MyOS не является заменой Linux, Windows или BSD. В `gui/bringup` пока нет сети, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, полноценного native C compiler или production security hardening. Restricted native assembler реализован, но GUI остаётся bounded framebuffer environment, а не general-purpose desktop.
 
-Если сборка или запуск не работают, выполните `make clean`, затем `make all img`, `make smoke` и `make regression`. Smoke command headlessly проверяет BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. Regression command использует disposable image copy: он создаёт и сохраняет GUI note, собирает и устанавливает native packages в BIOS, проверяет legacy forward-only branches, empty и forwarded native arguments, exact-match и fallback paths инструкции `input`, корректный вывод RTC `HH:MM:SS` и rejected invalid control flow, затем проверяет persisted files и installed input/time/argument packages через UEFI. Обе команды не заменяют physical-PC test. После этого повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), для release gates — [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).
+Если сборка или запуск не работают, выполните `make clean`, затем `make all img`, `make smoke` и `make regression`. Smoke command headlessly проверяет BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. Regression command использует disposable image copy: он создаёт и сохраняет GUI note, использует SDK `cp` для копирования editor-authored file размером 305 bytes через 256-byte request boundary, проверяет exact target data и отклоняет overwrite, собирает и устанавливает native packages в BIOS, проверяет legacy forward-only branches, empty и forwarded native arguments, exact-match и fallback paths инструкции `input`, корректный вывод RTC `HH:MM:SS` и rejected invalid control flow, затем проверяет persisted files, `cp` target и installed input/time/argument packages через UEFI. Обе команды не заменяют physical-PC test. После этого повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), для release gates — [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).

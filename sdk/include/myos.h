@@ -11,9 +11,32 @@
 #define MYOS_SYS_TICKS UINT64_C(4)
 #define MYOS_SYS_GETPID UINT64_C(8)
 #define MYOS_SYS_SLEEP UINT64_C(9)
+#define MYOS_SYS_VFS_READ UINT64_C(12)
+#define MYOS_SYS_VFS_CREATE_FILE UINT64_C(30)
+#define MYOS_SYS_VFS_WRITE UINT64_C(32)
+#define MYOS_SYS_VFS_REMOVE UINT64_C(33)
 
 #define MYOS_STDOUT UINT64_C(1)
 #define MYOS_SYSCALL_ERROR UINT64_MAX
+#define MYOS_VFS_PATH_MAX UINT64_C(112)
+#define MYOS_VFS_READ_CHUNK UINT64_C(256)
+
+struct myos_vfs_read_request {
+    uint64_t offset;
+    char path[MYOS_VFS_PATH_MAX];
+    uint8_t data[MYOS_VFS_READ_CHUNK];
+};
+
+struct myos_vfs_path_request {
+    char path[MYOS_VFS_PATH_MAX];
+};
+
+struct myos_vfs_write_request {
+    uint64_t offset;
+    uint64_t length;
+    char path[MYOS_VFS_PATH_MAX];
+    uint8_t data[MYOS_VFS_READ_CHUNK];
+};
 
 static inline uint64_t myos_syscall(uint64_t number, uint64_t descriptor, uint64_t buffer,
                                     uint64_t length) {
@@ -49,6 +72,22 @@ static inline void myos_write_text(const char *text) {
         text += chunk;
         remaining -= chunk;
     }
+}
+
+static inline uint64_t myos_vfs_read(struct myos_vfs_read_request *request) {
+    return myos_syscall(MYOS_SYS_VFS_READ, 0U, (uint64_t)(uintptr_t)request, sizeof(*request));
+}
+
+static inline uint64_t myos_vfs_create_file(const struct myos_vfs_path_request *request) {
+    return myos_syscall(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)request, sizeof(*request));
+}
+
+static inline uint64_t myos_vfs_write(const struct myos_vfs_write_request *request) {
+    return myos_syscall(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)request, sizeof(*request));
+}
+
+static inline uint64_t myos_vfs_remove(const struct myos_vfs_path_request *request) {
+    return myos_syscall(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)request, sizeof(*request));
 }
 
 static inline uint64_t myos_getpid(void) {
