@@ -1,6 +1,6 @@
 # MyOS
 
-> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](README_RU.md) / **🇺🇸 ENGLISH**
+> [🇷🇺 РУССКИЙ](README_RU.md) / **🇺🇸 ENGLISH**
 
 **MyOS** is an experimental operating system written from scratch for **x86_64** in freestanding C11 and x86_64 NASM. Limine currently supplies the boot environment, while the kernel, memory management, scheduler, ring-3 programs, shell, filesystem and drivers belong to this repository.
 

@@ -1,6 +1,6 @@
 # MyOS Documentation Policy
 
-> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](DOCUMENTATION_POLICY_RU.md) / **🇺🇸 ENGLISH**
+> [🇷🇺 РУССКИЙ](DOCUMENTATION_POLICY_RU.md) / **🇺🇸 ENGLISH**
 
 Documentation is part of the product. A public-behavior change is not complete until its English and Russian descriptions are updated in the same commit.
 
@@ -10,7 +10,7 @@ Documentation is part of the product. A public-behavior change is not complete u
 |---|---|---|
 | Repository root | `README.md` | `README_RU.md` |
 | Documentation | `docs/NAME.md` | `docs/NAME_RU.md` |
-| Language switcher | `> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](NAME_RU.md) / **🇺🇸 ENGLISH**` | `> **🌐 LANGUAGE / ЯЗЫК:** **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](NAME.md)` |
+| Language switcher | `> [🇷🇺 РУССКИЙ](NAME_RU.md) / **🇺🇸 ENGLISH**` | `> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](NAME.md)` |
 
 Every Markdown page in the root and `docs/` contains this prominent widget immediately after the heading. The current language is bold text; the other language is the reciprocal link. Commands, paths, identifiers, source code, version numbers, SHA-256 values and URLs remain unchanged.
 
@@ -42,7 +42,7 @@ Each page serves one primary task. The root README contains only a project descr
 
 ## Change history and publication
 
-A commit subject is a concise English imperative summary. After one blank line, its body contains equivalent `[EN]:` and `[RU]:` descriptions in that order; both state the same scope, compatibility effect and limits. When Manus AI materially assists, `Assisted-by: Manus AI` is the final transparency trailer. Future release notes place the prominent `🌐 RELEASE LANGUAGES / ЯЗЫКИ РЕЛИЗА` widget beneath the title and use equivalent `## 🇺🇸 [EN] ENGLISH` and `## 🇷🇺 [RU] РУССКИЙ` sections; the [Release Guide](RELEASES.md) provides the template and required fields.
+A commit subject is a concise English imperative summary. After one blank line, its body contains equivalent `[EN]:` and `[RU]:` descriptions in that order; both state the same scope, compatibility effect and limits. When Manus AI materially assists, `Assisted-by: Manus AI` is the final transparency trailer. Future release notes place a compact flag-only selector beneath the title and use equivalent `## 🇺🇸 [EN] ENGLISH` and `## 🇷🇺 [RU] РУССКИЙ` sections; the [Release Guide](RELEASES.md) provides the template and required fields.
 
 ## Terms
 

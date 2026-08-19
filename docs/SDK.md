@@ -1,6 +1,6 @@
 # MyOS SDK: external development of user-space programs
 
-> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](SDK_RU.md) / **🇺🇸 ENGLISH**
+> [🇷🇺 РУССКИЙ](SDK_RU.md) / **🇺🇸 ENGLISH**
 
 
 ## Purpose

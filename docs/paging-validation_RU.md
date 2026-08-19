@@ -1,6 +1,6 @@
 # Проверка paging и kernel heap в MyOS 0.5.0-dev
 
-> **🌐 LANGUAGE / ЯЗЫК:** **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](paging-validation.md)
+> **🇷🇺 РУССКИЙ** / [🇺🇸 ENGLISH](paging-validation.md)
 
 > **Исторический документ.** Этот файл описывает ранний development milestone и не является спецификацией текущего console release `0.12.0-dev`. Сверяйтесь с [руководством пользователя](USER_GUIDE_RU.md), [руководством разработчика](DEVELOPER_GUIDE_RU.md) и [индексом документации](README_RU.md).
 

@@ -1,6 +1,6 @@
 # MyOS Filesystem Specification
 
-> **🌐 LANGUAGE / ЯЗЫК:** [🇷🇺 РУССКИЙ](FILESYSTEM_SPEC_RU.md) / **🇺🇸 ENGLISH**
+> [🇷🇺 РУССКИЙ](FILESYSTEM_SPEC_RU.md) / **🇺🇸 ENGLISH**
 
 
 > **Status:** MYPFS004 hierarchy and dynamic large-file storage are implemented in `gui/bringup`. Its on-disk format, limits and migration contract are in [MYPFS004_STORAGE.md](MYPFS004_STORAGE.md). This document remains the source of truth for the root tree, path policy, runtime projection and application layout.
