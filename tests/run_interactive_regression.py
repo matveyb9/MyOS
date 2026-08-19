@@ -35,6 +35,9 @@ CONDITIONAL_BACKWARD_ELF_PATH = "/users/myos/projects/release-conditional-backwa
 INPUT_TIME_SOURCE_PATH = "/temp/release-input-time.mya"
 INPUT_TIME_ELF_PATH = "/users/myos/projects/release-input-time.elf"
 INPUT_TIME_APP_PATH = "/apps/release-input-time/main.elf"
+ARGS_SOURCE_PATH = "/temp/release-args.mya"
+ARGS_ELF_PATH = "/users/myos/projects/release-args.elf"
+ARGS_APP_PATH = "/apps/release-args/main.elf"
 TIME_LINE = re.compile(rb"(?m)^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\r?$")
 
 
@@ -180,6 +183,13 @@ def require_time_line(name, output):
         raise RegressionFailure(f"{name}: native time output is not a valid HH:MM:SS line\n{decoded}")
 
 
+def require_native_line(name, output, expected):
+    accepted = (expected + b"\n", expected + b"\r\n")
+    if accepted[0] not in output and accepted[1] not in output:
+        decoded = output[-2048:].decode("utf-8", errors="replace")
+        raise RegressionFailure(f"{name}: native output lacks {expected!r} as a complete line\n{decoded}")
+
+
 def run_bios(image_path, work_dir):
     guest = Guest("bios", image_path, work_dir)
     try:
@@ -242,6 +252,20 @@ def run_bios(image_path, work_dir):
                 or (b"B\n" not in input_false_output and b"B\r\n" not in input_false_output)):
             raise RegressionFailure(f"BIOS: native input false branch did not select B\n{guest._tail()}")
         require_time_line("BIOS", input_false_output)
+        args_source = 'write "[";args;write "]\\n";time;exit 47'
+        guest.command(f"write {ARGS_SOURCE_PATH} {args_source}")
+        guest.command(f"build {ARGS_SOURCE_PATH} {ARGS_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {ARGS_ELF_PATH} {ARGS_APP_PATH}", "exited with status 0")
+        args_empty_start = len(guest.output)
+        guest.command("run release-args", "exited with status 47")
+        args_empty_output = bytes(guest.output[args_empty_start:])
+        require_native_line("BIOS empty native args", args_empty_output, b"[]")
+        require_time_line("BIOS empty native args", args_empty_output)
+        args_output_start = len(guest.output)
+        guest.command("run release-args alpha beta", "exited with status 47")
+        args_output = bytes(guest.output[args_output_start:])
+        require_native_line("BIOS native args", args_output, b"[alpha beta]")
+        require_time_line("BIOS native args", args_output)
         diagnostic = "asm: syntax error; input/set must precede conditional jumps, labels need ':' and jumps must target a later label"
         guest.command(f"write {BACKWARD_SOURCE_PATH} label start:;write \"x\\n\";jump start;exit 0")
         guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}", diagnostic)
@@ -282,6 +306,11 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
                 or (b"A\n" not in input_output and b"A\r\n" not in input_output)):
             raise RegressionFailure(f"UEFI: persisted native input program did not match A\n{guest._tail()}")
         require_time_line("UEFI", input_output)
+        args_output_start = len(guest.output)
+        guest.command("run release-args ovmf args", "exited with status 47")
+        args_output = bytes(guest.output[args_output_start:])
+        require_native_line("UEFI persisted native args", args_output, b"[ovmf args]")
+        require_time_line("UEFI persisted native args", args_output)
         guest.gui_open_and_exit()
     finally:
         guest.close()

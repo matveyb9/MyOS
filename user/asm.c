@@ -19,6 +19,7 @@
 #define USER_IMAGE_BASE UINT64_C(0x400000)
 #define USER_IMAGE_DATA_BASE (USER_IMAGE_BASE + UINT64_C(0x1000))
 #define USER_IMAGE_DATA_CAPACITY UINT64_C(32)
+#define NATIVE_ENTRY_PROLOGUE_SIZE UINT64_C(8)
 
 #define NATIVE_INSTRUCTION_WRITE UINT64_C(1)
 #define NATIVE_INSTRUCTION_JUMP UINT64_C(2)
@@ -29,6 +30,7 @@
 #define NATIVE_INSTRUCTION_INPUT UINT64_C(7)
 #define NATIVE_INSTRUCTION_TIME UINT64_C(8)
 #define NATIVE_INSTRUCTION_JUMP_IF UINT64_C(9)
+#define NATIVE_INSTRUCTION_ARGS UINT64_C(10)
 
 struct native_instruction {
     uint64_t kind;
@@ -350,6 +352,8 @@ static int parse_source(uint64_t source_length, uint64_t *instruction_count, uin
             condition_ready = 1;
         } else if (word_is(source_buffer, start, word_length, "time") != 0) {
             instructions[*instruction_count].kind = NATIVE_INSTRUCTION_TIME;
+        } else if (word_is(source_buffer, start, word_length, "args") != 0) {
+            instructions[*instruction_count].kind = NATIVE_INSTRUCTION_ARGS;
         } else if (word_is(source_buffer, start, word_length, "jump") != 0
                    || word_is(source_buffer, start, word_length, "jump_if_zero") != 0
                    || word_is(source_buffer, start, word_length, "jump_if_nonzero") != 0
@@ -410,6 +414,7 @@ static uint64_t instruction_size(uint64_t kind) {
     if (kind == NATIVE_INSTRUCTION_INPUT) { return UINT64_C(63); }
     if (kind == NATIVE_INSTRUCTION_TIME) { return UINT64_C(142); }
     if (kind == NATIVE_INSTRUCTION_JUMP_IF) { return UINT64_C(12); }
+    if (kind == NATIVE_INSTRUCTION_ARGS) { return UINT64_C(42); }
     if (kind == NATIVE_INSTRUCTION_EXIT) { return UINT64_C(20); }
     return 0U;
 }
@@ -433,7 +438,7 @@ static int resolve_jumps(uint64_t instruction_count, uint64_t label_count) {
 
 static int build_elf(uint64_t instruction_count, uint64_t literal_length, uint64_t *image_length) {
     uint64_t instruction_offsets[ASM_MAX_INSTRUCTIONS + 1U];
-    uint64_t code_length = 0U;
+    uint64_t code_length = NATIVE_ENTRY_PROLOGUE_SIZE;
     uint64_t payload_length;
 
     for (uint64_t index = 0U; index < instruction_count; index++) {
@@ -474,6 +479,12 @@ static int build_elf(uint64_t instruction_count, uint64_t literal_length, uint64
     put_u64(elf_buffer, ELF_HEADER_SIZE + ELF_PROGRAM_HEADER_SIZE + 32U, 0U);
     put_u64(elf_buffer, ELF_HEADER_SIZE + ELF_PROGRAM_HEADER_SIZE + 40U, USER_IMAGE_DATA_CAPACITY);
     put_u64(elf_buffer, ELF_HEADER_SIZE + ELF_PROGRAM_HEADER_SIZE + 48U, UINT64_C(4096));
+
+    elf_buffer[ELF_PAYLOAD_OFFSET] = 0x48U;
+    elf_buffer[ELF_PAYLOAD_OFFSET + 1U] = 0x89U;
+    elf_buffer[ELF_PAYLOAD_OFFSET + 2U] = 0x34U;
+    elf_buffer[ELF_PAYLOAD_OFFSET + 3U] = 0x25U;
+    put_u32(elf_buffer, ELF_PAYLOAD_OFFSET + 4U, (uint32_t)USER_IMAGE_DATA_BASE);
 
     for (uint64_t index = 0U; index < instruction_count; index++) {
         uint64_t code = ELF_PAYLOAD_OFFSET + instruction_offsets[index];
@@ -519,20 +530,34 @@ static int build_elf(uint64_t instruction_count, uint64_t literal_length, uint64
             put_u32(elf_buffer, code, (uint32_t)instructions[index].condition_value); code += 4U;
             elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0x84U;
             put_u32(elf_buffer, code, (uint32_t)relative); code += 4U;
+        } else if (instructions[index].kind == NATIVE_INSTRUCTION_ARGS) {
+            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0x8BU; elf_buffer[code++] = 0x34U; elf_buffer[code++] = 0x25U;
+            put_u32(elf_buffer, code, (uint32_t)USER_IMAGE_DATA_BASE); code += 4U;
+            elf_buffer[code++] = 0x31U; elf_buffer[code++] = 0xD2U;
+            elf_buffer[code++] = 0x80U; elf_buffer[code++] = 0x3CU; elf_buffer[code++] = 0x16U; elf_buffer[code++] = 0U;
+            elf_buffer[code++] = 0x74U; elf_buffer[code++] = 9U;
+            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0xFFU; elf_buffer[code++] = 0xC2U;
+            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0x83U; elf_buffer[code++] = 0xFAU; elf_buffer[code++] = 127U;
+            elf_buffer[code++] = 0x72U; elf_buffer[code++] = (uint8_t)-15;
+            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0x85U; elf_buffer[code++] = 0xD2U;
+            elf_buffer[code++] = 0x74U; elf_buffer[code++] = 12U;
+            elf_buffer[code++] = 0xB8U; put_u32(elf_buffer, code, 1U); code += 4U;
+            elf_buffer[code++] = 0xBFU; put_u32(elf_buffer, code, 1U); code += 4U;
+            elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0x05U;
         } else if (instructions[index].kind == NATIVE_INSTRUCTION_INPUT) {
             const uint64_t input_start = ELF_PAYLOAD_OFFSET + instruction_offsets[index];
             int64_t relative;
 
             elf_buffer[code++] = 0xB8U; put_u32(elf_buffer, code, 3U); code += 4U;
             elf_buffer[code++] = 0x31U; elf_buffer[code++] = 0xFFU;
-            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0xBEU; put_u64(elf_buffer, code, USER_IMAGE_DATA_BASE); code += 8U;
+            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0xBEU; put_u64(elf_buffer, code, USER_IMAGE_DATA_BASE + UINT64_C(8)); code += 8U;
             elf_buffer[code++] = 0xBAU; put_u32(elf_buffer, code, 1U); code += 4U;
             elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0x05U;
             elf_buffer[code++] = 0x85U; elf_buffer[code++] = 0xC0U;
             elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0x84U;
             relative = (int64_t)input_start - (int64_t)(code + 4U);
             put_u32(elf_buffer, code, (uint32_t)relative); code += 4U;
-            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0xBEU; put_u64(elf_buffer, code, USER_IMAGE_DATA_BASE); code += 8U;
+            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0xBEU; put_u64(elf_buffer, code, USER_IMAGE_DATA_BASE + UINT64_C(8)); code += 8U;
             elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0xB6U; elf_buffer[code++] = 0x1EU;
             elf_buffer[code++] = 0x83U; elf_buffer[code++] = 0xFBU; elf_buffer[code++] = '\n';
             elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0x84U;
@@ -550,10 +575,10 @@ static int build_elf(uint64_t instruction_count, uint64_t literal_length, uint64
 
             elf_buffer[code++] = 0xB8U; put_u32(elf_buffer, code, 16U); code += 4U;
             elf_buffer[code++] = 0x31U; elf_buffer[code++] = 0xFFU;
-            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0xBEU; put_u64(elf_buffer, code, USER_IMAGE_DATA_BASE); code += 8U;
+            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0xBEU; put_u64(elf_buffer, code, USER_IMAGE_DATA_BASE + UINT64_C(8)); code += 8U;
             elf_buffer[code++] = 0xBAU; put_u32(elf_buffer, code, 8U); code += 4U;
             elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0x05U;
-            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0xBEU; put_u64(elf_buffer, code, USER_IMAGE_DATA_BASE); code += 8U;
+            elf_buffer[code++] = 0x48U; elf_buffer[code++] = 0xBEU; put_u64(elf_buffer, code, USER_IMAGE_DATA_BASE + UINT64_C(8)); code += 8U;
             for (uint64_t field = 0U; field < 3U; field++) {
                 elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0xB6U; elf_buffer[code++] = 0x46U;
                 elf_buffer[code++] = (uint8_t)field_offsets[field];
@@ -636,7 +661,7 @@ void _start(uint64_t argc, const char *arguments) {
 
     if (argc != 1U || copy_path(source_path, sizeof(source_path), arguments, &argument_position) == 0) {
         write_text("Usage: run asm <source.mya> <output.elf>\n");
-        write_text("Source: set <0..255>; input; time; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
+        write_text("Source: set <0..255>; input; time; args; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
         (void)system_call(MYOS_SYS_EXIT, 2U, 0U, 0U);
     }
     while (arguments[argument_position] == ' ') { argument_position++; }

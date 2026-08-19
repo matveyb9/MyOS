@@ -427,8 +427,8 @@ static void command_help(const char *topic) {
     }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
-        write_text("Source: input; time; set <0..255>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
-        write_text("input reads one non-CR/LF byte; time prints RTC HH:MM:SS; conditional jumps need input/set and target a later label.\n");
+        write_text("Source: input; time; args; set <0..255>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
+        write_text("input reads one non-CR/LF byte; time prints RTC HH:MM:SS; args writes run arguments; conditional jumps need input/set and target a later label.\n");
         write_text("Escape \\n, \\r, \\t, \\\\ and \\\" inside text.\n");
         return;
     }
