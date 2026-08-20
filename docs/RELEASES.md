@@ -122,12 +122,12 @@ Every release description contains two equivalent, visually marked sections: **`
 | Scope | What is included and what is intentionally excluded. |
 | Verification | Commands, firmware paths, hardware scope and result. |
 | Compatibility | Storage-format, migration, boot-artifact or API changes. |
-| Artifacts | Exact filenames and SHA-256 when artifacts are attached. |
+| Artifacts | Exact filenames and SHA-256 when artifacts are attached. For every future Pre-release or Release, name the two-artifact checksum manifest exactly `SHA256SUMS.txt`, without a version or product prefix. |
 | Limits | Known gaps; never present a pre-release as a stable release. |
 
 ## Safe publication
 
-Before a new tag, run applicable checks, confirm a clean Git tree and obtain explicit approval for a Release or Pre-release. Generated `myos.iso` and `myos.img` artifacts do not enter source history; attach them only to an explicitly approved GitHub Release or Pre-release.
+Before a new tag, run applicable checks, confirm a clean Git tree and obtain explicit approval for a Release or Pre-release. Generated `myos.iso` and `myos.img` artifacts do not enter source history; attach them only to an explicitly approved GitHub Release or Pre-release together with a `SHA256SUMS.txt` manifest. Already published immutable assets retain their original names.
 
 ```bash
 make release-check
