@@ -8,7 +8,7 @@
 
 <h2 align="center">Status</h2>
 
-The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current graphical and user-program work is isolated in [`feature/gui`](https://github.com/matveyb9/MyOS/tree/feature/gui); it is **experimental** and is not merged into `main` automatically. This branch includes BIOS/UEFI boot paths, MYPFS004 persistent storage, framebuffer GUI with a bounded mouse-first `startgui` desktop launcher that discovers up to four installed `/apps/<name>/main.elf` tiles, per-window title-bar raise and close controls, a general bounded text editor, persistent ELF packages, the MyOS SDK with a bounded public VFS subset and live `cp` developer tool, and an in-OS assembler with bounded program-argument forwarding, single-byte input, RTC `HH:MM:SS` output, labels, explicit condition values, exact-byte comparison and forward-only unconditional or conditional jumps.
+The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current graphical and user-program work is isolated in [`feature/gui`](https://github.com/matveyb9/MyOS/tree/feature/gui); it is **experimental** and is not merged into `main` automatically. This branch includes BIOS/UEFI boot paths, MYPFS004 persistent storage, framebuffer GUI with a bounded mouse-first `startgui` desktop launcher that discovers up to four installed `/apps/<name>/main.elf` tiles, per-window title-bar raise and close controls, a general bounded text editor, persistent ELF packages, the MyOS SDK with a bounded public VFS subset and live `cp` developer tool, an in-OS assembler with bounded program-argument forwarding, single-byte input, RTC `HH:MM:SS` output, labels, explicit condition values, exact-byte comparison and forward-only unconditional or conditional jumps, and a read-only `/system/live/` System Inventory with boot, compiled-in driver, device and process records exposed by `sysinfo`.
 
 | Line | Purpose | State |
 |---|---|---|
@@ -40,6 +40,7 @@ MyOS opens the user shell after a three-second countdown. Press `K` during the c
 
 ```text
 help
+sysinfo
 ls /
 run hello
 startgui
@@ -69,7 +70,7 @@ make regression     # disposable-image GUI and native workflow
 make release-check  # clean rebuild, checks and SHA-256 evidence
 ```
 
-`make regression` uses a disposable copy of `myos.img`: it covers QMP-injected PS/2 `Alt+Tab` focus, `Alt+F4` close of focused MONITOR, `Esc` viewer return, `Alt+F4` editor cancel-to-viewer and `Ctrl+Q` clean exit in BIOS/UEFI, then mouse actions for launcher `NOTES` and discovered installed-app tiles, SYSTEM/MONITOR window close controls, MONITOR title-bar raise, viewer close-to-home and editor cancel-to-viewer with framebuffer screenshot transitions. An app-tile click launches a verified persisted package, ends the GUI session and returns its output to the shell. It also covers the retained `startgui home` alias in BIOS, the GUI/editor workflow, a 305-byte SDK `cp` copy across the VFS request boundary, its no-overwrite rule and UEFI persistence, native forward-only control flow, empty and forwarded native program arguments, input true/fallback branches and valid RTC `HH:MM:SS` output. `make release-check` is local verification only. It does not create a tag, GitHub Release or Pre-release.
+`make regression` uses a disposable copy of `myos.img`: it covers QMP-injected PS/2 `Alt+Tab` focus, `Alt+F4` close of focused MONITOR, `Esc` viewer return, `Alt+F4` editor cancel-to-viewer and `Ctrl+Q` clean exit in BIOS/UEFI, then mouse actions for launcher `NOTES` and discovered installed-app tiles, SYSTEM/MONITOR window close controls, MONITOR title-bar raise, viewer close-to-home and editor cancel-to-viewer with framebuffer screenshot transitions. An app-tile click launches a verified persisted package, ends the GUI session and returns its output to the shell. It also covers the retained `startgui home` alias in BIOS, the GUI/editor workflow, the read-only System Inventory directory tree and `sysinfo` output in both firmware paths, a 305-byte SDK `cp` copy across the VFS request boundary, its no-overwrite rule and UEFI persistence, native forward-only control flow, empty and forwarded native program arguments, input true/fallback branches and valid RTC `HH:MM:SS` output. `make release-check` is local verification only. It does not create a tag, GitHub Release or Pre-release.
 
 ---
 

@@ -484,12 +484,40 @@ def require_native_line(name, output, expected):
         raise RegressionFailure(f"{name}: native output lacks {expected!r} as a complete line\n{decoded}")
 
 
+def require_system_inventory(name, output, firmware):
+    required = (
+        b"MYOS SYSTEM INVENTORY",
+        b"[boot]",
+        b"myos_version=0.13.1-gui-preview.1",
+        b"architecture=x86_64",
+        b"firmware=" + firmware,
+        b"initramfs=ready",
+        b"[drivers]",
+        b"compiled_in=1",
+        b"[devices]",
+        b"driver=framebuffer",
+    )
+    for expected in required:
+        if expected not in output:
+            decoded = output[-4096:].decode("utf-8", errors="replace")
+            raise RegressionFailure(f"{name}: system inventory lacks {expected!r}\n{decoded}")
+
+
 def run_bios(image_path, work_dir):
     guest = Guest("bios", image_path, work_dir)
     try:
         guest.expect("[ok] Firmware: BIOS")
         guest.expect("[ok] Persistent storage mount: ready")
         guest.expect(PROMPT)
+        inventory_start = len(guest.output)
+        guest.command("sysinfo", "MYOS SYSTEM INVENTORY")
+        require_system_inventory("BIOS", bytes(guest.output[inventory_start:]), b"BIOS")
+        inventory_list_start = len(guest.output)
+        guest.command("ls /system/live", "[dir] processes")
+        inventory_list_output = bytes(guest.output[inventory_list_start:])
+        if b"[dir] boot" not in inventory_list_output or b"[dir] drivers" not in inventory_list_output:
+            raise RegressionFailure(f"BIOS: live inventory directories are missing\n{guest._tail()}")
+        guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
@@ -600,6 +628,10 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.expect("[ok] Firmware: UEFI x86_64")
         guest.expect("[ok] Persistent storage mount: ready")
         guest.expect(PROMPT)
+        inventory_start = len(guest.output)
+        guest.command("sysinfo", "MYOS SYSTEM INVENTORY")
+        require_system_inventory("UEFI", bytes(guest.output[inventory_start:]), b"UEFI x86_64")
+        guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
         guest.command(f"cat {NOTE_PATH}", "base")
         text_start = len(guest.output)

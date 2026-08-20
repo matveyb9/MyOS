@@ -81,16 +81,18 @@ qemu-system-x86_64 \
 ```text
 help
 uname
+sysinfo
 ps
 meminfo
 date
 uptime
 ls /
+ls /system/live
 ls /system/live/processes
 cat /system/core/resources/motd.txt
 ```
 
-Эти команды проверяют user shell, scheduler, память, часы, initramfs, root hierarchy и read-only runtime projection.
+Эти команды проверяют user shell, scheduler, память, часы, initramfs, root hierarchy и read-only System Inventory runtime projection.
 
 ## 5. Файлы и каталоги
 
@@ -106,6 +108,10 @@ MyOS предоставляет единый логический корень `
 | `/users/myos/projects/` | Проекты, исходники и будущие build outputs. | Да. |
 | `/users/myos/data/`, `/users/myos/config/` | Личные data и configuration. | Да. |
 | `/temp/` | Временные RAM files. | Нет. |
+
+### System Inventory
+
+`sysinfo` выводит bounded read-only records из `/system/live/boot/info`, `/system/live/drivers/` и `/system/live/devices/`. Boot record определяет active Limine/firmware/initramfs environment; driver records показывают current static compiled-in driver model и реальные bounded status или counters; device records суммируют active storage, display, input и clock paths. Это generated diagnostic records, а не persistent files и не raw-device interface. `ls /system/live` также показывает независимое дерево snapshot процессов.
 
 ### Обычная работа с файлами
 
@@ -147,6 +153,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | Команда | Пример | Назначение |
 |---|---|---|
 | `help` | `help` | Краткая карта возможностей shell. |
+| `sysinfo` | `sysinfo` | Вывести read-only inventory boot, drivers и devices. |
 | `ls` | `ls /users/myos` | Показать содержимое каталога. |
 | `cat` | `cat /system/core/resources/motd.txt` | Показать file. |
 | `run cp` | `run cp /users/myos/files/a.txt /users/myos/files/b.txt` | Скопировать regular file bounded chunks. Target должна быть новым absolute path, а её parent уже должна существовать; она никогда не перезаписывается. |

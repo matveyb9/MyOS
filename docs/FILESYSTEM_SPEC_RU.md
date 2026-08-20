@@ -27,8 +27,10 @@
 │   ├── data/
 │   ├── config/
 │   └── live/
-│       ├── processes/
-│       └── devices/
+│       ├── boot/
+│       ├── drivers/
+│       ├── devices/
+│       └── processes/
 ├── apps/
 │   └── <application>/
 │       ├── main.elf
@@ -49,7 +51,7 @@
 | `/system/core/` | Initramfs | Да, как часть boot image | Read-only базовая среда ОС: встроенные программы, resources и examples. |
 | `/system/data/` | MyOS data partition | Да | Общие изменяемые данные всей машины. |
 | `/system/config/` | MyOS data partition | Да | Общие конфигурации ОС, future system components и shared application defaults. |
-| `/system/live/` | Kernel memory, generated on lookup | Нет | Read-only snapshot текущего запуска: processes и detected devices. |
+| `/system/live/` | Kernel memory, generated on lookup | Нет | Read-only System Inventory: boot facts, статус compiled-in drivers, detected-device records и process snapshots. |
 | `/apps/` | MyOS data partition | Да | Глобально установленные приложения: ELF и неизменяемые resources пакета. |
 | `/users/myos/files/` | MyOS data partition | Да | Обычные личные files, включая notes и imported legacy files. |
 | `/users/myos/projects/` | MyOS data partition | Да | Исходники, проекты и local build outputs. |
@@ -82,29 +84,38 @@ Boot-компоненты Limine, `kernel.elf`, boot configuration и raw initra
 | Runtime writes | Любая write/create/remove операция под `/system/live/` отклоняется. |
 | Temp lifetime | Все `/temp/` objects находятся в RAM и исчезают после reboot. |
 
-## 5. Runtime processes и devices
+## 5. System Inventory: runtime boot, drivers, devices и processes
 
-Processes и devices не являются persistent files. Они остаются kernel objects; `/system/live/` — только диагностическая VFS projection, генерируемая при read/list operation. Это следует общей идее pseudo-filesystem: Linux `procfs` показывает interface к kernel data structures и содержит PID-related virtual entries, а Windows driver model оставляет смысл «files» в device namespace конкретному driver. [1] [2]
+Boot facts, processes и devices не являются persistent files. Они остаются kernel-owned state; `/system/live/` — диагностическая VFS projection, генерируемая при read/list operation. Это следует общей идее pseudo-filesystem: Linux `procfs` показывает interface к kernel data structures и содержит PID-related virtual entries, а Windows driver model оставляет смысл «files» в device namespace конкретному driver. [1] [2]
 
-Linux `proc(5)` прямо определяет `proc` как pseudo-filesystem interface to kernel data structures и описывает PID subdirectories как virtual process information. Microsoft Windows driver documentation указывает, что device object имеет namespace, а поддержка «file» names внутри него определяется конкретным driver. Эти модели подтверждают выбранную границу MyOS: runtime entries допускаются для read-only inspection, но процесс или устройство не становятся persistent files, и рискованные control writes не входят в первый release. [1] [2]
+Linux `proc(5)` прямо определяет `proc` как pseudo-filesystem interface to kernel data structures и описывает PID subdirectories как virtual process information. Microsoft Windows driver documentation указывает, что device object имеет namespace, а поддержка «file» names внутри него определяется конкретному driver. Эти модели подтверждают выбранную границу MyOS: runtime entries допускаются для read-only inspection, но process, device или compiled-in driver не становятся persistent files, и рискованные control writes не входят в первый release. [1] [2]
 
 ```text
 /system/live/
-├── processes/
-│   ├── self/
-│   │   ├── info
-│   │   └── command
-│   └── <pid>/
-│       ├── info
-│       └── command
-└── devices/
-    ├── storage/info
-    ├── display/info
-    ├── input/info
-    └── clock/info
+├── boot/
+│   └── info
+├── drivers/
+│   ├── framebuffer
+│   ├── keyboard
+│   ├── mouse
+│   ├── ahci
+│   ├── acpi
+│   ├── pit
+│   ├── rtc
+│   └── pci
+├── devices/
+│   ├── storage
+│   ├── display
+│   ├── input
+│   └── clock
+└── processes/
+    └── <pid>/
+        └── info
 ```
 
-`info` возвращает bounded textual snapshot. Process entries исчезают после exit, device entries отражают detected driver state текущей загрузки. `spawn`, `wait`, `kill` и driver-specific syscalls остаются единственным способом управлять process/device state. Raw sector writes, raw framebuffer writes и commands для AHCI из ring 3 не добавляются.
+Каждая virtual record — bounded text в формате `key=value` с final newline. `/system/live/boot/info` показывает identity MyOS/architecture, Limine и firmware facts, initramfs size/file count, memory summary, framebuffer availability и persistent-storage mount state. Driver records обозначают текущую static compiled-in driver model и показывают реальные bootstrap status или bounded counters; они не являются loadable packages. Device records суммируют active AHCI storage, framebuffer display, PS/2 input и PIT/RTC clock paths. Process entries исчезают после exit. `spawn`, `wait`, `kill` и driver-specific syscalls остаются единственными способами управлять process/device state. Raw sector writes, raw framebuffer writes и commands для AHCI из ring 3 не добавляются.
+
+Обычная user-shell команда `sysinfo` выводит те же boot, driver и device records без нового syscall или write capability.
 
 ## 6. MYPFS004: текущий persistent format
 

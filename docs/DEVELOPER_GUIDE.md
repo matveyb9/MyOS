@@ -34,7 +34,7 @@ This document describes the current development line **`feature/gui`** of MyOS. 
 | `make run-uefi` | UEFI ISO test in headless serial mode. |
 | `make run-uefi-graphic` | UEFI ISO test with a framebuffer window. |
 | `make smoke` | Headless BIOS and UEFI raw-image boot smoke: checks firmware marker, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Creates a disposable raw-image copy; validates QMP-injected PS/2 `Alt+Tab` focus, `Alt+F4` close of focused MONITOR, `Esc` viewer return, `Alt+F4` editor cancel-to-viewer and `Ctrl+Q` clean exit in BIOS and UEFI, then mouse activation of the centered `NOTES` tile, `SYSTEM`/`MONITOR` close controls, MONITOR title-bar raise, viewer close-to-home and editor cancel-to-viewer with PPM framebuffer transitions. It also retains the `startgui home` alias, validates GUI note edit/save, a paced editor-authored 305-byte SDK `cp` copy across the 256-byte VFS boundary, exact readback and no-overwrite behavior, console-editor source persistence, legacy native branches, empty and forwarded `args` output, `input` exact-match/fallback behavior, RTC `HH:MM:SS` output and rejection cases. |
+| `make regression` | Creates a disposable raw-image copy; validates QMP-injected PS/2 `Alt+Tab` focus, `Alt+F4` close of focused MONITOR, `Esc` viewer return, `Alt+F4` editor cancel-to-viewer and `Ctrl+Q` clean exit in BIOS and UEFI, then mouse activation of the centered `NOTES` tile, `SYSTEM`/`MONITOR` close controls, MONITOR title-bar raise, viewer close-to-home and editor cancel-to-viewer with PPM framebuffer transitions. It also validates the read-only `/system/live/` System Inventory tree and `sysinfo` in both firmware paths, retains the `startgui home` alias, validates GUI note edit/save, a paced editor-authored 305-byte SDK `cp` copy across the 256-byte VFS boundary, exact readback and no-overwrite behavior, console-editor source persistence, legacy native branches, empty and forwarded `args` output, `input` exact-match/fallback behavior, RTC `HH:MM:SS` output and rejection cases. |
 | `make release-check` | Requires a clean Git tree, rebuilds ISO/IMG, runs smoke/regression and prints the source commit plus artifact SHA-256; does not tag or publish. |
 | `make debug` | Starts QEMU paused with a GDB server on TCP 1234. |
 | `make inspect` | Prints ELF headers and sections. |
@@ -72,9 +72,9 @@ qemu-system-x86_64 \
 | `kernel/console/` | COM1 mirror, framebuffer text console and kernel shell. |
 | `kernel/mm/` | PMM, four-level page tables, user address spaces and kernel heap. |
 | `kernel/sched/` | Round-robin scheduler, task lifecycle, context switch and input waits. |
-| `kernel/sys/` | SYSCALL/SYSRET dispatcher, user-copy validation and ABI enforcement. |
+| `kernel/sys/` | SYSCALL/SYSRET dispatcher, user-copy validation, ABI enforcement and immutable bootstrap-state inventory handoff. |
 | `kernel/loader/` | newc CPIO reader, ELF64 loading and bounded process spawn. |
-| `kernel/fs/` | Read-only initramfs VFS, tmpfs and persistent-file backend. |
+| `kernel/fs/` | Read-only initramfs VFS, MYPFS/tmpfs backends and generated `/system/live/` System Inventory records. |
 | `kernel/ipc/` | Bounded one-way pipe table and endpoint lifetime. |
 | `kernel/drivers/` | PIT, PS/2 keyboard, RTC, PIC, PCI and AHCI. |
 | `user/` | Ring-3 shell, freestanding user programs and initramfs payload. |
@@ -149,7 +149,9 @@ The VFS lookup order and implementation are in `kernel/fs/vfs.c`.
 | `/system/core/` | Read-only newc CPIO | Built into the image. |
 | `/system/data/`, `/system/config/`, `/apps/`, `/users/myos/` | MYPFS004 persistent hierarchy over guarded AHCI data LBAs | Survives reboot of the same `myos.img`. |
 | `/temp/` | In-memory bounded tmpfs | Lost at reboot. |
-| `/system/live/` | Kernel-generated virtual projection | Current boot only; read-only. |
+| `/system/live/` | Kernel-generated virtual System Inventory projection | Current boot only; read-only; boot, compiled-in driver, device and process records. |
+
+`kernel/main.c` publishes measured Limine/bootstrap facts to the small `kernel/sys/inventory.c` state holder after probes complete. `kernel/fs/vfs.c` combines that immutable state with existing driver counters to generate bounded `key=value` records under `/system/live/boot`, `/system/live/drivers` and `/system/live/devices`; no new syscall, persistent node, raw-device handle or write path is introduced. The ordinary `sysinfo` user-shell command reads those records through the existing VFS read ABI.
 
 MYPFS004 has 128 persistent object records, dynamic multi-extent regular-file allocation, six extents per file and an 8 MiB per-file ceiling. Empty files reserve no payload. Growth is batched at 128 sectors (64 KiB); offset-based VFS calls stream large files through 256-byte user ABI chunks. See [FILESYSTEM_SPEC.md](FILESYSTEM_SPEC.md) and [MYPFS004_STORAGE.md](MYPFS004_STORAGE.md) for the public and on-disk contracts.
 
@@ -179,14 +181,14 @@ Before committing a console change, at minimum perform:
 |---|---|
 | `make all img` | Strict `-Werror` build and both artifacts complete. |
 | `make smoke` | Reproducible raw-image BIOS and UEFI markers pass: expected firmware, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Disposable-image QMP PS/2 `Alt+Tab` focus, `Alt+F4` close of focused MONITOR, `Esc` viewer return, `Alt+F4` editor cancel-to-viewer and `Ctrl+Q` clean exit pass in BIOS and UEFI; mouse activation of the centered NOTES tile, SYSTEM/MONITOR close controls, MONITOR title-bar raise, viewer close-to-home, editor cancel-to-viewer and a discovered installed-app tile launch also pass with PPM framebuffer transitions. The retained `startgui home` alias, GUI note editing, a paced editor-authored 305-byte SDK `cp` copy across the VFS chunk boundary, exact readback and overwrite rejection, editor source workflow, legacy zero/nonzero branches, empty and forwarded native `args`, native `input` exact-match/fallback paths, valid RTC `HH:MM:SS` output and rejected targets also pass. UEFI repeats the full GUI modifier/mouse surface, persisted text/copied-target readback, package execution and clean GUI return. |
+| `make regression` | Disposable-image QMP PS/2 `Alt+Tab` focus, `Alt+F4` close of focused MONITOR, `Esc` viewer return, `Alt+F4` editor cancel-to-viewer and `Ctrl+Q` clean exit pass in BIOS and UEFI; mouse activation of the centered NOTES tile, SYSTEM/MONITOR close controls, MONITOR title-bar raise, viewer close-to-home, editor cancel-to-viewer and a discovered installed-app tile launch also pass with PPM framebuffer transitions. The read-only `/system/live/` System Inventory tree and `sysinfo` output pass in both firmware paths. The retained `startgui home` alias, GUI note editing, a paced editor-authored 305-byte SDK `cp` copy across the VFS chunk boundary, exact readback and overwrite rejection, editor source workflow, legacy zero/nonzero branches, empty and forwarded native `args`, native `input` exact-match/fallback paths, valid RTC `HH:MM:SS` output and rejected targets also pass. UEFI repeats the full GUI modifier/mouse surface, persisted text/copied-target readback, package execution and clean GUI return. |
 | `make release-check` | Clean source tree, clean rebuild, `make smoke`, `make regression`, source commit and SHA-256 artifacts all pass; no tag or remote publication occurs. |
 | BIOS raw image | Limine boot, automatic `/init` after three seconds, then user shell. |
 | BIOS cancellation | `K` during countdown keeps kernel shell; manual `init` reaches user shell. |
 | UEFI raw image | Equivalent automatic startup and user shell through OVMF. |
 | Fallback check | Missing or failed `/init` leaves diagnostic kernel shell without retry loop. |
 | Process check | `run hello`, `spawn sleeper 1`, `ps`, `wait` or `kill`. |
-| Filesystem check | Create/write/read/remove an absolute-path `/temp/` file and a persistent `/users/myos/...` file; list `/system/live/processes`. |
+| Filesystem check | Create/write/read/remove an absolute-path `/temp/` file and a persistent `/users/myos/...` file; list `/system/live` and read `/system/live/boot/info` or run `sysinfo`. |
 | Persistence check | Reboot the same `myos.img`, then read a previous persistent absolute-path file or run an installed `/apps/<name>/main.elf`. |
 | Large-file check | Stream a fragmented multi-extent file; remount and read every byte through bounded VFS requests. |
 | Migration check | Boot deterministic MYPFS003 and MYPFS002 fixtures, then confirm durable `MYPFS004` superblock, cleared journal and second-mount payload readback. |

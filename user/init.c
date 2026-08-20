@@ -19,7 +19,7 @@ static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
 static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
-    "help", "echo", "uname", "ps", "meminfo", "date", "uptime", "ls", "cat", "touch", "mkdir", "write", "rm",
+    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "touch", "mkdir", "write", "rm",
     "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
@@ -433,7 +433,12 @@ static void command_help(const char *topic) {
     if (text_equal(topic, "startgui")) {
         write_text("startgui [absolute-file]\n");
         write_text("Without a file it opens MYOS DESKTOP; click SYSTEM, NOTES or EDIT NOTE. Click top-bar X to exit.\n");
-        write_text("Hotkeys remain available: M message, N notes, E edit, H home, Q shell; 'home' is an alias.\n");
+        write_text("Hotkeys: Alt-Tab focus, Alt-F4 close, Esc back/cancel, Ctrl-Q exit and Ctrl-S save. 'home' is an alias.\n");
+        return;
+    }
+    if (text_equal(topic, "sysinfo")) {
+        write_text("sysinfo\n");
+        write_text("Prints read-only boot, compiled-in driver and detected-device inventory from /system/live.\n");
         return;
     }
     if (text_equal(topic, "asm")) {
@@ -461,7 +466,7 @@ static void command_help(const char *topic) {
     write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/startgui\n");
     write_text("Native: build <source.mya> <output.elf>; help asm/edit for syntax and controls\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
-    write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");
+    write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
     write_text("Root: /system /apps /users/myos /temp; paths are case-insensitive.\n");
     write_text("For calculator details, type: help calc\n");
@@ -643,6 +648,26 @@ static void command_cat(const char *argument) {
         }
         request.offset += count;
     }
+}
+
+static void command_sysinfo(void) {
+    write_text("MYOS SYSTEM INVENTORY\n");
+    write_text("[boot]\n");
+    command_cat("/system/live/boot/info");
+    write_text("[drivers]\n");
+    command_cat("/system/live/drivers/framebuffer");
+    command_cat("/system/live/drivers/keyboard");
+    command_cat("/system/live/drivers/mouse");
+    command_cat("/system/live/drivers/ahci");
+    command_cat("/system/live/drivers/acpi");
+    command_cat("/system/live/drivers/pit");
+    command_cat("/system/live/drivers/rtc");
+    command_cat("/system/live/drivers/pci");
+    write_text("[devices]\n");
+    command_cat("/system/live/devices/storage");
+    command_cat("/system/live/devices/display");
+    command_cat("/system/live/devices/input");
+    command_cat("/system/live/devices/clock");
 }
 
 static void command_touch(const char *argument) {
@@ -1096,6 +1121,8 @@ static void execute_command(char *line) {
         write_char('\n');
     } else if (text_equal(line, "uname")) {
         write_text("MyOS 0.13.1-gui-preview.1 x86_64\n");
+    } else if (text_equal(line, "sysinfo")) {
+        command_sysinfo();
     } else if (text_equal(line, "ps")) {
         command_ps();
     } else if (text_equal(line, "meminfo")) {

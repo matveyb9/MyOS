@@ -27,8 +27,10 @@ All system names are specified in lowercase. Within any user-visible path the VF
 │   ├── data/
 │   ├── config/
 │   └── live/
-│       ├── processes/
-│       └── devices/
+│       ├── boot/
+│       ├── drivers/
+│       ├── devices/
+│       └── processes/
 ├── apps/
 │   └── <application>/
 │       ├── main.elf
@@ -49,7 +51,7 @@ All system names are specified in lowercase. Within any user-visible path the VF
 | `/system/core/` | Initramfs | Yes, as part of the boot image | Read-only OS base environment: built-in programs, resources and examples. |
 | `/system/data/` | MyOS data partition | Yes | Machine-wide mutable data. |
 | `/system/config/` | MyOS data partition | Yes | Global OS configuration, future system components and shared application defaults. |
-| `/system/live/` | Kernel memory, generated on lookup | No | Read-only snapshot of the current run: processes and detected devices. |
+| `/system/live/` | Kernel memory, generated on lookup | No | Read-only System Inventory: boot facts, compiled-in driver status, detected-device records and process snapshots. |
 | `/apps/` | MyOS data partition | Yes | Globally installed applications: ELF and immutable package resources. |
 | `/users/myos/files/` | MyOS data partition | Yes | Ordinary personal files, including notes and imported legacy files. |
 | `/users/myos/projects/` | MyOS data partition | Yes | Sources, projects and local build outputs. |
@@ -82,29 +84,38 @@ A future separate milestone may add personal application installation in `/users
 | Runtime writes | Any write/create/remove operation under `/system/live/` is rejected. |
 | Temp lifetime | All `/temp/` objects reside in RAM and disappear after reboot. |
 
-## 5. Runtime processes and devices
+## 5. System Inventory: runtime boot, drivers, devices and processes
 
-Processes and devices are not persistent files. They remain kernel objects; `/system/live/` is only a diagnostic VFS projection generated on read/list operations. This follows the general pseudo-filesystem idea: Linux `procfs` exposes an interface to kernel data structures and contains PID-related virtual entries, while the Windows driver model leaves the meaning of “files” in a device namespace to the particular driver. [1] [2]
+Boot facts, processes and devices are not persistent files. They remain kernel-owned state; `/system/live/` is a diagnostic VFS projection generated on read/list operations. This follows the general pseudo-filesystem idea: Linux `procfs` exposes an interface to kernel data structures and contains PID-related virtual entries, while the Windows driver model leaves the meaning of “files” in a device namespace to the particular driver. [1] [2]
 
-Linux `proc(5)` explicitly defines `proc` as a pseudo-filesystem interface to kernel data structures and describes PID subdirectories as virtual process information. Microsoft Windows driver documentation notes that a device object has a namespace and that support for “file” names within it is determined by the specific driver. These models confirm the boundary chosen for MyOS: runtime entries are allowed for read-only inspection, but a process or device does not become a persistent file, and risky control writes are not included in the first release. [1] [2]
+Linux `proc(5)` explicitly defines `proc` as a pseudo-filesystem interface to kernel data structures and describes PID subdirectories as virtual process information. Microsoft Windows driver documentation notes that a device object has a namespace and that support for “file” names within it is determined by the specific driver. These models confirm the boundary chosen for MyOS: runtime entries are allowed for read-only inspection, but a process, device or compiled-in driver does not become a persistent file, and risky control writes are not included in the first release. [1] [2]
 
 ```text
 /system/live/
-├── processes/
-│   ├── self/
-│   │   ├── info
-│   │   └── command
-│   └── <pid>/
-│       ├── info
-│       └── command
-└── devices/
-    ├── storage/info
-    ├── display/info
-    ├── input/info
-    └── clock/info
+├── boot/
+│   └── info
+├── drivers/
+│   ├── framebuffer
+│   ├── keyboard
+│   ├── mouse
+│   ├── ahci
+│   ├── acpi
+│   ├── pit
+│   ├── rtc
+│   └── pci
+├── devices/
+│   ├── storage
+│   ├── display
+│   ├── input
+│   └── clock
+└── processes/
+    └── <pid>/
+        └── info
 ```
 
-`info` returns a bounded textual snapshot. Process entries disappear after exit; device entries reflect the detected driver state of the current boot. `spawn`, `wait`, `kill` and driver-specific syscalls remain the only ways to control process/device state. Raw sector writes, raw framebuffer writes and AHCI commands from ring 3 are not added.
+Each virtual record is bounded `key=value` text and ends with a newline. `/system/live/boot/info` reports the MyOS/architecture identity, Limine and firmware facts, initramfs size/file count, memory summary, framebuffer availability and persistent-storage mount state. Driver records identify the current static, compiled-in driver model and report real bootstrap status or bounded counters; they are not loadable packages. Device records summarize the active AHCI storage, framebuffer display, PS/2 input and PIT/RTC clock paths. Process entries disappear after exit. `spawn`, `wait`, `kill` and driver-specific syscalls remain the only ways to control process/device state. Raw sector writes, raw framebuffer writes and AHCI commands from ring 3 are not added.
+
+The ordinary user shell command `sysinfo` prints the same boot, driver and device records without introducing a new syscall or write capability.
 
 ## 6. MYPFS004: current persistent format
 

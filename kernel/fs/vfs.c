@@ -1,6 +1,11 @@
 #include <stdint.h>
 
 #include <ahci.h>
+#include <framebuffer.h>
+#include <inventory.h>
+#include <keyboard.h>
+#include <mouse.h>
+#include <pit.h>
 #include <scheduler.h>
 #include <vfs.h>
 
@@ -1143,21 +1148,106 @@ static void live_append_uint(uint64_t *length, uint64_t value) {
     }
 }
 
+static void live_append_field_text(uint64_t *length, const char *key, const char *value) {
+    live_append_text(length, key);
+    live_append_text(length, "=");
+    live_append_text(length, value);
+    live_append_text(length, "\n");
+}
+
+static void live_append_field_uint(uint64_t *length, const char *key, uint64_t value) {
+    live_append_text(length, key);
+    live_append_text(length, "=");
+    live_append_uint(length, value);
+    live_append_text(length, "\n");
+}
+
+static void live_append_field_ready(uint64_t *length, const char *key, uint64_t ready) {
+    live_append_field_text(length, key, ready != 0U ? "ready" : "unavailable");
+}
+
 static int live_open(const struct path_parts *parts, struct vfs_file *file) {
+    const struct system_inventory_boot_state *boot = system_inventory_boot_state();
     uint64_t length = 0U;
 
-    if (parts->count == 4U && text_equal_fold(parts->item[2], "devices") != 0
-        && text_equal_fold(parts->item[3], "storage") == 0) {
-        live_append_text(&length, "storage: AHCI data partition available\n");
+    if (parts->count == 4U && text_equal_fold(parts->item[2], "boot") != 0
+        && text_equal_fold(parts->item[3], "info") != 0) {
+        live_append_field_text(&length, "myos_version", "0.13.1-gui-preview.1");
+        live_append_field_text(&length, "architecture", "x86_64");
+        live_append_field_text(&length, "bootloader", boot->bootloader);
+        live_append_field_text(&length, "bootloader_version", boot->bootloader_version);
+        live_append_field_text(&length, "firmware", boot->firmware);
+        live_append_field_uint(&length, "usable_memory_bytes", boot->usable_memory_bytes);
+        live_append_field_uint(&length, "memory_regions", boot->memory_region_count);
+        live_append_field_ready(&length, "initramfs", boot->initramfs_ready);
+        live_append_field_uint(&length, "initramfs_bytes", boot->initramfs_bytes);
+        live_append_field_uint(&length, "initramfs_files", boot->initramfs_files);
+        live_append_field_ready(&length, "framebuffer", boot->framebuffer_ready);
+        live_append_field_ready(&length, "persistent_storage", boot->persistent_ready);
+    } else if (parts->count == 4U && text_equal_fold(parts->item[2], "drivers") != 0
+               && text_equal_fold(parts->item[3], "framebuffer") != 0) {
+        live_append_field_uint(&length, "compiled_in", 1U);
+        live_append_field_ready(&length, "status", framebuffer_console_available() != 0 ? 1U : 0U);
+        live_append_field_uint(&length, "columns", framebuffer_console_columns());
+        live_append_field_uint(&length, "rows", framebuffer_console_rows());
+        live_append_field_uint(&length, "scroll_count", framebuffer_console_scroll_count());
+        live_append_field_uint(&length, "gui_session", framebuffer_gui_active() != 0 ? 1U : 0U);
+    } else if (parts->count == 4U && text_equal_fold(parts->item[2], "drivers") != 0
+               && text_equal_fold(parts->item[3], "keyboard") != 0) {
+        live_append_field_uint(&length, "compiled_in", 1U);
+        live_append_field_ready(&length, "status", boot->keyboard_ready);
+        live_append_field_uint(&length, "dropped_characters", keyboard_dropped_char_count());
+    } else if (parts->count == 4U && text_equal_fold(parts->item[2], "drivers") != 0
+               && text_equal_fold(parts->item[3], "mouse") != 0) {
+        live_append_field_uint(&length, "compiled_in", 1U);
+        live_append_field_ready(&length, "status", boot->mouse_ready);
+        live_append_field_uint(&length, "packets", mouse_packet_count());
+        live_append_field_uint(&length, "dropped_packets", mouse_dropped_packet_count());
+    } else if (parts->count == 4U && text_equal_fold(parts->item[2], "drivers") != 0
+               && text_equal_fold(parts->item[3], "ahci") != 0) {
+        live_append_field_uint(&length, "compiled_in", 1U);
+        live_append_field_ready(&length, "controller", boot->ahci_controller_ready);
+        live_append_field_ready(&length, "probe", boot->ahci_probe_ready);
+        live_append_field_ready(&length, "persistent_storage", boot->persistent_ready);
+        live_append_field_uint(&length, "data_lba_start", AHCI_DATA_LBA_START);
+        live_append_field_uint(&length, "data_lba_end", AHCI_DATA_LBA_END);
+    } else if (parts->count == 4U && text_equal_fold(parts->item[2], "drivers") != 0
+               && text_equal_fold(parts->item[3], "acpi") != 0) {
+        live_append_field_uint(&length, "compiled_in", 1U);
+        live_append_field_ready(&length, "s5_poweroff", boot->acpi_ready);
+    } else if (parts->count == 4U && text_equal_fold(parts->item[2], "drivers") != 0
+               && text_equal_fold(parts->item[3], "pit") != 0) {
+        live_append_field_uint(&length, "compiled_in", 1U);
+        live_append_field_uint(&length, "frequency_hz", pit_frequency_hz());
+    } else if (parts->count == 4U && text_equal_fold(parts->item[2], "drivers") != 0
+               && text_equal_fold(parts->item[3], "rtc") != 0) {
+        live_append_field_uint(&length, "compiled_in", 1U);
+        live_append_field_text(&length, "status", "available");
+    } else if (parts->count == 4U && text_equal_fold(parts->item[2], "drivers") != 0
+               && text_equal_fold(parts->item[3], "pci") != 0) {
+        live_append_field_uint(&length, "compiled_in", 1U);
+        live_append_field_text(&length, "status", "available");
+    } else if (parts->count == 4U && text_equal_fold(parts->item[2], "devices") != 0
+               && text_equal_fold(parts->item[3], "storage") == 0) {
+        live_append_field_text(&length, "driver", "ahci");
+        live_append_field_ready(&length, "controller", boot->ahci_controller_ready);
+        live_append_field_ready(&length, "persistent_storage", boot->persistent_ready);
     } else if (parts->count == 4U && text_equal_fold(parts->item[2], "devices") != 0
                && text_equal_fold(parts->item[3], "display") == 0) {
-        live_append_text(&length, "display: framebuffer console available\n");
+        live_append_field_text(&length, "driver", "framebuffer");
+        live_append_field_ready(&length, "status", framebuffer_console_available() != 0 ? 1U : 0U);
+        live_append_field_uint(&length, "columns", framebuffer_console_columns());
+        live_append_field_uint(&length, "rows", framebuffer_console_rows());
     } else if (parts->count == 4U && text_equal_fold(parts->item[2], "devices") != 0
                && text_equal_fold(parts->item[3], "input") == 0) {
-        live_append_text(&length, "input: PS/2 keyboard and mouse available\n");
+        live_append_field_ready(&length, "keyboard", boot->keyboard_ready);
+        live_append_field_ready(&length, "mouse", boot->mouse_ready);
+        live_append_field_uint(&length, "keyboard_dropped_characters", keyboard_dropped_char_count());
+        live_append_field_uint(&length, "mouse_packets", mouse_packet_count());
     } else if (parts->count == 4U && text_equal_fold(parts->item[2], "devices") != 0
                && text_equal_fold(parts->item[3], "clock") == 0) {
-        live_append_text(&length, "clock: PIT and RTC available\n");
+        live_append_field_uint(&length, "pit_frequency_hz", pit_frequency_hz());
+        live_append_field_text(&length, "rtc", "available");
     } else if (parts->count == 5U && text_equal_fold(parts->item[2], "processes") != 0
                && text_equal_fold(parts->item[4], "info") != 0) {
         uint64_t pid = 0U;
@@ -1167,13 +1257,12 @@ static int live_open(const struct path_parts *parts, struct vfs_file *file) {
             pid = pid * 10U + (uint64_t)(parts->item[3][index] - '0');
         }
         if (scheduler_task_info(pid, &info) != 0 || info.state == MYOS_TASK_STATE_UNUSED) { return 0; }
-        live_append_text(&length, "pid="); live_append_uint(&length, info.id);
-        live_append_text(&length, "\nstate="); live_append_uint(&length, info.state);
-        live_append_text(&length, "\nkind="); live_append_uint(&length, info.kind);
-        live_append_text(&length, "\nname="); live_append_text(&length, info.name);
-        live_append_text(&length, "\nrun_count="); live_append_uint(&length, info.run_count);
-        live_append_text(&length, "\nexit_status="); live_append_uint(&length, info.exit_status);
-        live_append_text(&length, "\n");
+        live_append_field_uint(&length, "pid", info.id);
+        live_append_field_uint(&length, "state", info.state);
+        live_append_field_uint(&length, "kind", info.kind);
+        live_append_field_text(&length, "name", info.name);
+        live_append_field_uint(&length, "run_count", info.run_count);
+        live_append_field_uint(&length, "exit_status", info.exit_status);
     } else {
         return 0;
     }
@@ -1274,6 +1363,18 @@ static int list_static(uint64_t index, const char *first, uint64_t first_type, c
     return 0;
 }
 
+static int list_driver_entry(uint64_t index, struct vfs_directory_entry *entry) {
+    if (index == 0U) { return set_directory_entry(entry, "framebuffer", VFS_OBJECT_VIRTUAL, 0U); }
+    if (index == 1U) { return set_directory_entry(entry, "keyboard", VFS_OBJECT_VIRTUAL, 0U); }
+    if (index == 2U) { return set_directory_entry(entry, "mouse", VFS_OBJECT_VIRTUAL, 0U); }
+    if (index == 3U) { return set_directory_entry(entry, "ahci", VFS_OBJECT_VIRTUAL, 0U); }
+    if (index == 4U) { return set_directory_entry(entry, "acpi", VFS_OBJECT_VIRTUAL, 0U); }
+    if (index == 5U) { return set_directory_entry(entry, "pit", VFS_OBJECT_VIRTUAL, 0U); }
+    if (index == 6U) { return set_directory_entry(entry, "rtc", VFS_OBJECT_VIRTUAL, 0U); }
+    if (index == 7U) { return set_directory_entry(entry, "pci", VFS_OBJECT_VIRTUAL, 0U); }
+    return 0;
+}
+
 static int cpio_list_child(const char *parent, uint64_t index, struct vfs_directory_entry *entry) {
     uint64_t offset = 0U;
     uint64_t found = 0U;
@@ -1341,8 +1442,17 @@ int vfs_list(const char *path, uint64_t index, struct vfs_directory_entry *entry
                && cpio_list_child(core_path_name, index, entry) != 0;
     }
     if (live_path(&parts) != 0) {
-        if (parts.count == 2U) { return list_static(index, "processes", VFS_OBJECT_DIRECTORY, "devices", VFS_OBJECT_DIRECTORY,
-                                                     (const char *)0, 0U, (const char *)0, 0U, entry); }
+        if (parts.count == 2U) {
+            return list_static(index, "boot", VFS_OBJECT_DIRECTORY, "drivers", VFS_OBJECT_DIRECTORY,
+                               "devices", VFS_OBJECT_DIRECTORY, "processes", VFS_OBJECT_DIRECTORY, entry);
+        }
+        if (parts.count == 3U && text_equal_fold(parts.item[2], "boot") != 0) {
+            return list_static(index, "info", VFS_OBJECT_VIRTUAL, (const char *)0, 0U,
+                               (const char *)0, 0U, (const char *)0, 0U, entry);
+        }
+        if (parts.count == 3U && text_equal_fold(parts.item[2], "drivers") != 0) {
+            return list_driver_entry(index, entry);
+        }
         if (parts.count == 3U && text_equal_fold(parts.item[2], "devices") != 0) {
             return list_static(index, "storage", VFS_OBJECT_VIRTUAL, "display", VFS_OBJECT_VIRTUAL,
                                "input", VFS_OBJECT_VIRTUAL, "clock", VFS_OBJECT_VIRTUAL, entry);

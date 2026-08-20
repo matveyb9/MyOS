@@ -81,16 +81,18 @@ After automatic startup or manual `init`, try:
 ```text
 help
 uname
+sysinfo
 ps
 meminfo
 date
 uptime
 ls /
+ls /system/live
 ls /system/live/processes
 cat /system/core/resources/motd.txt
 ```
 
-These commands exercise the user shell, scheduler, memory, clock, initramfs, root hierarchy, and the read-only runtime projection.
+These commands exercise the user shell, scheduler, memory, clock, initramfs, root hierarchy, and the read-only System Inventory runtime projection.
 
 ## 5. Files and directories
 
@@ -106,6 +108,10 @@ MyOS provides a single logical root `/`. Paths preserve the original casing of n
 | `/users/myos/projects/` | Projects, sources, and future build outputs. | Yes. |
 | `/users/myos/data/`, `/users/myos/config/` | Personal data and configuration. | Yes. |
 | `/temp/` | Temporary RAM files. | No. |
+
+### System Inventory
+
+`sysinfo` prints bounded read-only records from `/system/live/boot/info`, `/system/live/drivers/` and `/system/live/devices/`. The boot record identifies the active Limine/firmware/initramfs environment; driver records report the current static compiled-in driver model and real bounded status or counters; device records summarize the active storage, display, input and clock paths. These are generated diagnostic records, not persistent files and not a raw-device interface. `ls /system/live` also shows the independent process snapshot tree.
 
 ### Common file operations
 
@@ -147,6 +153,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | Command | Example | Purpose |
 |---|---|---|
 | `help` | `help` | Brief shell capability map. |
+| `sysinfo` | `sysinfo` | Print the read-only boot, driver and device inventory. |
 | `ls` | `ls /users/myos` | Show directory contents. |
 | `cat` | `cat /system/core/resources/motd.txt` | Display a file. |
 | `run cp` | `run cp /users/myos/files/a.txt /users/myos/files/b.txt` | Copy a regular file in bounded chunks. The target must be a new absolute path and its parent must already exist; it is never overwritten. |
