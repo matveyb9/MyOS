@@ -83,6 +83,12 @@ Boot-компоненты Limine, `kernel.elf`, boot configuration и raw initra
 | Core writes | Любая create/write/remove/rename операция под `/system/core/` отклоняется. |
 | Runtime writes | Любая write/create/remove операция под `/system/live/` отклоняется. |
 | Temp lifetime | Все `/temp/` objects находятся в RAM и исчезают после reboot. |
+| GUI File Workspace | `startgui` → `FILES` начинается в `/users/myos/`, может перечислять и проходить все directories logical VFS до `/` и не открывает raw boot partitions. |
+| GUI mutation boundary | 128-byte GUI editor открывает только selected existing regular files под `/users/myos/`, `/temp/`, `/system/data/` или `/system/config/`; он не делает `/system/core/`, `/system/live/` или `/apps/` writable. |
+
+### File Workspace v1
+
+GUI file manager является ring-3 navigation client, а не новым filesystem backend. Он показывает bounded path tail, parent row, paging controls и четыре VFS-enumerated rows. Перед входом в directory или открытием file ring 3 повторяет enumeration clicked slot и строит child path только из printable entry name без `/`. Это даёт пользователю свободный read-only traversal видимой hierarchy, сохраняя VFS type и write policy. Graphical workflow намеренно не включает create, rename, delete, copy/move, package install и raw-device operations; shell tools остаются authoritative interface для этих mutations.
 
 ## 5. System Inventory: runtime boot, drivers, devices и processes
 

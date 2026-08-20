@@ -134,6 +134,14 @@ rm /temp/session.txt
 
 After closing QEMU, reboot using the same `myos.img` and read the persistent file at the same absolute path. Do not run `make img` beforehand, because that command creates a new empty data partition.
 
+### File Workspace v1
+
+Run `startgui` and click **FILES**. The browser begins at `/users/myos/`. Its `[..]`, `[PREV]`, entry rows and `[NEXT]` controls allow mouse-first traversal of every path exposed through the logical VFS, including `/`, `/system/core/`, `/system/live/`, `/apps/`, `/users/` and `/temp/`. Directory rows enter a directory; regular and virtual files are opened safely. The raw Limine/EFI boot files and `kernel.elf` remain boot artifacts outside this runtime tree.
+
+A regular file is editable in GUI only when its current VFS path is writable: `/users/myos/`, `/temp/`, `/system/data/` or `/system/config/`. `Ctrl-S` saves; `Esc`, `Alt+F4` or the NOTES-window `X` discard the unsaved draft. `/system/core/`, `/system/live/` and `/apps/` remain readable but never enter GUI editor mode. The GUI document capacity is **128 bytes**. Use the existing console `edit <path>` command for documents up to 4 KiB, and use bounded program or SDK I/O for larger MYPFS004 files.
+
+> File Workspace v1 intentionally does not provide graphical create, rename, delete, copy/move, package installation or raw-device operations. Use `touch`, `mkdir`, `rm`, `run cp` and `install` in the shell for those actions.
+
 ### MYPFS004 practical limits
 
 | Limit | Value |
@@ -168,7 +176,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `spawn` | `spawn sleeper 3` | Run a program in the background. |
 | `wait` / `kill` | `wait 4`, `kill 4` | Wait for or stop a child process. |
 | `set` / `get` / `env` | `set NAME MyOS` | Work with environment variables. |
-| `startgui` | `startgui` | Start the experimental framebuffer GUI. |
+| `startgui` | `startgui` | Start the experimental framebuffer GUI. Click `FILES` to browse the logical VFS from `/users/myos/`; it opens small writable text files in the GUI editor. |
 | `reboot` / `poweroff` | `reboot` | Reboot or power off the virtual machine. |
 | `clear` | `clear` | Clear the text console. |
 

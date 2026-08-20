@@ -4,7 +4,7 @@
   <strong>🇷🇺 РУССКИЙ</strong> / <a href="TEXT_EDITOR.md">🇺🇸 ENGLISH</a>
 </p>
 
-> **Статус:** реализовано и проверено в `feature/gui`. `edit` — небольшой консольный текстовый редактор для обычных VFS files и многострочных `.mya` sources. Он намеренно отделён от GUI note editor, который остаётся GUI-функцией для заметок.
+> **Статус:** реализовано и проверено в `feature/gui`. `edit` — небольшой консольный текстовый редактор для обычных VFS files и многострочных `.mya` sources. Он намеренно дополняет GUI editor: File Workspace v1 открывает selected small writable file из `startgui` → `FILES`, а console editor остаётся более крупным general-purpose tool.
 
 ## Начало редактирования
 
@@ -57,13 +57,13 @@ Program выводит только `editor-built` и возвращает statu
 | Editable document | Не более **4 096 bytes** в памяти. |
 | File input/output | Чтение и запись используют bounded VFS requests по 256 bytes. |
 | Подходящее содержимое | Printable ASCII, newline и tab; editor не предназначен для binary files. |
-| File locations | Любой mutable absolute VFS file с existing parent directory, включая `/users/myos/`, data paths в `/apps/` и `/temp/`. |
+| File locations | Любой mutable absolute VFS file с existing parent directory. Console workflow следует VFS write policy; GUI editing File Workspace дополнительно ограничен selected existing regular files под `/users/myos/`, `/temp/`, `/system/data/` или `/system/config/`. |
 | Save model | `Ctrl-S` заменяет target через remove/create и bounded writes. Undo, recovery journal, atomic rename и concurrent-edit coordination пока отсутствуют. |
 
-Limit 4 KiB намеренно меньше persistent-file open snapshot 128 KiB и намного меньше MYPFS004 ceiling 8 MiB. Это делает первый all-in-memory editor небольшим, deterministic и удобным для notes, configuration и native sources. Large-file viewing и editing остаются отдельной будущей работой.
+Limit 4 KiB намеренно меньше persistent-file open snapshot 128 KiB и намного меньше MYPFS004 ceiling 8 MiB. GUI editor File Workspace имеет отдельный fixed content ABI **128 bytes**; он даёт mouse-first navigation и quick small-file editing, но не заменяет этот 4 KiB console editor. Это делает первый all-in-memory editor небольшим, deterministic и удобным для notes, configuration и native sources. Large-file viewing и editing остаются отдельной будущей работой.
 
 ## Проверка
 
 `make regression` создаёт и сохраняет two-line ordinary text file в console editor, проверяет exact BIOS readback, создаёт в editor multi-line conditional `.mya` file, собирает и запускает его installed package, затем повторяет ordinary-text readback и native-package execution после UEFI/OVMF boot. Regression использует disposable image и не заменяет remaining physical-PC release gate.
 
-Общее поведение shell описано в [User Guide](USER_GUIDE_RU.md). GUI note editor и его отдельная navigation описаны в [GUI Bring-up](GUI_BRINGUP_RU.md).
+Общее поведение shell описано в [User Guide](USER_GUIDE_RU.md). GUI editor File Workspace и его navigation по logical VFS описаны в [GUI Bring-up](GUI_BRINGUP_RU.md).

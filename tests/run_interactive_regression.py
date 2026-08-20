@@ -163,6 +163,11 @@ class Guest:
         if len(before) != len(after) or changed < 4096:
             raise RegressionFailure(f"{self.name}: {label} did not produce the expected framebuffer transition")
 
+    def require_small_framebuffer_transition(self, before, after, label):
+        changed = sum(left != right for left, right in zip(before, after))
+        if len(before) != len(after) or changed < 24:
+            raise RegressionFailure(f"{self.name}: {label} did not produce the expected content transition")
+
     def require_pixel_transition(self, before, after, x, y, label):
         if self.ppm_pixel(before, x, y) == self.ppm_pixel(after, x, y):
             raise RegressionFailure(f"{self.name}: {label} did not change the expected framebuffer pixel")
@@ -372,9 +377,9 @@ class Guest:
         time.sleep(0.25)
         launcher = self.qmp_screendump("app-tile-launcher")
         if app_count == 1:
-            self.qmp_move(delta_y=-80)
+            self.qmp_move(delta_y=-96)
         elif app_count == 4:
-            self.qmp_move(delta_x=-307, delta_y=-80)
+            self.qmp_move(delta_x=-228, delta_y=-96)
         else:
             raise RegressionFailure(f"{self.name}: unsupported app-tile regression count {app_count}")
         self.qmp_left_click()
@@ -390,13 +395,35 @@ class Guest:
         self.send("startgui\n")
         self.expect("Started process ", start)
         time.sleep(0.25)
+        self.qmp_move(delta_x=-80)
         before = self.qmp_screendump("desktop-before-click")
         self.qmp_left_click()
         time.sleep(0.25)
         after = self.qmp_screendump("desktop-after-click")
         self.require_framebuffer_transition(before, after, "launcher NOTES click")
-        self.qmp_move(delta_x=600, delta_y=390)
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
+    def gui_files_launcher_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        launcher = self.qmp_screendump("files-launcher")
+        self.qmp_move(delta_x=129)
         self.qmp_left_click()
+        time.sleep(0.25)
+        browser = self.qmp_screendump("files-browser")
+        self.require_framebuffer_transition(launcher, browser, "launcher FILES click")
+        self.qmp_move(delta_x=-264, delta_y=88)
+        time.sleep(0.10)
+        parent_ready = self.qmp_screendump("files-parent-ready")
+        self.qmp_left_click()
+        time.sleep(0.25)
+        root_browser = self.qmp_screendump("files-root-browser")
+        self.require_small_framebuffer_transition(parent_ready, root_browser, "FILES parent navigation")
+        self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
@@ -525,6 +552,7 @@ def run_bios(image_path, work_dir):
         guest.gui_modifier_hotkeys_and_exit()
         guest.gui_alt_f4_editor_close_and_exit()
         guest.gui_mouse_notes_and_exit()
+        guest.gui_files_launcher_and_exit()
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
         guest.gui_open_and_exit("startgui home")
@@ -671,6 +699,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_modifier_hotkeys_and_exit()
         guest.gui_alt_f4_editor_close_and_exit()
         guest.gui_mouse_notes_and_exit()
+        guest.gui_files_launcher_and_exit()
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
     finally:

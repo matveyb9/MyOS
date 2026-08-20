@@ -19,10 +19,10 @@
 #define GUI_CONTENT_TITLE_MAX 16U
 #define GUI_CONTENT_MAX 128U
 #define GUI_POINTER_SIZE 11U
-#define GUI_LAUNCHER_TILE_COUNT 3U
-#define GUI_LAUNCHER_TILE_WIDTH 180U
-#define GUI_LAUNCHER_TILE_HEIGHT 96U
-#define GUI_LAUNCHER_TILE_GAP 24U
+#define GUI_LAUNCHER_TILE_COUNT 4U
+#define GUI_LAUNCHER_TILE_WIDTH 136U
+#define GUI_LAUNCHER_TILE_HEIGHT 80U
+#define GUI_LAUNCHER_TILE_GAP 16U
 #define GUI_LAUNCHER_APP_SCAN_LIMIT 64U
 #define GUI_LAUNCHER_APP_NAME_MAX 16U
 #define GUI_WINDOW_TITLE_HEIGHT 24U
@@ -339,7 +339,8 @@ static char gui_launcher_action_at_pointer(void) {
     static const char actions[GUI_LAUNCHER_TILE_COUNT] = {
         (char)MYOS_INPUT_GUI_ACTION_SYSTEM,
         (char)MYOS_INPUT_GUI_ACTION_NOTES,
-        (char)MYOS_INPUT_GUI_ACTION_EDITOR
+        (char)MYOS_INPUT_GUI_ACTION_EDITOR,
+        (char)MYOS_INPUT_GUI_ACTION_FILES
     };
     const uint64_t top = gui_launcher_tile_y();
 
@@ -569,6 +570,26 @@ static int gui_window_close_contains(const gui_window_t *window, uint64_t x, uin
                              window->y + GUI_WINDOW_CLOSE_TOP_INSET,
                              GUI_WINDOW_CLOSE_WIDTH, GUI_WINDOW_CLOSE_HEIGHT);
 }
+static char gui_browser_action_at_pointer(const gui_window_t *window) {
+    const uint64_t content_x = window->x + 16U;
+    const uint64_t content_y = window->y + 48U;
+    uint64_t row;
+
+    if ((console.gui_content_flags & MYOS_GUI_CONTENT_FLAG_BROWSER) == 0U
+        || gui_point_in_rect(console.gui_pointer_x, console.gui_pointer_y, content_x, content_y,
+                             window->width - 32U, window->height - 60U) == 0) {
+        return '\0';
+    }
+    row = (console.gui_pointer_y - content_y) / 12U;
+    if (row == 1U) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_PARENT; }
+    if (row == 2U) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_PREVIOUS; }
+    if (row >= 3U && row < 3U + MYOS_GUI_BROWSER_ENTRY_MAX) {
+        return (char)(MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE + row - 3U);
+    }
+    if (row == 3U + MYOS_GUI_BROWSER_ENTRY_MAX) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_NEXT; }
+    return '\0';
+}
+
 static char gui_window_action_at_pointer(int *handled) {
     if (handled == (int *)0) {
         return '\0';
@@ -594,6 +615,14 @@ static char gui_window_action_at_pointer(int *handled) {
             *handled = 1;
             gui_raise_window(candidate);
             return '\0';
+        }
+        if (candidate == GUI_WINDOW_NOTES) {
+            const char browser_action = gui_browser_action_at_pointer(window);
+
+            if (browser_action != '\0') {
+                *handled = 1;
+                return browser_action;
+            }
         }
     }
     return '\0';
@@ -626,8 +655,8 @@ static void draw_gui_launcher_tile(uint64_t x, uint64_t y, const char *title, co
                                    uint32_t border, uint32_t surface, uint32_t text) {
     fill_rect(x, y, GUI_LAUNCHER_TILE_WIDTH, GUI_LAUNCHER_TILE_HEIGHT, border);
     fill_rect(x + 3U, y + 3U, GUI_LAUNCHER_TILE_WIDTH - 6U, GUI_LAUNCHER_TILE_HEIGHT - 6U, surface);
-    draw_gui_text(x + 16U, y + 26U, title, text);
-    draw_gui_text(x + 16U, y + 54U, subtitle, text);
+    draw_gui_text(x + 12U, y + 20U, title, text);
+    draw_gui_text(x + 12U, y + 48U, subtitle, text);
 }
 
 static void draw_gui_launcher(uint32_t text) {
@@ -642,6 +671,8 @@ static void draw_gui_launcher(uint32_t text) {
     draw_gui_launcher_tile(gui_launcher_tile_x(1U), top, "NOTES", "CLICK", notes_border, surface,
                            console_rgb(13U, 20U, 34U));
     draw_gui_launcher_tile(gui_launcher_tile_x(2U), top, "EDIT NOTE", "CLICK", border, surface,
+                           console_rgb(13U, 20U, 34U));
+    draw_gui_launcher_tile(gui_launcher_tile_x(3U), top, "FILES", "BROWSE", notes_border, surface,
                            console_rgb(13U, 20U, 34U));
     if (console.gui_launcher_app_count != 0U) {
         const uint64_t app_top = gui_launcher_app_tile_y();
@@ -931,9 +962,12 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
 
     if (console.gui_active == 0 || title == (const char *)0 || data == (const uint8_t *)0
         || length > GUI_CONTENT_MAX
-        || (flags & ~(MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER)) != 0U
-        || (flags & (MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER))
-               == (MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER)
+        || (flags & ~(MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER
+                      | MYOS_GUI_CONTENT_FLAG_BROWSER)) != 0U
+        || ((flags & MYOS_GUI_CONTENT_FLAG_LAUNCHER) != 0U
+            && (flags & (MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_BROWSER)) != 0U)
+        || ((flags & MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U
+            && (flags & MYOS_GUI_CONTENT_FLAG_BROWSER) != 0U)
         || cursor > length || viewport > length || title[0] == '\0') {
         return 0;
     }
