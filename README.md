@@ -1,10 +1,12 @@
-# MyOS
+<h1 align="center">MyOS</h1>
 
-> **Language:** [English](README.md) | [Русский](README_RU.md)
+<p align="center">
+  <a href="README_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 **MyOS** is an experimental operating system written from scratch for **x86_64** in freestanding C11 and x86_64 NASM. Limine currently supplies the boot environment; the kernel, memory management, scheduler, ring-3 programs, shell, filesystem and drivers belong to this repository.
 
-## Status
+<h2 align="center">Status</h2>
 
 This checkout is **`console-stable`**: the reviewed and tagged console baseline at v0.12.1-console. The experimental GUI and native-development work remains isolated in `gui/bringup` and is not part of this console branch.
 
@@ -14,7 +16,7 @@ This checkout is **`console-stable`**: the reviewed and tagged console baseline 
 | `main` | Maintained console branch and documentation baseline. |
 | `gui/bringup` | Separate experimental GUI and native-development line. |
 
-## Quick start
+<h2 align="center">Quick start</h2>
 
 ```bash
 git clone https://github.com/matveyb9/MyOS.git myos
@@ -42,7 +44,7 @@ run hello
 
 > `make img` recreates `myos.img` and erases its previous persistent MyOS data. Use a disposable copy before experiments. For physical USB testing, use `myos.img`, not the ISO, and follow the User Guide safety instructions.
 
-## Documentation
+<h2 align="center">Documentation</h2>
 
 | Guide | Start here when you need… |
 |---|---|
@@ -53,7 +55,7 @@ run hello
 | [Release Guide](docs/RELEASES.md) | Branches, tags, release notes and bilingual commit convention. |
 | [Documentation Policy](docs/DOCUMENTATION_POLICY.md) | Required same-commit updates, translations and link review. |
 
-## Verification
+<h2 align="center">Verification</h2>
 
 ```bash
 make smoke          # BIOS and UEFI boot markers

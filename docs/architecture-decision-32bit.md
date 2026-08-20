@@ -1,6 +1,8 @@
 # Architectural Decision: 32-bit Support for MyOS
 
-> **Language:** [English](architecture-decision-32bit.md) | [Русский](architecture-decision-32bit_RU.md)
+<p align="center">
+  <a href="architecture-decision-32bit_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 
 ## Context

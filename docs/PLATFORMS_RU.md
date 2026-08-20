@@ -1,6 +1,8 @@
 # Платформы: сборка и запуск MyOS
 
-> **Язык:** [English](PLATFORMS.md) | [Русский](PLATFORMS_RU.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="PLATFORMS.md">🇺🇸 ENGLISH</a>
+</p>
 
 
 Этот документ объясняет, как использовать исходники MyOS на разных host-платформах. **Target остаётся x86_64 PC**; host-платформа — это компьютер, на котором вы собираете artifacts и запускаете QEMU.

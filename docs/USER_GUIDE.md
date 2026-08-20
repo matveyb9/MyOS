@@ -1,6 +1,8 @@
 # MyOS Console 0.12.0-dev User Guide
 
-> **Language:** [English](USER_GUIDE.md) | [Русский](USER_GUIDE_RU.md)
+<p align="center">
+  <a href="USER_GUIDE_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 
 This guide is intended for someone who wants to build, run and try MyOS without studying kernel internals. MyOS is an experimental educational OS for x86_64. Use QEMU primarily; booting on physical hardware should be done only with a separate test USB flash drive.

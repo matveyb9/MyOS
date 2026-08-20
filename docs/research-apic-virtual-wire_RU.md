@@ -1,6 +1,8 @@
 # Исследовательские заметки: APIC virtual-wire
 
-> **Язык:** [English](research-apic-virtual-wire.md) | [Русский](research-apic-virtual-wire_RU.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="research-apic-virtual-wire.md">🇺🇸 ENGLISH</a>
+</p>
 
 
 Дата проверки: 17 августа 2026.
