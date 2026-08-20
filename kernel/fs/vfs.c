@@ -1382,8 +1382,13 @@ static int cpio_list_child(const char *parent, uint64_t index, struct vfs_direct
     const uint8_t *data;
     uint64_t name_size;
     uint64_t data_size;
-    const uint64_t parent_length = text_length(parent, VFS_PATH_MAX);
+    const char *archive_parent = parent;
+    uint64_t parent_length = text_length(parent, VFS_PATH_MAX);
 
+    if (archive_parent[0] == '/' && parent_length != 0U) {
+        archive_parent++;
+        parent_length--;
+    }
     while (next_cpio_entry(&offset, &name, &name_size, &data, &data_size) != 0) {
         char child[VFS_NAME_MAX];
         uint64_t cursor;
@@ -1392,7 +1397,7 @@ static int cpio_list_child(const char *parent, uint64_t index, struct vfs_direct
         int duplicate = 0;
 
         if (bytes_equal_fold(name, name_size, "TRAILER!!!") != 0 || name_size <= parent_length + 1U) { continue; }
-        if (name[0] != '/' || text_starts_with_fold((const char *)name, parent) == 0 || name[parent_length] != '/') { continue; }
+        if (text_starts_with_fold((const char *)name, archive_parent) == 0 || name[parent_length] != '/') { continue; }
         cursor = parent_length + 1U;
         while (cursor < name_size && name[cursor] != '\0' && name[cursor] != '/' && child_length + 1U < sizeof(child)) {
             child[child_length++] = (char)name[cursor++];
@@ -1410,8 +1415,9 @@ static int cpio_list_child(const char *parent, uint64_t index, struct vfs_direct
                 char prior_child[VFS_NAME_MAX];
                 uint64_t prior_cursor;
                 uint64_t prior_length = 0U;
-                if (prior_offset >= offset || prior_name_size <= parent_length + 1U || prior_name[0] != '/'
-                    || text_starts_with_fold((const char *)prior_name, parent) == 0 || prior_name[parent_length] != '/') { continue; }
+                if (prior_offset >= offset || prior_name_size <= parent_length + 1U
+                    || text_starts_with_fold((const char *)prior_name, archive_parent) == 0
+                    || prior_name[parent_length] != '/') { continue; }
                 prior_cursor = parent_length + 1U;
                 while (prior_cursor < prior_name_size && prior_name[prior_cursor] != '\0' && prior_name[prior_cursor] != '/'
                        && prior_length + 1U < sizeof(prior_child)) {

@@ -411,18 +411,31 @@ class Guest:
         self.expect("Started process ", start)
         time.sleep(0.25)
         launcher = self.qmp_screendump("files-launcher")
-        self.qmp_move(delta_x=129)
+        # The fourth centered launcher tile (FILES) occupies x=800..935;
+        # startgui begins the pointer at screen center (640, 400).
+        self.qmp_move(delta_x=229)
         self.qmp_left_click()
         time.sleep(0.25)
         browser = self.qmp_screendump("files-browser")
         self.require_framebuffer_transition(launcher, browser, "launcher FILES click")
-        self.qmp_move(delta_x=-264, delta_y=88)
+        # Start at the FILES tile click position (870, 400). The parent row is
+        # in the NOTES browser content area at approximately (500, 262).
+        self.qmp_move(delta_x=-370, delta_y=138)
         time.sleep(0.10)
         parent_ready = self.qmp_screendump("files-parent-ready")
         self.qmp_left_click()
         time.sleep(0.25)
         root_browser = self.qmp_screendump("files-root-browser")
-        self.require_small_framebuffer_transition(parent_ready, root_browser, "FILES parent navigation")
+        self.require_region_transition(parent_ready, root_browser, 330, 245, 200, 84, "FILES parent navigation")
+        # From the parent-row click position (501, 262), the first root entry
+        # is the /system directory at browser row three (about y=289).
+        self.qmp_move(delta_y=-27)
+        time.sleep(0.10)
+        system_ready = self.qmp_screendump("files-system-ready")
+        self.qmp_left_click()
+        time.sleep(0.25)
+        system_browser = self.qmp_screendump("files-system-browser")
+        self.require_region_transition(system_ready, system_browser, 330, 245, 200, 84, "FILES /system directory navigation")
         self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
@@ -545,6 +558,7 @@ def run_bios(image_path, work_dir):
         if b"[dir] boot" not in inventory_list_output or b"[dir] drivers" not in inventory_list_output:
             raise RegressionFailure(f"BIOS: live inventory directories are missing\n{guest._tail()}")
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
+        guest.command("ls /system/core", "[dir] apps")
         guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
@@ -659,6 +673,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         inventory_start = len(guest.output)
         guest.command("sysinfo", "MYOS SYSTEM INVENTORY")
         require_system_inventory("UEFI", bytes(guest.output[inventory_start:]), b"UEFI x86_64")
+        guest.command("ls /system/core", "[dir] apps")
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
         guest.command(f"cat {NOTE_PATH}", "base")

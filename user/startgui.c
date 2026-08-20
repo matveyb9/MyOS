@@ -13,6 +13,7 @@
 #define GUI_EDITOR_RESULT_VIEWER 0
 #define GUI_EDITOR_RESULT_EXIT 1
 #define GUI_EDITOR_RESULT_HOME 2
+#define GUI_BROWSER_RESULT_OPENED 2
 
 static char selected_disk_path[GUI_NOTE_PATH_CAPACITY] = GUI_NOTE_PATH;
 static char browser_directory[MYOS_VFS_PATH_MAX] = GUI_BROWSER_START_PATH;
@@ -408,7 +409,7 @@ static int browser_open_entry(uint8_t action) {
     if (entry.type == MYOS_VFS_OBJECT_DIRECTORY) {
         if (browser_set_directory(path) == 0) { return 0; }
         show_file_browser();
-        return 1;
+        return GUI_BROWSER_RESULT_OPENED;
     }
     if (entry.type == MYOS_VFS_OBJECT_REGULAR || entry.type == MYOS_VFS_OBJECT_VIRTUAL) {
         if (select_disk_path(path) == 0) { return 0; }
