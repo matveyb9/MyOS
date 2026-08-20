@@ -13,7 +13,6 @@
 | `console-stable` | Проверенный baseline консольной ОС. | Стабильная линия на `v0.12.1-console`. |
 | `main` | Поддерживаемая консольная линия. | Только console maintenance и документация. |
 | `feature/gui` | GUI и native-development line. | Экспериментальная, не сливается в `main` автоматически. |
-| `feature/console-ux` | Историческая feature branch. | Сохранена для истории и сравнения. |
 
 ## Неизменяемые checkpoints
 
@@ -22,7 +21,8 @@
 | `v0.12.0-console` | Исходная граница завершения console OS. |
 | `v0.12.1-console` | Проверенный console UX refresh. |
 | `v0.12.2-gui-preview` | Первый tested framebuffer GUI checkpoint. |
-| `v0.13.0-gui-rc.1` | Опубликованный GitHub Pre-release GUI release candidate. |
+| `v0.13.0-gui-rc.1` | Предыдущий GUI pre-release candidate; его immutable tag сохранён как historical evidence. |
+| `v0.13.1-gui-preview.1` | QEMU-validated GUI preview из `feature/gui`; physical-PC validation не заявляется. |
 
 > Immutable tag нельзя передвигать, заменять force-push или использовать повторно. Новый release или pre-release всегда получает **новый tag** и отдельные notes.
 
@@ -133,7 +133,7 @@ Release description всегда содержит два равноправны�
 make release-check
 git status --short
 git tag --list
-git push origin main console-stable feature/console-ux feature/gui
+git push origin main console-stable feature/gui
 ```
 
 Публикация tag, GitHub Release или Pre-release выполняется только после отдельного подтверждения. Она не является побочным эффектом обычного documentation или code commit.

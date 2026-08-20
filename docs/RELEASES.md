@@ -13,7 +13,6 @@ This guide explains which MyOS line to choose, which references must not change,
 | `console-stable` | Reviewed console operating-system baseline. | Stable line at `v0.12.1-console`. |
 | `main` | Maintained console line. | Console maintenance and documentation only. |
 | `feature/gui` | GUI and native-development line. | Experimental; never merged into `main` automatically. |
-| `feature/console-ux` | Historical feature branch. | Retained for history and comparison. |
 
 ## Immutable checkpoints
 
@@ -22,7 +21,8 @@ This guide explains which MyOS line to choose, which references must not change,
 | `v0.12.0-console` | Original completed-console boundary. |
 | `v0.12.1-console` | Reviewed console UX refresh. |
 | `v0.12.2-gui-preview` | First tested framebuffer-GUI checkpoint. |
-| `v0.13.0-gui-rc.1` | Published GitHub Pre-release GUI release candidate. |
+| `v0.13.0-gui-rc.1` | Earlier GUI pre-release candidate; its immutable tag is retained as historical evidence. |
+| `v0.13.1-gui-preview.1` | QEMU-validated GUI preview from `feature/gui`; no physical-PC validation claimed. |
 
 > An immutable tag is never moved, force-pushed or reused. Every new release or pre-release receives a **new tag** and its own release notes.
 
@@ -133,7 +133,7 @@ Before a new tag, run applicable checks, confirm a clean Git tree and obtain exp
 make release-check
 git status --short
 git tag --list
-git push origin main console-stable feature/console-ux feature/gui
+git push origin main console-stable feature/gui
 ```
 
 Publishing a tag, GitHub Release or Pre-release always requires separate confirmation. It is never a side effect of an ordinary documentation or code commit.

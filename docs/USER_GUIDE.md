@@ -7,7 +7,7 @@
 
 This guide is intended for someone who wants to build, run, and try MyOS without studying kernel internals. MyOS is an experimental tutorial-and-practice OS for `x86_64`, written from scratch in freestanding C11 and x86_64 NASM. Use QEMU first; running on real hardware should be done only with a separate test USB stick.
 
-> **Current development branch:** `feature/gui`, version `0.12.2-dev`. The stable console boundary is preserved by the immutable tag `v0.12.1-console`; the GUI and MYPFS004 are not yet merged into that boundary automatically.
+> **Current development branch:** `feature/gui`, version `0.13.1-gui-preview.1`. The stable console boundary is preserved by the immutable tag `v0.12.1-console`; the GUI and MYPFS004 are not yet merged into that boundary automatically.
 
 To install the toolchain on Windows, WSL, macOS, and other host platforms, first open the [platforms guide](PLATFORMS.md). Below is how to use MyOS after preparing the build environment.
 
