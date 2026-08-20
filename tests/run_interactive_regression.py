@@ -365,6 +365,26 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_installed_app_tile_and_exit(self, app_count):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        launcher = self.qmp_screendump("app-tile-launcher")
+        if app_count == 1:
+            self.qmp_move(delta_y=-80)
+        elif app_count == 4:
+            self.qmp_move(delta_x=-307, delta_y=-80)
+        else:
+            raise RegressionFailure(f"{self.name}: unsupported app-tile regression count {app_count}")
+        self.qmp_left_click()
+        time.sleep(0.25)
+        console = self.qmp_screendump("app-tile-console")
+        self.require_framebuffer_transition(launcher, console, "installed app tile launch")
+        self.expect("editor", start)
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_mouse_notes_and_exit(self):
         start = len(self.output)
         self.send("startgui\n")
@@ -503,6 +523,7 @@ def run_bios(image_path, work_dir):
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
         guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
         guest.command(f"install {EDITOR_ELF_PATH} {EDITOR_APP_PATH}", "exited with status 0")
+        guest.gui_installed_app_tile_and_exit(1)
         run_start = len(guest.output)
         guest.command("run editor-harness", "editor")
         run_output = guest.output[run_start:]
@@ -598,6 +619,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         run_output = guest.output[run_start:]
         if b"bad" in run_output or b"exited with status 44" not in run_output:
             raise RegressionFailure(f"UEFI: persisted editor-authored program did not skip code or return status 44\n{guest._tail()}")
+        guest.gui_installed_app_tile_and_exit(4)
         run_start = len(guest.output)
         guest.command("run release-harness", "Z")
         run_output = guest.output[run_start:]

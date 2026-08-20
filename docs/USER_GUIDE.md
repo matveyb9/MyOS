@@ -227,10 +227,18 @@ startgui
 # Compatibility alias: startgui home
 ```
 
-Without an argument `startgui` opens **MYOS DESKTOP**, a bounded mouse-first launcher; `startgui home` remains an alias. Click `SYSTEM` for the system message, `NOTES` for notes, or `EDIT NOTE` for the default personal-note editor. Click the top-bar `X` to exit. Launcher and window actions are mouse-only. The retained GUI-level keyboard shortcuts are `Alt+Tab` to move focus to the next visible window, `Alt+F4` to close the focused window, `Esc` to return or cancel, and `Ctrl+Q` to exit. For a personal note you can pass an absolute path:
+Without an argument `startgui` opens **MYOS DESKTOP**, a bounded mouse-first launcher; `startgui home` remains an alias. Click `SYSTEM` for the system message, `NOTES` for notes, or `EDIT NOTE` for the default personal-note editor. Up to four installed packages with `/apps/<name>/main.elf` also appear below the fixed tiles as `OPEN APP`; clicking one starts that program, closes the GUI and returns its normal output to the console. Click the top-bar `X` to exit. Launcher and window actions are mouse-only. The retained GUI-level keyboard shortcuts are `Alt+Tab` to move focus to the next visible window, `Alt+F4` to close the focused window, `Esc` to return or cancel, and `Ctrl+Q` to exit. For a personal note you can pass an absolute path:
 
 ```text
 startgui /users/myos/files/notes/note
+```
+
+To add a desktop app tile, first use the existing package boundary:
+
+```text
+install /system/core/apps/hello.elf /apps/hello/main.elf
+startgui
+# Click HELLO → OPEN APP
 ```
 
 `Alt+F4` closes the focused window using the same state-specific behavior as its `X`: it hides SYSTEM or MONITOR, returns the NOTES viewer to MYOS DESKTOP, or cancels an editor draft back to the viewer. In viewer or editor mode, the active NOTES window is brought to the front. Click an exposed window title bar to raise it. The desktop top-bar `X` and `Ctrl+Q` exit the complete GUI session. `Esc` returns the viewer home and cancels an editor draft, while `Ctrl+S` saves. Normal PS/2 mouse movement repaints only an 11×11 pointer region; full desktop refresh is reserved for content, focus, window visibility, and layout changes. The full description of controls, the notes editor, and known limitations is in [GUI_BRINGUP.md](GUI_BRINGUP.md).

@@ -6,6 +6,7 @@
 #define GUI_NOTE_DIRECTORY "/users/myos/files/notes"
 #define GUI_NOTE_PATH_CAPACITY MYOS_VFS_PATH_MAX
 #define GUI_VFS_ENTRY_SCAN_LIMIT UINT64_C(64)
+#define GUI_APP_DIRECTORY "/apps"
 #define GUI_EDITOR_RESULT_VIEWER 0
 #define GUI_EDITOR_RESULT_EXIT 1
 #define GUI_EDITOR_RESULT_HOME 2
@@ -141,10 +142,92 @@ static void show_desktop_home(void) {
         "MYOS DESKTOP\n"
         "\n"
         "CLICK A TILE TO OPEN\n"
+        "INSTALLED APPS APPEAR BELOW\n"
         "ALT-TAB  FOCUS\n"
         "CTRL-Q   EXIT\n";
 
     (void)set_viewer_content("MYOS DESKTOP", text, sizeof(text) - 1U, MYOS_GUI_CONTENT_FLAG_LAUNCHER, 0U, 0U);
+}
+
+static int make_launcher_app_path(char *destination, const char *name) {
+    static const char prefix[] = GUI_APP_DIRECTORY "/";
+    static const char suffix[] = "/main.elf";
+    uint64_t offset = 0U;
+
+    for (uint64_t index = 0U; index + 1U < sizeof(prefix); index++) {
+        destination[offset++] = prefix[index];
+    }
+    for (uint64_t index = 0U; name[index] != '\0' && offset + sizeof(suffix) < MYOS_VFS_PATH_MAX; index++) {
+        if (name[index] == '/' || name[index] < ' ' || name[index] > '~') {
+            return 0;
+        }
+        destination[offset++] = name[index];
+    }
+    if (offset == sizeof(prefix) - 1U) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index + 1U < sizeof(suffix) && offset + 1U < MYOS_VFS_PATH_MAX; index++) {
+        destination[offset++] = suffix[index];
+    }
+    destination[offset] = '\0';
+    return offset + 1U < MYOS_VFS_PATH_MAX;
+}
+
+static int launcher_app_path_at(uint8_t action, char *path) {
+    uint64_t wanted;
+    uint64_t discovered = 0U;
+
+    if (action < MYOS_INPUT_GUI_ACTION_APP_BASE
+        || action - MYOS_INPUT_GUI_ACTION_APP_BASE >= MYOS_GUI_LAUNCHER_APP_MAX) {
+        return 0;
+    }
+    wanted = action - MYOS_INPUT_GUI_ACTION_APP_BASE;
+    for (uint64_t index = 0U; index < GUI_VFS_ENTRY_SCAN_LIMIT; index++) {
+        struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+        struct myos_vfs_read_request verify = { 0U, { 0 }, { 0 } };
+
+        if (make_path(request.path, GUI_APP_DIRECTORY) == 0) { return 0; }
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            break;
+        }
+        if (request.entry.type != MYOS_VFS_OBJECT_DIRECTORY
+            || make_launcher_app_path(verify.path, request.entry.name) == 0) {
+            continue;
+        }
+        const uint64_t verify_length = system_call(MYOS_SYS_VFS_READ, 0U, (uint64_t)(uintptr_t)&verify, sizeof(verify));
+        if (verify_length == UINT64_MAX || verify_length == 0U) {
+            continue;
+        }
+        if (discovered == wanted) {
+            for (uint64_t character = 0U; character < MYOS_VFS_PATH_MAX; character++) {
+                path[character] = verify.path[character];
+                if (verify.path[character] == '\0') { return 1; }
+            }
+            return 0;
+        }
+        discovered++;
+        if (discovered >= MYOS_GUI_LAUNCHER_APP_MAX) {
+            break;
+        }
+    }
+    return 0;
+}
+
+static int launch_launcher_app(uint8_t action) {
+    struct myos_spawn_request request = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
+    uint64_t child;
+
+    if (launcher_app_path_at(action, request.path) == 0) {
+        return 0;
+    }
+    child = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
+    if (child == UINT64_MAX) {
+        return 0;
+    }
+    (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
+    (void)system_call(MYOS_SYS_WAIT, child, 0U, 0U);
+    return 1;
 }
 
 static uint64_t read_viewer_file(const char *path, uint8_t *data) {
@@ -461,6 +544,13 @@ void _start(uint64_t argc, const char *arguments) {
             } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_HOME) {
                 home_mode = 1;
                 show_desktop_home();
+            } else if ((uint8_t)character >= MYOS_INPUT_GUI_ACTION_APP_BASE
+                       && (uint8_t)character - MYOS_INPUT_GUI_ACTION_APP_BASE < MYOS_GUI_LAUNCHER_APP_MAX) {
+                if (launch_launcher_app((uint8_t)character) != 0) {
+                    break;
+                }
+                home_mode = 0;
+                set_viewer_status("APP LAUNCH FAILED");
             } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_EDITOR) {
                 const int editor_result = edit_selected_disk_file();
 

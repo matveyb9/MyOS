@@ -5,6 +5,7 @@
 
 #include <framebuffer.h>
 #include <syscall.h>
+#include <vfs.h>
 
 #define CELL_WIDTH 8U
 #define CELL_HEIGHT 8U
@@ -22,6 +23,8 @@
 #define GUI_LAUNCHER_TILE_WIDTH 180U
 #define GUI_LAUNCHER_TILE_HEIGHT 96U
 #define GUI_LAUNCHER_TILE_GAP 24U
+#define GUI_LAUNCHER_APP_SCAN_LIMIT 64U
+#define GUI_LAUNCHER_APP_NAME_MAX 16U
 #define GUI_WINDOW_TITLE_HEIGHT 24U
 #define GUI_WINDOW_CLOSE_LEFT_INSET 22U
 #define GUI_WINDOW_CLOSE_TOP_INSET 7U
@@ -70,6 +73,8 @@ typedef struct framebuffer_console {
     uint64_t gui_content_cursor;
     uint64_t gui_content_viewport;
     int gui_launcher_active;
+    uint8_t gui_launcher_app_count;
+    char gui_launcher_app_names[MYOS_GUI_LAUNCHER_APP_MAX][GUI_LAUNCHER_APP_NAME_MAX];
     uint64_t gui_pointer_x;
     uint64_t gui_pointer_y;
     uint32_t gui_pointer_under[GUI_POINTER_SIZE * GUI_POINTER_SIZE];
@@ -240,8 +245,25 @@ static uint64_t gui_launcher_tile_x(uint64_t index) {
         + index * (GUI_LAUNCHER_TILE_WIDTH + GUI_LAUNCHER_TILE_GAP);
 }
 
+static uint64_t gui_launcher_app_total_width(void) {
+    if (console.gui_launcher_app_count == 0U) {
+        return 0U;
+    }
+    return (uint64_t)console.gui_launcher_app_count * GUI_LAUNCHER_TILE_WIDTH
+        + ((uint64_t)console.gui_launcher_app_count - 1U) * GUI_LAUNCHER_TILE_GAP;
+}
+
 static uint64_t gui_launcher_tile_y(void) {
     return (console.height - GUI_LAUNCHER_TILE_HEIGHT) / 2U;
+}
+
+static uint64_t gui_launcher_app_tile_x(uint64_t index) {
+    return (console.width - gui_launcher_app_total_width()) / 2U
+        + index * (GUI_LAUNCHER_TILE_WIDTH + GUI_LAUNCHER_TILE_GAP);
+}
+
+static uint64_t gui_launcher_app_tile_y(void) {
+    return gui_launcher_tile_y() + GUI_LAUNCHER_TILE_HEIGHT + GUI_LAUNCHER_TILE_GAP;
 }
 
 static int gui_point_in_rect(uint64_t x, uint64_t y, uint64_t left, uint64_t top,
@@ -252,6 +274,65 @@ static int gui_point_in_rect(uint64_t x, uint64_t y, uint64_t left, uint64_t top
 static int gui_pointer_hits_exit(void) {
     return gui_point_in_rect(console.gui_pointer_x, console.gui_pointer_y,
                              console.width - 40U, 7U, 20U, 18U);
+}
+
+static int gui_launcher_copy_app_name(char *destination, const char *source) {
+    uint64_t index = 0U;
+
+    while (index + 1U < GUI_LAUNCHER_APP_NAME_MAX && source[index] != '\0') {
+        if (source[index] == '/' || source[index] < ' ' || source[index] > '~') {
+            return 0;
+        }
+        destination[index] = source[index];
+        index++;
+    }
+    destination[index] = '\0';
+    return index != 0U && source[index] == '\0';
+}
+
+static int gui_launcher_has_main_elf(const char *name) {
+    static const char prefix[] = "/apps/";
+    static const char suffix[] = "/main.elf";
+    char path[VFS_PATH_MAX] = { 0 };
+    struct vfs_file file;
+    uint64_t offset = 0U;
+
+    for (uint64_t index = 0U; index + 1U < sizeof(prefix); index++) { path[offset++] = prefix[index]; }
+    for (uint64_t index = 0U; name[index] != '\0' && offset + sizeof(suffix) < sizeof(path); index++) {
+        path[offset++] = name[index];
+    }
+    for (uint64_t index = 0U; index + 1U < sizeof(suffix) && offset + 1U < sizeof(path); index++) {
+        path[offset++] = suffix[index];
+    }
+    path[offset] = '\0';
+    return vfs_open(path, &file) != 0 && file.type == VFS_OBJECT_REGULAR && file.size != 0U;
+}
+
+static void gui_launcher_refresh_apps(void) {
+    console.gui_launcher_app_count = 0U;
+    for (uint64_t index = 0U; index < MYOS_GUI_LAUNCHER_APP_MAX; index++) {
+        console.gui_launcher_app_names[index][0] = '\0';
+    }
+    for (uint64_t index = 0U; index < GUI_LAUNCHER_APP_SCAN_LIMIT
+         && console.gui_launcher_app_count < MYOS_GUI_LAUNCHER_APP_MAX; index++) {
+        struct vfs_directory_entry entry;
+        char name[GUI_LAUNCHER_APP_NAME_MAX] = { 0 };
+
+        if (vfs_list("/apps", index, &entry) == 0) {
+            break;
+        }
+        if (entry.type != VFS_OBJECT_DIRECTORY || gui_launcher_copy_app_name(name, entry.name) == 0
+            || gui_launcher_has_main_elf(name) == 0) {
+            continue;
+        }
+        for (uint64_t character = 0U; character < GUI_LAUNCHER_APP_NAME_MAX; character++) {
+            console.gui_launcher_app_names[console.gui_launcher_app_count][character] = name[character];
+            if (name[character] == '\0') {
+                break;
+            }
+        }
+        console.gui_launcher_app_count++;
+    }
 }
 
 static char gui_launcher_action_at_pointer(void) {
@@ -269,6 +350,12 @@ static char gui_launcher_action_at_pointer(void) {
         if (gui_point_in_rect(console.gui_pointer_x, console.gui_pointer_y, gui_launcher_tile_x(index), top,
                               GUI_LAUNCHER_TILE_WIDTH, GUI_LAUNCHER_TILE_HEIGHT) != 0) {
             return actions[index];
+        }
+    }
+    for (uint64_t index = 0U; index < console.gui_launcher_app_count; index++) {
+        if (gui_point_in_rect(console.gui_pointer_x, console.gui_pointer_y, gui_launcher_app_tile_x(index),
+                              gui_launcher_app_tile_y(), GUI_LAUNCHER_TILE_WIDTH, GUI_LAUNCHER_TILE_HEIGHT) != 0) {
+            return (char)(MYOS_INPUT_GUI_ACTION_APP_BASE + index);
         }
     }
     return '\0';
@@ -556,6 +643,16 @@ static void draw_gui_launcher(uint32_t text) {
                            console_rgb(13U, 20U, 34U));
     draw_gui_launcher_tile(gui_launcher_tile_x(2U), top, "EDIT NOTE", "CLICK", border, surface,
                            console_rgb(13U, 20U, 34U));
+    if (console.gui_launcher_app_count != 0U) {
+        const uint64_t app_top = gui_launcher_app_tile_y();
+
+        draw_gui_text(gui_launcher_app_tile_x(0U), app_top - 16U, "INSTALLED APPS", text);
+        for (uint64_t index = 0U; index < console.gui_launcher_app_count; index++) {
+            draw_gui_launcher_tile(gui_launcher_app_tile_x(index), app_top,
+                                   console.gui_launcher_app_names[index], "OPEN APP", border, surface,
+                                   console_rgb(13U, 20U, 34U));
+        }
+    }
 }
 
 static void erase_gui_pointer(void) {
@@ -855,6 +952,11 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
     console.gui_content_length = length;
     console.gui_content_flags = flags;
     console.gui_launcher_active = (flags & MYOS_GUI_CONTENT_FLAG_LAUNCHER) != 0U;
+    if (console.gui_launcher_active != 0) {
+        gui_launcher_refresh_apps();
+    } else {
+        console.gui_launcher_app_count = 0U;
+    }
     console.gui_content_cursor = cursor;
     console.gui_content_viewport = gui_content_line_start(viewport);
     if (console.gui_launcher_active == 0) {
