@@ -1,6 +1,8 @@
 # Ветки, релизы и история изменений
 
-> **Язык:** [English](RELEASES.md) | [Русский](RELEASES_RU.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="RELEASES.md">🇺🇸 ENGLISH</a>
+</p>
 
 Этот документ объясняет, какую линию MyOS выбрать, какие refs нельзя изменять и как оформлять future commits и releases на двух языках.
 
@@ -32,7 +34,7 @@ RU: Добавлены парные English/Russian страницы, перек
 
 ## Двуязычные release notes
 
-Каждый release description содержит equivalent sections `## English` и `## Русский`. Укажите status (`Release`, `Pre-release` или `Release candidate`), highlights, verification, compatibility или migration notes, artifacts с SHA-256 при приложении и known limits. Не представляйте pre-release как stable release.
+Каждый release description начинается с центрированного flag-only selector, затем содержит equivalent sections `## 🇺🇸 [EN] ENGLISH` и `## 🇷🇺 [RU] РУССКИЙ`. Укажите status (`Release`, `Pre-release` или `Release candidate`), highlights, verification, compatibility или migration notes, artifacts с SHA-256 при приложении и known limits. Не представляйте pre-release как stable release.
 
 ## Безопасная публикация
 

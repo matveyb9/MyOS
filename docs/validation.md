@@ -1,6 +1,8 @@
 # Validation of MyOS 0.3.0-dev
 
-> **Language:** [English](validation.md) | [Русский](validation_RU.md)
+<p align="center">
+  <a href="validation_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 > **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and [documentation index](README.md).
 

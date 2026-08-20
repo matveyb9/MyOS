@@ -1,10 +1,12 @@
-# MyOS
+<h1 align="center">MyOS</h1>
 
-> **Язык:** [English](README.md) | [Русский](README_RU.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="README.md">🇺🇸 ENGLISH</a>
+</p>
 
 **MyOS** — экспериментальная операционная система для **x86_64**, написанная с нуля на freestanding C11 и x86_64 NASM. Limine пока подготавливает окружение загрузки, а ядро, управление памятью, планировщик, ring-3 программы, shell, файловая система и драйверы реализуются в этом репозитории.
 
-## Статус
+<h2 align="center">Статус</h2>
 
 Этот checkout — **`main`**: поддерживаемая консольная ветка с одобренными console-only maintenance и documentation updates. Экспериментальная работа над GUI и native-development остаётся в отдельной ветке `gui/bringup` и не входит в эту console branch.
 
@@ -14,7 +16,7 @@
 | `main` | Поддерживаемая консольная ветка и документационный baseline. |
 | `gui/bringup` | Отдельная экспериментальная GUI и native-development line. |
 
-## Быстрый старт
+<h2 align="center">Быстрый старт</h2>
 
 ```bash
 git clone https://github.com/matveyb9/MyOS.git myos
@@ -42,7 +44,7 @@ run hello
 
 > `make img` пересоздаёт `myos.img` и удаляет прежние persistent data MyOS. Перед экспериментами создайте отдельную копию образа. Для physical USB testing используйте `myos.img`, а не ISO, и следуйте предупреждениям из руководства пользователя.
 
-## Документация
+<h2 align="center">Документация</h2>
 
 | Документ | Откройте его, если нужно… |
 |---|---|
@@ -53,7 +55,7 @@ run hello
 | [Руководство по релизам](docs/RELEASES_RU.md) | Разобраться в branches, tags, release notes и двуязычном формате commits. |
 | [Политика документации](docs/DOCUMENTATION_POLICY_RU.md) | Выполнять same-commit updates, переводы и проверку ссылок. |
 
-## Проверка
+<h2 align="center">Проверка</h2>
 
 ```bash
 make smoke          # BIOS и UEFI boot markers

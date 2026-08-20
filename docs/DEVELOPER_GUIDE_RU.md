@@ -1,6 +1,8 @@
 # Руководство разработчика MyOS Console 0.12.0-dev
 
-> **Язык:** [English](DEVELOPER_GUIDE.md) | [Русский](DEVELOPER_GUIDE_RU.md)
+<p align="center">
+  <strong>🇷🇺 РУССКИЙ</strong> / <a href="DEVELOPER_GUIDE.md">🇺🇸 ENGLISH</a>
+</p>
 
 
 Этот документ описывает завершённый **console release** MyOS. Он предназначен для разработчиков, системных программистов и читателей, которым нужна карта исходного кода и технические инварианты. Зафиксированная точка release — аннотированный tag `v0.12.0-console` на commit `1a454cb`.

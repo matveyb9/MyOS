@@ -1,6 +1,8 @@
 # MyOS 0.6.0-dev Memory Safety Model
 
-> **Language:** [English](memory-safety-model.md) | [Русский](memory-safety-model_RU.md)
+<p align="center">
+  <a href="memory-safety-model_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 > **Historical document.** This file describes an early development milestone and is not a specification of the current console release `0.12.0-dev`. Refer to the [user guide](USER_GUIDE.md), [developer guide](DEVELOPER_GUIDE.md) and the [documentation index](README.md).
 

@@ -1,6 +1,8 @@
 # Architecture of MyOS 0.7.0-dev
 
-> **Language:** [English](architecture.md) | [Русский](architecture_RU.md)
+<p align="center">
+  <a href="architecture_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 
 > **Historical document.** It describes the milestone `0.7.0-dev`, not the current console release `0.12.0-dev`. For the current architecture use the [developer guide](DEVELOPER_GUIDE.md).

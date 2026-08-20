@@ -1,6 +1,8 @@
 # Branches, releases and change history
 
-> **Language:** [English](RELEASES.md) | [Русский](RELEASES_RU.md)
+<p align="center">
+  <a href="RELEASES_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
+</p>
 
 This guide explains which MyOS line to choose, which references must not change, and how to describe future commits and releases in two languages.
 
@@ -19,20 +21,22 @@ This guide explains which MyOS line to choose, which references must not change,
 
 ## Bilingual commits
 
-Use a concise English imperative subject. After one blank line, add a brief Russian body beginning with `RU:`.
+Use a concise English imperative subject. After one blank line, add equivalent `[EN]:` and `[RU]:` descriptions. When Manus AI materially assists, retain `Assisted-by: Manus AI` as the final transparency trailer.
 
 ```text
-docs: add bilingual navigation
+docs: refresh bilingual navigation
 
-RU: Добавлены парные English/Russian страницы, переключатели языка и
-проверяемые внутренние ссылки.
+[EN]: Center the paired language selector and document the same navigation standard.
+[RU]: Центрировать парный selector языка и описать тот же navigation standard.
+
+Assisted-by: Manus AI
 ```
 
 Name affected commands, paths, artifacts or compatibility consequences whenever a change is user-visible. Update English and Russian documentation in the same commit.
 
 ## Bilingual release notes
 
-Each release description contains equivalent `## English` and `## Русский` sections. Include status (`Release`, `Pre-release` or `Release candidate`), highlights, verification, compatibility or migration notes, artifacts with SHA-256 when attached, and known limits. Do not present a pre-release as a stable release.
+Each release description starts with a centered flag-only selector, then contains equivalent `## 🇺🇸 [EN] ENGLISH` and `## 🇷🇺 [RU] РУССКИЙ` sections. Include status (`Release`, `Pre-release` or `Release candidate`), highlights, verification, compatibility or migration notes, artifacts with SHA-256 when attached, and known limits. Do not present a pre-release as a stable release.
 
 ## Safe publication
 
