@@ -7,7 +7,7 @@
 
 This guide is intended for someone who wants to build, run, and try MyOS without studying kernel internals. MyOS is an experimental tutorial-and-practice OS for `x86_64`, written from scratch in freestanding C11 and x86_64 NASM. Use QEMU first; running on real hardware should be done only with a separate test USB stick.
 
-> **Current development branch:** `gui/bringup`, version `0.12.2-dev`. The stable console boundary is preserved by the immutable tag `v0.12.1-console`; the GUI and MYPFS004 are not yet merged into that boundary automatically.
+> **Current development branch:** `feature/gui`, version `0.12.2-dev`. The stable console boundary is preserved by the immutable tag `v0.12.1-console`; the GUI and MYPFS004 are not yet merged into that boundary automatically.
 
 To install the toolchain on Windows, WSL, macOS, and other host platforms, first open the [platforms guide](PLATFORMS.md). Below is how to use MyOS after preparing the build environment.
 
@@ -220,7 +220,7 @@ The program prints `[hello MyOS]`, then writes the current RTC time as `HH:MM:SS
 
 ## 9. Experimental GUI
 
-The GUI is available only on the `gui/bringup` branch and is started from the console rather than automatically:
+The GUI is available only on the `feature/gui` branch and is started from the console rather than automatically:
 
 ```text
 startgui
@@ -281,6 +281,6 @@ For a physical computer use **`myos.img`**, not the ISO. The image contains GPT,
 
 ## 12. Limitations of the current branch
 
-MyOS is not a replacement for Linux, Windows, or BSD. On `gui/bringup` there is currently no networking, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, a full native C compiler, or production security hardening. The restricted native assembler is implemented, but the GUI remains a bounded framebuffer environment rather than a general-purpose desktop.
+MyOS is not a replacement for Linux, Windows, or BSD. On `feature/gui` there is currently no networking, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, a full native C compiler, or production security hardening. The restricted native assembler is implemented, but the GUI remains a bounded framebuffer environment rather than a general-purpose desktop.
 
 If a build or run fails, do `make clean`, then `make all img`, `make smoke`, and `make regression`. The `smoke` command headlessly checks BIOS and UEFI boot markers, persistent AHCI mount, and automatic `[myos]$` entry. The `regression` command uses a disposable image copy: it creates and saves the default GUI note through the mouse `EDIT NOTE` tile, injects QMP PS/2 `Alt+Tab` for MONITOR focus, `Alt+F4` to close focused MONITOR, `Esc` for viewer return, `Alt+F4` for editor cancel-to-viewer and `Ctrl+Q` for clean exit, then exercises the centered NOTES launcher tile, SYSTEM/MONITOR window close controls, MONITOR title-bar raise, viewer close-to-home and editor cancel-to-viewer with PPM framebuffer transitions. It also retains a BIOS `startgui home` alias check, uses SDK `cp` to copy an editor-authored 305-byte file across its 256-byte request boundary, verifies exact target data and rejects overwrite, builds and installs native packages in BIOS, verifies legacy forward-only branches, empty and forwarded native arguments, `input` exact-match and fallback paths, valid `HH:MM:SS` RTC output, and rejected invalid control flow, then verifies persisted files, the `cp` target and installed input/time/argument packages through UEFI. Both commands do not replace a physical-PC test. After that repeat the QEMU command from section 3. For host-platform setup use [PLATFORMS.md](PLATFORMS.md), for release gates use [RELEASE_STABILIZATION.md](RELEASE_STABILIZATION.md), and for technical diagnostics use [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).

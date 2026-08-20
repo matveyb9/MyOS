@@ -12,7 +12,7 @@ This guide explains which MyOS line to choose, which references must not change,
 |---|---|---|
 | `console-stable` | Reviewed console operating-system baseline. | Stable line at `v0.12.1-console`. |
 | `main` | Maintained console line. | Console maintenance and documentation only. |
-| `gui/bringup` | GUI and native-development line. | Experimental; never merged into `main` automatically. |
+| `feature/gui` | GUI and native-development line. | Experimental; never merged into `main` automatically. |
 | `feature/console-ux` | Historical feature branch. | Retained for history and comparison. |
 
 ## Immutable checkpoints
@@ -32,7 +32,7 @@ This guide explains which MyOS line to choose, which references must not change,
 |---|---|
 | Use the reviewed console OS | `git switch main` or `git switch console-stable`. |
 | Study a particular checkpoint | `git switch --detach <tag>`. |
-| Continue GUI or native-development work | `git switch gui/bringup`. |
+| Continue GUI or native-development work | `git switch feature/gui`. |
 | Fix the console line | Create a separate branch from `main`. |
 
 ## Bilingual commits
@@ -133,7 +133,7 @@ Before a new tag, run applicable checks, confirm a clean Git tree and obtain exp
 make release-check
 git status --short
 git tag --list
-git push origin main console-stable feature/console-ux gui/bringup
+git push origin main console-stable feature/console-ux feature/gui
 ```
 
 Publishing a tag, GitHub Release or Pre-release always requires separate confirmation. It is never a side effect of an ordinary documentation or code commit.

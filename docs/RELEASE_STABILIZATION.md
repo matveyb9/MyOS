@@ -5,7 +5,7 @@
 </p>
 
 
-> **Status:** active checklist for branch `gui/bringup`. It does not create a release tag and does not allow automatic merge into `main`. Its purpose is to provide reproducible evidence prior to a separate decision on the first stable GUI release.
+> **Status:** active checklist for branch `feature/gui`. It does not create a release tag and does not allow automatic merge into `main`. Its purpose is to provide reproducible evidence prior to a separate decision on the first stable GUI release.
 
 ## Automated checks
 

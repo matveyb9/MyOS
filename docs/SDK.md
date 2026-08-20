@@ -113,7 +113,7 @@ MYPFS004 provides a real file hierarchy and dynamic multi-extent regular files: 
 
 ## Milestone validation
 
-Validation was performed on the `gui/bringup` branch in QEMU Q35 BIOS with raw `myos.img` attached via `-drive if=ide,format=raw,file=myos.img`.
+Validation was performed on the `feature/gui` branch in QEMU Q35 BIOS with raw `myos.img` attached via `-drive if=ide,format=raw,file=myos.img`.
 
 | Check | Result |
 |---|---|

@@ -7,9 +7,9 @@
 
 
 
-This document describes the current development line **`gui/bringup`** of MyOS. It is intended for developers, systems programmers and readers who need a map of the source tree and the technical invariants. The stable console boundary remains the immutable tag `v0.12.1-console`; current GUI, SDK and MYPFS004 changes are not merged into it without a separate release decision.
+This document describes the current development line **`feature/gui`** of MyOS. It is intended for developers, systems programmers and readers who need a map of the source tree and the technical invariants. The stable console boundary remains the immutable tag `v0.12.1-console`; current GUI, SDK and MYPFS004 changes are not merged into it without a separate release decision.
 
-> `main` and `console-stable` keep the console scope. GUI experiments, MYPFS004 and the user-program platform are developed only in `gui/bringup` and must not change the console release automatically.
+> `main` and `console-stable` keep the console scope. GUI experiments, MYPFS004 and the user-program platform are developed only in `feature/gui` and must not change the console release automatically.
 
 ## 1. Build and test contract
 
@@ -201,7 +201,7 @@ Before committing a console change, at minimum perform:
 | `v0.12.0-console` | Do not move or rewrite. It freezes the completed console OS. |
 | `main` | Console release branch. Restrict changes to release fixes, documentation and explicitly approved console maintenance. |
 | `console-stable` | Optional maintenance line at the same baseline. Cherry-pick tested fixes deliberately. |
-| `gui/bringup` | Separate GUI experimentation. Do not merge it into `main` unless a future GUI release is explicitly approved. |
+| `feature/gui` | Separate GUI experimentation. Do not merge it into `main` unless a future GUI release is explicitly approved. |
 
 A normal GitHub publication should push `main`, `console-stable` and the annotated console tag. Build artifacts `myos.iso` and `myos.img` are release attachments, not Git-tracked source files.
 

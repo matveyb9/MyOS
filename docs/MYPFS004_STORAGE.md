@@ -5,7 +5,7 @@
 </p>
 
 
-> **Status:** implemented and verified in `gui/bringup`. MYPFS004 replaces the fixed single-extent allocator MYPFS003 without changing the visible tree `/system`, `/apps`, `/users/myos` and `/temp`.
+> **Status:** implemented and verified in `feature/gui`. MYPFS004 replaces the fixed single-extent allocator MYPFS003 without changing the visible tree `/system`, `/apps`, `/users/myos` and `/temp`.
 
 ## Purpose
 

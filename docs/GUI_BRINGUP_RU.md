@@ -5,14 +5,14 @@
 </p>
 
 
-Этот документ описывает **экспериментальный GUI** только для ветки `gui/bringup`. Он не входит в стабильный console release `v0.12.1-console` и не изменяет назначение веток `main` или `console-stable`. GUI остаётся нативным x86_64-компонентом MyOS: он рисуется непосредственно в RGB framebuffer, без web runtime, внешнего graphical toolkit или dynamic memory allocation.
+Этот документ описывает **экспериментальный GUI** только для ветки `feature/gui`. Он не входит в стабильный console release `v0.12.1-console` и не изменяет назначение веток `main` или `console-stable`. GUI остаётся нативным x86_64-компонентом MyOS: он рисуется непосредственно в RGB framebuffer, без web runtime, внешнего graphical toolkit или dynamic memory allocation.
 
 ## Запуск
 
 Сначала необходимо переключиться на GUI-ветку и собрать raw image. Для проверки persistent storage образ следует подключать к QEMU как IDE-диск.
 
 ```bash
-git switch gui/bringup
+git switch feature/gui
 make all img
 qemu-system-x86_64 \
   -machine q35 -m 256M \
@@ -178,4 +178,4 @@ Automatic user-space initialization теперь реализована и ин�
 | Input source | Cancel path работает через существующие PS/2 keyboard и serial console input paths. |
 | Проверка | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback и UEFI normal boot с чистым user-shell framebuffer прошли на QEMU Q35. |
 
-GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`, а GitHub Pre-release `v0.13.0-gui-rc.1` опубликован отдельно. Текущая ветка `gui/bringup` содержит MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, MyOS SDK для внешней сборки с public bounded VFS wrappers и его live no-overwrite `cp` developer tool, а также restricted in-OS `asm`/`build` workflow с bounded `args` forwarding из `run <name> [arguments]`, labels, явными `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison и forward-only branches. Generated image добавляет только fixed private RW data segment размером 32 bytes: entry argument pointer и input/time scratch storage. Ветка также содержит bounded mouse-first desktop launcher, открываемый `startgui` (с `startgui home` как alias), per-window controls подъёма по title bar и закрытия, общий console [Текстовый редактор](TEXT_EDITOR_RU.md) и cursor-only GUI pointer refresh. GUI editor остаётся notes-focused feature; direct `edit <absolute-file>` — общий file editor. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); будущая native-platform work должна сохранять completed bounded execution contract.
+GUI preview boundary зафиксирована immutable tag `v0.12.2-gui-preview`, а GitHub Pre-release `v0.13.0-gui-rc.1` опубликован отдельно. Текущая ветка `feature/gui` содержит MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, MyOS SDK для внешней сборки с public bounded VFS wrappers и его live no-overwrite `cp` developer tool, а также restricted in-OS `asm`/`build` workflow с bounded `args` forwarding из `run <name> [arguments]`, labels, явными `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison и forward-only branches. Generated image добавляет только fixed private RW data segment размером 32 bytes: entry argument pointer и input/time scratch storage. Ветка также содержит bounded mouse-first desktop launcher, открываемый `startgui` (с `startgui home` как alias), per-window controls подъёма по title bar и закрытия, общий console [Текстовый редактор](TEXT_EDITOR_RU.md) и cursor-only GUI pointer refresh. GUI editor остаётся notes-focused feature; direct `edit <absolute-file>` — общий file editor. Каталожная структура была совместно согласована с пользователем и зафиксирована в [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md); будущая native-platform work должна сохранять completed bounded execution contract.

@@ -7,9 +7,9 @@
 
 
 
-Этот документ описывает текущую development line **`gui/bringup`** MyOS. Он предназначен для разработчиков, системных программистов и читателей, которым нужна карта исходного кода и технические инварианты. Стабильная console boundary остаётся immutable тегом `v0.12.1-console`; текущие GUI, SDK и MYPFS004 changes не переносятся в неё без отдельного release decision.
+Этот документ описывает текущую development line **`feature/gui`** MyOS. Он предназначен для разработчиков, системных программистов и читателей, которым нужна карта исходного кода и технические инварианты. Стабильная console boundary остаётся immutable тегом `v0.12.1-console`; текущие GUI, SDK и MYPFS004 changes не переносятся в неё без отдельного release decision.
 
-> `main` и `console-stable` сохраняют console scope. GUI experiments, MYPFS004 и user-program platform развиваются только в `gui/bringup` и не должны менять console release автоматически.
+> `main` и `console-stable` сохраняют console scope. GUI experiments, MYPFS004 и user-program platform развиваются только в `feature/gui` и не должны менять console release автоматически.
 
 ## 1. Build и test contract
 
@@ -201,7 +201,7 @@ Before committing a console change, at minimum perform:
 | `v0.12.0-console` | Do not move or rewrite. It freezes the completed console OS. |
 | `main` | Console release branch. Restrict changes to release fixes, documentation and explicitly approved console maintenance. |
 | `console-stable` | Optional maintenance line at the same baseline. Cherry-pick tested fixes deliberately. |
-| `gui/bringup` | Separate GUI experimentation. Do not merge it into `main` unless a future GUI release is explicitly approved. |
+| `feature/gui` | Separate GUI experimentation. Do not merge it into `main` unless a future GUI release is explicitly approved. |
 
 A normal GitHub publication should push `main`, `console-stable` and the annotated console tag. Build artifacts `myos.iso` and `myos.img` are release attachments, not Git-tracked source files.
 

@@ -12,7 +12,7 @@
 |---|---|---|
 | `console-stable` | Проверенный baseline консольной ОС. | Стабильная линия на `v0.12.1-console`. |
 | `main` | Поддерживаемая консольная линия. | Только console maintenance и документация. |
-| `gui/bringup` | GUI и native-development line. | Экспериментальная, не сливается в `main` автоматически. |
+| `feature/gui` | GUI и native-development line. | Экспериментальная, не сливается в `main` автоматически. |
 | `feature/console-ux` | Историческая feature branch. | Сохранена для истории и сравнения. |
 
 ## Неизменяемые checkpoints
@@ -32,7 +32,7 @@
 |---|---|
 | Использовать проверенную консольную ОС | `git switch main` или `git switch console-stable`. |
 | Изучить конкретный checkpoint | `git switch --detach <tag>`. |
-| Продолжить GUI или native-development work | `git switch gui/bringup`. |
+| Продолжить GUI или native-development work | `git switch feature/gui`. |
 | Исправить консольную линию | Создать отдельную branch от `main`. |
 
 ## Двуязычные commits
@@ -133,7 +133,7 @@ Release description всегда содержит два равноправны�
 make release-check
 git status --short
 git tag --list
-git push origin main console-stable feature/console-ux gui/bringup
+git push origin main console-stable feature/console-ux feature/gui
 ```
 
 Публикация tag, GitHub Release или Pre-release выполняется только после отдельного подтверждения. Она не является побочным эффектом обычного documentation или code commit.

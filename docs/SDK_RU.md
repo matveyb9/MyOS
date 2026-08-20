@@ -113,7 +113,7 @@ MYPFS004 предоставляет настоящую файловую иера
 
 ## Проверка milestone
 
-Проверка выполнялась на ветке `gui/bringup` в QEMU Q35 BIOS с raw `myos.img`, подключённым через `-drive if=ide,format=raw,file=myos.img`.
+Проверка выполнялась на ветке `feature/gui` в QEMU Q35 BIOS с raw `myos.img`, подключённым через `-drive if=ide,format=raw,file=myos.img`.
 
 | Проверка | Результат |
 |---|---|

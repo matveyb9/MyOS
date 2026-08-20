@@ -8,13 +8,13 @@
 
 <h2 align="center">Статус</h2>
 
-Стабильная консольная граница закреплена тегом [`v0.12.1-console`](docs/RELEASES_RU.md). Текущая работа над графическим интерфейсом и пользовательскими программами изолирована в ветке [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); это **экспериментальная** линия, которая не переносится в `main` автоматически. Ветка содержит BIOS/UEFI boot paths, persistent MYPFS004 storage, framebuffer GUI с bounded mouse-first desktop launcher, открываемым через `startgui` и обнаруживающим до четырёх installed tiles `/apps/<name>/main.elf`, per-window controls подъёма по title bar и закрытия, общий bounded text editor, persistent ELF packages, MyOS SDK с bounded public VFS subset и live `cp` developer tool, а также встроенный assembler с bounded program-argument forwarding, single-byte input, RTC output `HH:MM:SS`, метками, явными condition values, exact-byte comparison и forward-only безусловными или условными переходами.
+Стабильная консольная граница закреплена тегом [`v0.12.1-console`](docs/RELEASES_RU.md). Текущая работа над графическим интерфейсом и пользовательскими программами изолирована в ветке [`feature/gui`](https://github.com/matveyb9/MyOS/tree/feature/gui); это **экспериментальная** линия, которая не переносится в `main` автоматически. Ветка содержит BIOS/UEFI boot paths, persistent MYPFS004 storage, framebuffer GUI с bounded mouse-first desktop launcher, открываемым через `startgui` и обнаруживающим до четырёх installed tiles `/apps/<name>/main.elf`, per-window controls подъёма по title bar и закрытия, общий bounded text editor, persistent ELF packages, MyOS SDK с bounded public VFS subset и live `cp` developer tool, а также встроенный assembler с bounded program-argument forwarding, single-byte input, RTC output `HH:MM:SS`, метками, явными condition values, exact-byte comparison и forward-only безусловными или условными переходами.
 
 | Линия | Назначение | Состояние |
 |---|---|---|
 | `console-stable` | Проверенный baseline консольной ОС. | Стабильная линия, тег `v0.12.1-console`. |
 | `main` | Поддержка консольной ОС и документационный baseline. | Поддерживаемая консольная линия. |
-| `gui/bringup` | GUI и среда разработки пользовательских программ. | Экспериментальная development line. |
+| `feature/gui` | GUI и среда разработки пользовательских программ. | Экспериментальная development line. |
 
 <h2 align="center">Быстрый старт</h2>
 
@@ -23,7 +23,7 @@
 ```bash
 git clone https://github.com/matveyb9/MyOS.git myos
 cd myos
-git switch gui/bringup
+git switch feature/gui
 make all img
 ```
 

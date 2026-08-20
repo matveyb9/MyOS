@@ -5,14 +5,14 @@
 </p>
 
 
-This document describes the experimental GUI only for the `gui/bringup` branch. It is not part of the stable console release `v0.12.1-console` and does not change the purpose of the `main` or `console-stable` branches. The GUI remains a native x86_64 component of MyOS: it is drawn directly into the RGB framebuffer, without a web runtime, external graphical toolkit or dynamic memory allocation.
+This document describes the experimental GUI only for the `feature/gui` branch. It is not part of the stable console release `v0.12.1-console` and does not change the purpose of the `main` or `console-stable` branches. The GUI remains a native x86_64 component of MyOS: it is drawn directly into the RGB framebuffer, without a web runtime, external graphical toolkit or dynamic memory allocation.
 
 ## Launch
 
 First switch to the GUI branch and build the raw image. For testing persistent storage, the image should be attached to QEMU as an IDE disk.
 
 ```bash
-git switch gui/bringup
+git switch feature/gui
 make all img
 qemu-system-x86_64 \
   -machine q35 -m 256M \
@@ -178,4 +178,4 @@ Automatic user-space initialization is now implemented and integrated into the G
 | Input source | The cancel path works via existing PS/2 keyboard and serial console input paths. |
 | Verification | BIOS normal boot, PS/2 `K` cancellation, manual `init`, isolated no-init fallback and UEFI normal boot with a clean user-shell framebuffer passed on QEMU Q35. |
 
-The GUI preview boundary is fixed at the immutable tag `v0.12.2-gui-preview`, and the GitHub Pre-release `v0.13.0-gui-rc.1` was published separately. The current `gui/bringup` branch contains the MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, the MyOS SDK for external build with public bounded VFS wrappers and its live no-overwrite `cp` developer tool, and a restricted in-OS `asm`/`build` workflow with bounded `args` forwarding from `run <name> [arguments]`, labels, explicit `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison and forward-only branches. Its generated image adds only a fixed private 32-byte RW data segment: an entry argument pointer plus input/time scratch storage. The branch also contains the bounded mouse-first desktop launcher entered by `startgui` (with `startgui home` as an alias), per-window title-bar raise and close controls, the general console [Text Editor](TEXT_EDITOR.md) and cursor-only GUI pointer refresh. The GUI editor remains a notes-focused feature; direct `edit <absolute-file>` is the general file editor. The directory layout was jointly agreed with the user and recorded in [FILESYSTEM_SPEC.md](FILESYSTEM_SPEC.md); future native-platform work must preserve the completed bounded execution contract.
+The GUI preview boundary is fixed at the immutable tag `v0.12.2-gui-preview`, and the GitHub Pre-release `v0.13.0-gui-rc.1` was published separately. The current `feature/gui` branch contains the MYPFS004 hierarchy, 8 MiB dynamic large-file storage, `/apps` ELF execution, the MyOS SDK for external build with public bounded VFS wrappers and its live no-overwrite `cp` developer tool, and a restricted in-OS `asm`/`build` workflow with bounded `args` forwarding from `run <name> [arguments]`, labels, explicit `set` values, single-byte `input`, RTC `time`, exact `jump_if <0..255>` comparison and forward-only branches. Its generated image adds only a fixed private 32-byte RW data segment: an entry argument pointer plus input/time scratch storage. The branch also contains the bounded mouse-first desktop launcher entered by `startgui` (with `startgui home` as an alias), per-window title-bar raise and close controls, the general console [Text Editor](TEXT_EDITOR.md) and cursor-only GUI pointer refresh. The GUI editor remains a notes-focused feature; direct `edit <absolute-file>` is the general file editor. The directory layout was jointly agreed with the user and recorded in [FILESYSTEM_SPEC.md](FILESYSTEM_SPEC.md); future native-platform work must preserve the completed bounded execution contract.

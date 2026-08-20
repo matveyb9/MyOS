@@ -34,7 +34,7 @@ If you downloaded a GitHub ZIP archive, unpack it and open its root. ZIP contain
 The published default branch is the console-maintenance `main`. To build the current GUI development line after cloning, select it explicitly:
 
 ```bash
-git switch gui/bringup
+git switch feature/gui
 ```
 
 For every verified path, the main build command is:
@@ -120,7 +120,7 @@ sudo apt install build-essential nasm xorriso mtools gdisk qemu-system-x86 ovmf 
 cd ~
 git clone https://github.com/matveyb9/MyOS.git myos
 cd myos
-git switch gui/bringup
+git switch feature/gui
 make all img
 ```
 

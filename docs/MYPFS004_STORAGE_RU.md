@@ -5,7 +5,7 @@
 </p>
 
 
-> **Статус:** реализовано и проверено в `gui/bringup`. MYPFS004 заменяет fixed single-extent allocator MYPFS003, не меняя видимое дерево `/system`, `/apps`, `/users/myos` и `/temp`.
+> **Статус:** реализовано и проверено в `feature/gui`. MYPFS004 заменяет fixed single-extent allocator MYPFS003, не меняя видимое дерево `/system`, `/apps`, `/users/myos` и `/temp`.
 
 ## Цель
 

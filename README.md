@@ -8,13 +8,13 @@
 
 <h2 align="center">Status</h2>
 
-The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current graphical and user-program work is isolated in [`gui/bringup`](https://github.com/matveyb9/MyOS/tree/gui/bringup); it is **experimental** and is not merged into `main` automatically. This branch includes BIOS/UEFI boot paths, MYPFS004 persistent storage, framebuffer GUI with a bounded mouse-first `startgui` desktop launcher that discovers up to four installed `/apps/<name>/main.elf` tiles, per-window title-bar raise and close controls, a general bounded text editor, persistent ELF packages, the MyOS SDK with a bounded public VFS subset and live `cp` developer tool, and an in-OS assembler with bounded program-argument forwarding, single-byte input, RTC `HH:MM:SS` output, labels, explicit condition values, exact-byte comparison and forward-only unconditional or conditional jumps.
+The stable console baseline is [`v0.12.1-console`](docs/RELEASES.md). Current graphical and user-program work is isolated in [`feature/gui`](https://github.com/matveyb9/MyOS/tree/feature/gui); it is **experimental** and is not merged into `main` automatically. This branch includes BIOS/UEFI boot paths, MYPFS004 persistent storage, framebuffer GUI with a bounded mouse-first `startgui` desktop launcher that discovers up to four installed `/apps/<name>/main.elf` tiles, per-window title-bar raise and close controls, a general bounded text editor, persistent ELF packages, the MyOS SDK with a bounded public VFS subset and live `cp` developer tool, and an in-OS assembler with bounded program-argument forwarding, single-byte input, RTC `HH:MM:SS` output, labels, explicit condition values, exact-byte comparison and forward-only unconditional or conditional jumps.
 
 | Line | Purpose | State |
 |---|---|---|
 | `console-stable` | Reviewed console baseline. | Stable, tagged `v0.12.1-console`. |
 | `main` | Console maintenance and documentation baseline. | Supported console line. |
-| `gui/bringup` | GUI and native-development work. | Experimental development line. |
+| `feature/gui` | GUI and native-development work. | Experimental development line. |
 
 <h2 align="center">Quick start</h2>
 
@@ -23,7 +23,7 @@ Clone the repository and choose the branch you want to run. The commands below s
 ```bash
 git clone https://github.com/matveyb9/MyOS.git myos
 cd myos
-git switch gui/bringup
+git switch feature/gui
 make all img
 ```
 
