@@ -88,7 +88,7 @@ Boot-компоненты Limine, `kernel.elf`, boot configuration и raw initra
 
 ### File Workspace v1
 
-GUI file manager является ring-3 navigation client, а не новым filesystem backend. Он показывает bounded path tail в content, полный current path в title окна, parent row, paging controls и четыре VFS-enumerated rows. Перед входом в directory или открытием file ring 3 повторяет enumeration clicked slot и строит child path только из printable entry name без `/`. Это даёт пользователю свободный read-only traversal видимой hierarchy, сохраняя VFS type и write policy. Graphical workflow намеренно не включает create, rename, delete, copy/move, package install и raw-device operations; shell tools остаются authoritative interface для этих mutations.
+GUI file manager является ring-3 navigation client, а не новым filesystem backend. Он показывает bounded path tail в content, полный current path в title окна, parent row, paging controls и четыре VFS-enumerated rows. Перед входом в directory или открытием file ring 3 повторяет enumeration clicked slot и строит child path только из printable entry name без `/`. Это даёт пользователю свободный read-only traversal видимой hierarchy, сохраняя VFS type и write policy. Graphical workflow намеренно не включает create, rename, delete, copy/move, package install и raw-device operations; shell tools, включая direct `cp`, остаются authoritative interface для этих mutations.
 
 ## 5. System Inventory: runtime boot, drivers, devices и processes
 

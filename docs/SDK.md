@@ -85,11 +85,11 @@ run sdk-hello external SDK validation
 
 The expected output contains `Hello from MyOS SDK!` and the line `Arguments: external SDK validation`. `install` creates a persistent package directory `/apps/sdk-hello/` and copies the ELF as `main.elf`; `run` creates a new user task and passes the remainder of the command line as arguments. After a reboot it is sufficient to run `run sdk-hello persisted`: reinstallation is not required.
 
-The image also stages the SDK-built practical copy tool as the live app `cp`. It needs two absolute paths; its destination must not yet exist and its parent directory must already exist. This conservative rule prevents an accidental overwrite or source loss. For example:
+The image also stages the SDK-built practical copy tool as the live app `cp`. Direct shell `cp` invokes it, while `run cp` remains a compatibility form. It needs two absolute paths; its destination must not yet exist and its parent directory must already exist. This conservative rule prevents an accidental overwrite or source loss. For example:
 
 ```text
 write /users/myos/files/source.txt MyOS SDK copy
-run cp /users/myos/files/source.txt /users/myos/files/target.txt
+cp /users/myos/files/source.txt /users/myos/files/target.txt
 cat /users/myos/files/target.txt
 ```
 
@@ -113,7 +113,7 @@ It writes exactly `sdk-write: persistent VFS example\n` in one public VFS write 
 | Length of absolute program path | Up to 111 visible ASCII bytes plus NUL terminator. |
 | Length of passed arguments string | Up to 127 visible bytes plus NUL terminator. |
 | Initramfs staging paths of the examples | `/system/core/examples/sdk/hello.elf` and `/system/core/examples/sdk/write.elf`. |
-| Live SDK tool path | `/system/core/apps/cp.elf`, resolved as `run cp`. |
+| Live SDK tool path | `/system/core/apps/cp.elf`, invoked directly as `cp`; `run cp` remains compatible. |
 | `cp` and `sdk-write` target rule | Absolute path, absent target, and an already-existing parent directory; existing targets are never overwritten. |
 
 ## How to replace the example with your own program
@@ -134,7 +134,7 @@ Validation was performed on the `feature/gui` branch in QEMU Q35 BIOS with raw `
 | Install and run | `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`, then `run sdk-hello external SDK validation` printed the greeting and the full argument string; status `0`. |
 | Persistence | After a fresh BIOS boot `run sdk-hello persisted` successfully runs the previously installed ELF from the MYPFS004 application package. |
 | UEFI execution | OVMF boot with the same `myos.img` successfully ran the persisted app with `run sdk-hello uefi`. |
-| SDK VFS copy | The SDK-built live `cp` copied an editor-authored 305-byte persistent file across the 256-byte request boundary, rejected a second overwrite attempt, and its exact target data persisted through UEFI. |
+| SDK VFS copy | Direct shell `cp` invoked the SDK-built live tool to copy an editor-authored 305-byte persistent file across the 256-byte request boundary, rejected a second overwrite attempt, and its exact target data persisted through UEFI; `run cp` compatibility also rejects the existing target. |
 | SDK VFS write | The packaged `sdk-write` example created a new persistent target, wrote its exact fixed payload, rejected an overwrite attempt, then the installed package created and read back another target after UEFI boot. |
 
 ## Not included in this milestone

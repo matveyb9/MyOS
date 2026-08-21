@@ -85,11 +85,11 @@ run sdk-hello external SDK validation
 
 Ожидаемый вывод содержит `Hello from MyOS SDK!` и строку `Arguments: external SDK validation`. `install` создаёт persistent package directory `/apps/sdk-hello/` и копирует ELF как `main.elf`; `run` создаёт новый user task и передаёт оставшуюся часть command line как аргументы. После reboot достаточно выполнить `run sdk-hello persisted`: повторная установка не требуется.
 
-Образ также stage-ит SDK-built practical copy tool как live app `cp`. Ему нужны два absolute paths; destination не должна существовать, а её parent directory уже должна существовать. Это conservative rule предотвращает accidental overwrite или source loss. Пример:
+Образ также stage-ит SDK-built practical copy tool как live app `cp`. Direct shell `cp` вызывает его, а `run cp` остаётся compatibility form. Ему нужны два absolute paths; destination не должна существовать, а её parent directory уже должна существовать. Это conservative rule предотвращает accidental overwrite или source loss. Пример:
 
 ```text
 write /users/myos/files/source.txt MyOS SDK copy
-run cp /users/myos/files/source.txt /users/myos/files/target.txt
+cp /users/myos/files/source.txt /users/myos/files/target.txt
 cat /users/myos/files/target.txt
 ```
 
@@ -113,7 +113,7 @@ cat /users/myos/files/sdk-write-example.txt
 | Длина absolute program path | До 111 visible ASCII bytes плюс NUL terminator. |
 | Длина передаваемой строки arguments | До 127 visible bytes плюс NUL terminator. |
 | Initramfs staging paths примеров | `/system/core/examples/sdk/hello.elf` и `/system/core/examples/sdk/write.elf`. |
-| Live SDK tool path | `/system/core/apps/cp.elf`, resolved как `run cp`. |
+| Live SDK tool path | `/system/core/apps/cp.elf`, вызывается напрямую как `cp`; `run cp` остаётся compatible. |
 | Target rule `cp` и `sdk-write` | Absolute path, absent target и already-existing parent directory; existing targets никогда не перезаписываются. |
 
 ## Как заменить пример своей программой
@@ -134,7 +134,7 @@ MYPFS004 предоставляет настоящую файловую иера
 | Install and run | `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`, затем `run sdk-hello external SDK validation` вывели приветствие и полную строку аргументов; status `0`. |
 | Persistence | После fresh BIOS boot `run sdk-hello persisted` успешно запускает ранее установленный ELF из MYPFS004 application package. |
 | UEFI execution | OVMF boot с тем же `myos.img` успешно запустил persisted app командой `run sdk-hello uefi`. |
-| SDK VFS copy | SDK-built live `cp` скопировал editor-authored persistent file размером 305 bytes через 256-byte request boundary, отклонил вторую overwrite attempt, а exact target data сохранились после UEFI. |
+| SDK VFS copy | Direct shell `cp` вызвал SDK-built live tool и скопировал editor-authored persistent file размером 305 bytes через 256-byte request boundary, отклонил вторую overwrite attempt, а exact target data сохранились после UEFI; compatibility `run cp` также отклоняет existing target. |
 | SDK VFS write | Packaged example `sdk-write` создал новый persistent target, записал exact fixed payload, отклонил overwrite attempt, затем установленный package создал и прочитал другой target после UEFI boot. |
 
 ## Не входит в данный этап

@@ -88,7 +88,7 @@ A future separate milestone may add personal application installation in `/users
 
 ### File Workspace v1
 
-The GUI file manager is a ring-3 navigation client, not another filesystem backend. It displays a bounded path tail in content, the complete current path in the window title, a parent row, paging controls and four VFS-enumerated rows. Before entering a directory or opening a file, ring 3 repeats enumeration for the clicked slot and builds a child path only from a printable entry name without `/`. This gives the user free read-only traversal of the visible hierarchy while preserving the VFS type and write policy. The graphical workflow deliberately omits create, rename, delete, copy/move, package install and raw-device operations; shell tools remain the authoritative interface for those mutations.
+The GUI file manager is a ring-3 navigation client, not another filesystem backend. It displays a bounded path tail in content, the complete current path in the window title, a parent row, paging controls and four VFS-enumerated rows. Before entering a directory or opening a file, ring 3 repeats enumeration for the clicked slot and builds a child path only from a printable entry name without `/`. This gives the user free read-only traversal of the visible hierarchy while preserving the VFS type and write policy. The graphical workflow deliberately omits create, rename, delete, copy/move, package install and raw-device operations; shell tools, including direct `cp`, remain the authoritative interface for those mutations.
 
 ## 5. System Inventory: runtime boot, drivers, devices and processes
 

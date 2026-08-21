@@ -698,16 +698,18 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: editor text readback is not exact\n{guest._tail()}")
         copy_payload = b"copy:" + b"x" * 300
         guest.console_edit_and_save(COPY_SOURCE_PATH, copy_payload)
+        guest.command("help cp", "run cp remains a compatibility form.")
         copy_start = len(guest.output)
-        guest.command(f"run cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "exited with status 0")
+        guest.command(f"cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "Copied 305 byte(s)")
         copy_output = bytes(guest.output[copy_start:])
         if b"Copied 305 byte(s)" not in copy_output:
-            raise RegressionFailure(f"BIOS: SDK cp did not report a 305-byte copy\n{guest._tail()}")
+            raise RegressionFailure(f"BIOS: direct shell cp did not report a 305-byte copy\n{guest._tail()}")
         copy_read_start = len(guest.output)
         guest.command(f"cat {COPY_TARGET_PATH}", "copy:")
         copy_read_output = bytes(guest.output[copy_read_start:])
         if copy_payload not in copy_read_output:
             raise RegressionFailure(f"BIOS: SDK cp target readback is not exact\n{guest._tail()}")
+        guest.command(f"cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
         guest.command(f"run cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
@@ -841,7 +843,7 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: sdk-write payload readback is not exact\\n{guest._tail()}")
         guest.command(f"run sdk-write {SDK_WRITE_BIOS_TARGET}", "target must not exist")
         guest.command(f"rm {DEFAULT_GUI_NOTE_PATH}", f"Removed {DEFAULT_GUI_NOTE_PATH}")
-        guest.command(f"run cp {GUI_EDITOR_FIXTURE_PATH} {DEFAULT_GUI_NOTE_PATH}",
+        guest.command(f"cp {GUI_EDITOR_FIXTURE_PATH} {DEFAULT_GUI_NOTE_PATH}",
                       f"Copied {GUI_EDITOR_FIXTURE_LENGTH} byte(s)")
         guest.gui_save_large_note_and_exit()
         large_gui_start = len(guest.output)
@@ -918,7 +920,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         copy_read_output = bytes(guest.output[copy_read_start:])
         if copy_payload not in copy_read_output:
             raise RegressionFailure(f"UEFI: persisted SDK cp target readback is not exact\n{guest._tail()}")
-        guest.command(f"run cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
+        guest.command(f"cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
         sdk_write_bios_read_start = len(guest.output)
         guest.command(f"cat {SDK_WRITE_BIOS_TARGET}", "sdk-write: persistent VFS example")
         if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_bios_read_start:]).replace(b"\r", b""):
