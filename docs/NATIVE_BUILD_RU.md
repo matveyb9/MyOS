@@ -49,7 +49,9 @@ Statements разделяются `;` или концом строки. `#` на
 | `input` | Блокируется до получения одного байта через `MYOS_SYS_READ`, отбрасывает `CR` и `LF` и сохраняет полученный unsigned byte (`0..255`) как текущее condition value. Поэтому после terminal-команды он пропускает line delimiter и принимает следующий значимый байт. |
 | `time` | Читает RTC через `MYOS_SYS_RTC_TIME` и выводит одну строку из девяти байт `HH:MM:SS\n`. Source-level arguments и time arithmetic отсутствуют. |
 | `args` | Выводит exact NUL-terminated argument string, переданную после `run <name>`, не более 127 visible bytes. При отсутствии parameters ничего не выводит, не добавляет newline и не изменяет текущее condition value. |
-| `set <0..255>` | Сохраняет одно явное unsigned condition value для последующих conditional jumps. Arithmetic не добавляется. |
+| `set <0..255>` | Сохраняет одно явное unsigned condition value для последующих arithmetic или conditional jumps. |
+| `add <0..255>` | Прибавляет один unsigned byte к initialized current condition с wrapping modulo 256. |
+| `sub <0..255>` | Вычитает один unsigned byte из initialized current condition с wrapping modulo 256. |
 | `store <0..7>` | Копирует current unsigned condition byte в один из восьми private program-variable slots. Текущее condition value не меняется. |
 | `load <0..7>` | Восстанавливает private program-variable byte как current condition value для последующих conditional jumps. |
 | `jump name` | Безусловно переходит на строго более позднюю label. |
@@ -58,7 +60,7 @@ Statements разделяются `;` или концом строки. `#` на
 | `jump_if <0..255> name` | Переходит на строго более позднюю label, только если текущее condition value точно совпадает с выбранным unsigned byte. |
 | `exit <0..255>` | Вызывает `MYOS_SYS_EXIT` с выбранным status; обязательный final executable statement. |
 
-Conditional jump требует более ранний `input`, `set` или `load`. Каждая инструкция заменяет одно и то же condition value; `store` копирует его без изменения, а `write`, `time` и `label` его не очищают. Target должен существовать и быть расположен позже в source. Это сохраняет source-level paths конечными: loops, backward/current targets и indirect jumps отклоняются. `input` может ждать human или serial input, но не добавляет source-language loop.
+`add` и `sub` требуют более ранний `input`, `set` или `load`; они сохраняют это initialized single condition value, обновляя его modulo 256. Conditional jump также требует это initialized value. `store` копирует его без изменения, а `write`, `time` и `label` его не очищают. Target должен существовать и быть расположен позже в source. Это сохраняет source-level paths конечными: loops, backward/current targets и indirect jumps отклоняются. `input` может ждать human или serial input, но не добавляет source-language loop.
 
 ```text
 # Exact match: только заглавная A выбирает первый путь.
@@ -75,7 +77,7 @@ exit 0
 
 ## Generated code и bounds
 
-Generated entry prologue сохраняет loader-provided argument pointer в fixed private data segment. `args` заново загружает этот pointer, сканирует не более 127 bytes до NUL terminator и выполняет один write syscall, только когда supplied string не пуста. `set` генерирует `mov ebx, imm32`. `input` помещает один байт в data offset `8` через `MYOS_SYS_READ`, перезагружает scratch pointer после syscall boundary, отфильтровывает `CR` и `LF`, затем помещает принятый байт в `EBX`. `time` читает fixed layout `myos_rtc_time` по offset `8` той же private 32-byte area и форматирует часы, минуты и секунды в two decimal digits перед одним write syscall. `store` генерирует один absolute byte store из `BL` в offset `24..31`; `load` генерирует один zero-extending absolute byte load в `EBX` из выбранного slot.
+Generated entry prologue сохраняет loader-provided argument pointer в fixed private data segment. `args` заново загружает этот pointer, сканирует не более 127 bytes до NUL terminator и выполняет один write syscall, только когда supplied string не пуста. `set` генерирует `mov ebx, imm32`. `input` помещает один байт в data offset `8` через `MYOS_SYS_READ`, перезагружает scratch pointer после syscall boundary, отфильтровывает `CR` и `LF`, затем помещает принятый байт в `EBX`. `time` читает fixed layout `myos_rtc_time` по offset `8` той же private 32-byte area и форматирует часы, минуты и секунды в two decimal digits перед одним write syscall. `store` генерирует один absolute byte store из `BL` в offset `24..31`; `load` генерирует один zero-extending absolute byte load в `EBX` из выбранного slot. `add` и `sub` генерируют соответственно `add bl, imm8` и `sub bl, imm8`; поскольку accumulator остаётся zero-extended за пределами `BL`, каждое последующее condition comparison продолжает работать ровно с одним unsigned byte.
 
 Каждый zero/non-zero branch генерирует `test ebx, ebx`, сразу за которым следует fixed-size `JZ rel32` или `JNZ rel32`. `jump_if` генерирует `cmp ebx, imm32`, за которым следует `JZ rel32`. Поэтому generated branches не зависят от flags, оставленных syscall или другой instruction. `jump` остаётся `E9 rel32`, а assembler разрешает все labels до формирования ELF.
 
@@ -83,18 +85,18 @@ Generated entry prologue сохраняет loader-provided argument pointer в 
 |---|---|
 | Source file | Не более 2 047 bytes, чтение bounded VFS requests по 256 bytes. |
 | Text literals | Не более 2 048 bytes суммарно. |
-| Executable statements | Не более 64 суммарных `write`, `args`, `input`, `time`, `set`, `store`, `load`, jump и `exit` instructions. |
+| Executable statements | Не более 64 суммарных `write`, `args`, `input`, `time`, `set`, `add`, `sub`, `store`, `load`, jump и `exit` instructions. |
 | Arguments | Existing loader ABI string из `run <name> [arguments]`, не более 127 visible bytes; `args` только читает и выводит её. |
 | Labels | Не более 16 unique labels; identifiers содержат 1–31 ASCII characters. |
 | Control flow | Forward-only `jump`, `jump_if_zero`, `jump_if_nonzero` и `jump_if`; source-level loops и indirect targets отсутствуют. |
-| Condition | Одно value `0..255` в generated `EBX`, задаваемое `input`, `set` или `load`; arithmetic и user-addressable mutable memory отсутствуют. |
+| Condition | Одно value `0..255` в generated `EBX`, initialized `input`, `set` или `load`; `add` и `sub` обновляют low byte modulo 256. General user-addressable mutable memory отсутствует. |
 | Generated ELF | Не более 8 192 bytes, запись bounded VFS writes по 256 bytes. |
 | ELF layout | Один RX `PT_LOAD` по `0x400000` и fixed RW `PT_LOAD` размером 32 bytes по `0x401000`: bytes `0..7` сохраняют entry argument pointer, bytes `8..23` — private input/time scratch data, а bytes `24..31` — восемь zero-initialized slots `store`/`load`. Relocation, libc и dynamic linker отсутствуют. |
 
-Эти границы сохраняют parsing, target resolution, code generation и storage статичными и проверяемыми. Invalid syntax, duplicate labels, slot вне `0..7`, missing/non-forward targets, conditional jump без `input`, `set` или `load`, malformed paths или output-write failure оставляют shell usable и возвращают non-zero status.
+Эти границы сохраняют parsing, target resolution, code generation и storage статичными и проверяемыми. Invalid syntax, duplicate labels, slot вне `0..7`, arithmetic operand вне `0..255`, `add`/`sub` или conditional jump без `input`, `set` или `load`, missing/non-forward targets, malformed paths или output-write failure оставляют shell usable и возвращают non-zero status.
 
 ```text
-asm: syntax error; load/input/set must precede conditional jumps, store/load slots are 0..7, labels need ':' and jumps must target a later label
+asm: syntax error; set/load/input must precede add/sub and conditional jumps, add/sub are byte values 0..255, store/load slots are 0..7, labels need ':' and jumps must target a later label
 ```
 
 ## Завершённая проверка
@@ -107,8 +109,9 @@ asm: syntax error; load/input/set must precede conditional jumps, store/load slo
 | BIOS native arguments | Один installed package выводит и `[]` без parameters, и `[alpha beta]` для forwarded arguments, сохраняет valid time output и завершается со status `47`. |
 | BIOS RTC output | Та же программа выводит строку, соответствующую допустимым диапазонам `HH:MM:SS`. |
 | BIOS native variables | Собранная программа сохраняет `73` в slot `2`, перезаписывает active condition, загружает slot `2`, выбирает exact-match branch `VAR` и завершается со status `48`. Slot `8` отклоняется. |
+| BIOS byte arithmetic | Вторая программа вычисляет `(250 + 8 - 2) mod 256`, сохраняет и повторно загружает intermediate byte, выбирает zero branch, выводит `ARITH` и завершается со status `49`; uninitialized `add` отклоняется. |
 | Rejection cases | Missing condition, ordinary backward target и exact-conditional backward target возвращают documented syntax diagnostic и status `2`. |
-| UEFI persistence | Установленные input/time, argument и variable packages снова запускаются после UEFI/OVMF boot; `A` выбирает ожидаемый path, `[ovmf args]` выводится из forwarded arguments, package `store`/`load` выбирает `VAR`, а каждая time line остаётся корректной. |
+| UEFI persistence | Установленные input/time, argument и variable packages снова запускаются после UEFI/OVMF boot; `A` выбирает ожидаемый path, `[ovmf args]` выводится из forwarded arguments, package `store`/`load` выбирает `VAR`, persisted arithmetic package выбирает `ARITH`, а каждая time line остаётся корректной. |
 | Automated regression | `make regression` выполняет disposable-image BIOS GUI/editor/native workflow, затем проверяет persistent files и installed native packages при UEFI/OVMF. |
 
 ## Связь с SDK и следующий шаг
