@@ -92,7 +92,7 @@ ls /system/live/processes
 run tree /system
 run find tree /system/core
 run head /system/core/resources/motd.txt 2
-run stat /system/core/resources/motd.txt
+stat /system/core/resources/motd.txt
 run tail /system/core/resources/motd.txt 2
 run sort /system/core/resources/motd.txt
 run stackprobe
@@ -155,7 +155,7 @@ After closing QEMU, reboot using the same `myos.img` and read the persistent fil
 
 ### Native stat lookup
 
-`run stat <absolute-path>` reports the logical VFS **type** and **size** of one existing file, directory or virtual record. For example, `run stat /system/core/resources/motd.txt` reports a `regular` entry and its byte size; `run stat /system/live/boot/info` reports a `virtual` entry. The tool resolves the final path component by scanning at most **128 entries** in its parent through the existing VFS list ABI, matches ASCII names case-insensitively like the filesystem, and performs no writes. It reports `stat: path not found` for an invalid or missing entry.
+`stat <absolute-path>` reports the logical VFS **type** and **size** of one existing file, directory or virtual record. For example, `stat /system/core/resources/motd.txt` reports a `regular` entry and its byte size; `stat /system/live/boot/info` reports a `virtual` entry. `run stat` remains a compatibility form. The tool resolves the final path component by scanning at most **128 entries** in its parent through the existing VFS list ABI, matches ASCII names case-insensitively like the filesystem, and performs no writes. It reports `stat: path not found` for an invalid or missing entry.
 
 ### Native tail view
 
@@ -206,7 +206,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `run find` | `run find tree /system/core` | Case-insensitively search entry names without mutation; accepts one fragment and an optional absolute directory, with limits of 8 levels, 64 entries per directory and 256 scanned entries. |
 | `run stackprobe` | `run stackprobe` | Run the 12 KiB automatic-buffer diagnostic; expected checksum is `1566720`, confirming all four mapped ring-3 stack pages. |
 | `run head` | `run head /system/core/resources/motd.txt 2` | Print the first 10 lines by default, or 1–64 requested lines, from one absolute readable file; VFS I/O uses 256-byte chunks and output is capped at 4 KiB. |
-| `run stat` | `run stat /system/core/resources/motd.txt` | Report the type and byte size of one absolute logical-VFS entry through a bounded scan of at most 128 entries in its parent; never writes storage. |
+| `stat` | `stat /system/core/resources/motd.txt` | Report the type and byte size of one absolute logical-VFS entry through a bounded scan of at most 128 entries in its parent; never writes storage. `run stat` remains compatible. |
 | `run tail` | `run tail /system/core/resources/motd.txt 2` | Print the last 10 lines by default, or 1–64 requested trailing lines, from one absolute readable file; streams 256-byte VFS chunks while retaining only the final 4 KiB. |
 | `run sort` | `run sort /system/core/resources/motd.txt` | Sort up to 64 retained text lines in bytewise ASCII ascending order; each line is capped at 127 bytes and storage is never modified. |
 | `touch` | `touch /users/myos/files/note.txt` | Create an empty persistent file. |

@@ -705,12 +705,13 @@ def run_bios(image_path, work_dir):
         if b"Welcome to MyOS.\nThe initramfs VFS is mounted read-only.\n" not in head_output.replace(b"\r", b""):
             raise RegressionFailure(f"BIOS: head output lacks first two MOTD lines\n{guest._tail()}")
         guest.command("help head", "output is read in 256-byte chunks and capped at 4096 bytes")
+        guest.command("help stat", "run stat remains a compatibility form.")
         stat_start = len(guest.output)
-        guest.command("run stat /system/core/resources/motd.txt", "type: regular")
+        guest.command("stat /system/core/resources/motd.txt", "type: regular")
         stat_output = bytes(guest.output[stat_start:])
         if b"size: 124 bytes" not in stat_output:
-            raise RegressionFailure(f"BIOS: stat output lacks MOTD size\n{guest._tail()}")
-        guest.command("help stat", "bounded parent-directory enumeration")
+            raise RegressionFailure(f"BIOS: direct stat output lacks MOTD size\n{guest._tail()}")
+        guest.command("run stat /system/core/resources/motd.txt", "type: regular")
         tail_start = len(guest.output)
         guest.command("run tail /system/core/resources/motd.txt 2", "The initramfs VFS is mounted read-only.")
         tail_output = bytes(guest.output[tail_start:])
@@ -738,7 +739,7 @@ def run_bios(image_path, work_dir):
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
         guest.gui_files_create_empty_and_exit()
-        guest.command(f"run stat {GUI_NEW_FILE_PATH}", "0 bytes")
+        guest.command(f"stat {GUI_NEW_FILE_PATH}", "0 bytes")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
         guest.gui_open_and_exit("startgui home")
@@ -975,10 +976,10 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if b"Welcome to MyOS.\nThe initramfs VFS is mounted read-only.\n" not in head_output.replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: head output lacks first two MOTD lines\n{guest._tail()}")
         stat_start = len(guest.output)
-        guest.command("run stat /system/core/resources/motd.txt", "type: regular")
+        guest.command("stat /system/core/resources/motd.txt", "type: regular")
         stat_output = bytes(guest.output[stat_start:])
         if b"size: 124 bytes" not in stat_output:
-            raise RegressionFailure(f"UEFI: stat output lacks MOTD size\n{guest._tail()}")
+            raise RegressionFailure(f"UEFI: direct stat output lacks MOTD size\n{guest._tail()}")
         tail_start = len(guest.output)
         guest.command("run tail /system/core/resources/motd.txt 2", "The initramfs VFS is mounted read-only.")
         tail_output = bytes(guest.output[tail_start:])
@@ -1096,7 +1097,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_live_clock_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
-        guest.command(f"run stat {GUI_NEW_FILE_PATH}", "0 bytes")
+        guest.command(f"stat {GUI_NEW_FILE_PATH}", "0 bytes")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
     finally:

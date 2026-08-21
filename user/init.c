@@ -19,7 +19,7 @@ static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
 static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
-    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "touch", "mkdir", "write", "rm",
+    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "stat", "touch", "mkdir", "write", "rm",
     "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
@@ -469,8 +469,9 @@ static void command_help(const char *topic) {
         return;
     }
     if (text_equal(topic, "stat")) {
-        write_text("run stat <absolute-path>\n");
+        write_text("stat <absolute-path>\n");
         write_text("Reports logical VFS entry type and size by bounded parent-directory enumeration; it never modifies storage.\n");
+        write_text("run stat remains a compatibility form.\n");
         return;
     }
     if (text_equal(topic, "startgui")) {
@@ -486,8 +487,8 @@ static void command_help(const char *topic) {
     }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
-        write_text("Source: input; time; args; set <0..255>; add/sub/mul <0..255>; div <1..255>; store/load/cmp <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
-        write_text("input reads one non-CR/LF byte; time prints RTC HH:MM:SS; args writes run arguments; add/sub/mul wrap one byte, div returns an unsigned quotient and rejects zero; cmp compares the accumulator with one private slot and yields zero when equal. Arithmetic and cmp require input/set/load. Conditional jumps use that result and target a later label.\n");
+        write_text("Source: input; time; args; set <0..255>; not; add/sub/mul/and/or/xor <0..255>; div <1..255>; store/load/cmp <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
+        write_text("input reads one non-CR/LF byte; time prints RTC HH:MM:SS; args writes run arguments; not/and/or/xor update one initialized byte, add/sub/mul wrap one byte, div returns an unsigned quotient and rejects zero; cmp compares the accumulator with one private slot and yields zero when equal. Bitwise operations, arithmetic and cmp require input/set/load. Conditional jumps use that result and target a later label.\n");
         write_text("Escape \\n, \\r, \\t, \\\\ and \\\" inside text.\n");
         return;
     }
@@ -506,7 +507,7 @@ static void command_help(const char *topic) {
     }
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
-    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run tree [absolute-directory]; run find <name-fragment> [absolute-directory]; run head <absolute-file> [1..64 lines]; run stat <absolute-path>; run tail <absolute-file> [1..64 lines]; run sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
+    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run tree [absolute-directory]; run find <name-fragment> [absolute-directory]; run head <absolute-file> [1..64 lines]; stat <absolute-path>; run tail <absolute-file> [1..64 lines]; run sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
     write_text("Native: build <source.mya> <output.elf>; help asm/edit for syntax and controls\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
@@ -1067,6 +1068,30 @@ static void command_wc(const char *argument) {
     (void)run_foreground(program, 0);
 }
 
+static void command_stat(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "stat";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("stat");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Status command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Status command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
 static void command_grep(const char *argument) {
     char program[USER_LINE_CAPACITY] = "grep";
     uint64_t length = 4U;
@@ -1256,6 +1281,8 @@ static void execute_command(char *line) {
         command_wc(argument);
     } else if (text_equal(line, "grep")) {
         command_grep(argument);
+    } else if (text_equal(line, "stat")) {
+        command_stat(argument);
     } else if (text_equal(line, "touch")) {
         command_touch(argument);
     } else if (text_equal(line, "mkdir")) {
