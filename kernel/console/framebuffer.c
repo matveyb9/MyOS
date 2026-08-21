@@ -1020,6 +1020,20 @@ int framebuffer_gui_active(void) {
     return console.gui_active;
 }
 
+void framebuffer_gui_on_timer_tick(void) {
+    const uint32_t top_bar = console_rgb(25U, 54U, 92U);
+    const uint32_t text = console_rgb(229U, 235U, 243U);
+
+    if (console.gui_active == 0) {
+        return;
+    }
+    erase_gui_pointer();
+    console.gui_clock_valid = rtc_read_time(&console.gui_clock);
+    fill_rect(console.width - 120U, 0U, 72U, 32U, top_bar);
+    draw_gui_clock(text);
+    draw_gui_pointer();
+}
+
 int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t length, uint64_t flags,
                                 uint64_t cursor, uint64_t viewport) {
     uint64_t index;

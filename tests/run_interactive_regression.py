@@ -426,6 +426,20 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_live_clock_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        before = self.qmp_screendump("live-clock-before")
+        self.require_nonuniform_region(before, 1168, 12, 56, 7, "desktop clock widget")
+        time.sleep(1.75)
+        after = self.qmp_screendump("live-clock-after")
+        self.require_region_transition(before, after, 1168, 12, 56, 7, "live desktop clock")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_mouse_notes_and_exit(self):
         start = len(self.output)
         self.send("startgui\n")
@@ -655,6 +669,7 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {NOTE_PATH} base")
         guest.gui_modifier_hotkeys_and_exit()
         guest.gui_alt_f4_editor_close_and_exit()
+        guest.gui_live_clock_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
         guest.gui_mouse_window_chrome_and_exit()
@@ -884,6 +899,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_open_and_exit()
         guest.gui_modifier_hotkeys_and_exit()
         guest.gui_alt_f4_editor_close_and_exit()
+        guest.gui_live_clock_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
         guest.gui_mouse_window_chrome_and_exit()
