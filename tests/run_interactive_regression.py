@@ -70,6 +70,7 @@ SDK_WRITE_PAYLOAD = b"sdk-write: persistent VFS example\n"
 COPY_SOURCE_PATH = "/users/myos/files/cp-harness-source.txt"
 COPY_TARGET_PATH = "/users/myos/files/cp-harness-target.txt"
 WC_WORD_PATH = "/users/myos/files/wc-harness.txt"
+GREP_MATCH_PATH = "/users/myos/files/grep-harness.txt"
 GUI_EDITOR_FIXTURE_PATH = "/system/core/resources/gui-16k.txt"
 GUI_EDITOR_FIXTURE_PAYLOAD = b"0123456789abcdef" * 1024
 GUI_EDITOR_FIXTURE_LENGTH = len(GUI_EDITOR_FIXTURE_PAYLOAD)
@@ -717,6 +718,15 @@ def run_bios(image_path, work_dir):
         guest.command("help wc", "run wc remains a compatibility form.")
         guest.command(f"wc {WC_WORD_PATH}", f"1 lines, 128 words, 259 bytes: {WC_WORD_PATH}")
         guest.command(f"run wc {WC_WORD_PATH}", "1 lines, 128 words, 259 bytes")
+        grep_payload = b"z" * 126 + b"\n" + b"x" * 122 + b"needle\nneedle-crosses\nno-match\n"
+        guest.console_edit_and_save(GREP_MATCH_PATH, grep_payload)
+        guest.command("help grep", "run grep remains a compatibility form.")
+        grep_start = len(guest.output)
+        guest.command(f"grep needle {GREP_MATCH_PATH}", "needle-crosses")
+        grep_output = bytes(guest.output[grep_start:]).replace(b"\r", b"")
+        if grep_output.count(b"needle-crosses\n") != 1 or b"x" * 122 + b"needle" in grep_output:
+            raise RegressionFailure(f"BIOS: direct grep did not skip the overlong matching line or print the short match exactly\n{guest._tail()}")
+        guest.command(f"run grep needle {GREP_MATCH_PATH}", "needle-crosses")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
         guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
@@ -928,6 +938,11 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
             raise RegressionFailure(f"UEFI: persisted SDK cp target readback is not exact\n{guest._tail()}")
         guest.command(f"cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
         guest.command(f"wc {WC_WORD_PATH}", f"1 lines, 128 words, 259 bytes: {WC_WORD_PATH}")
+        grep_start = len(guest.output)
+        guest.command(f"grep needle {GREP_MATCH_PATH}", "needle-crosses")
+        grep_output = bytes(guest.output[grep_start:]).replace(b"\r", b"")
+        if grep_output.count(b"needle-crosses\n") != 1 or b"x" * 122 + b"needle" in grep_output:
+            raise RegressionFailure(f"UEFI: persisted direct grep did not skip the overlong matching line or print the short match exactly\n{guest._tail()}")
         sdk_write_bios_read_start = len(guest.output)
         guest.command(f"cat {SDK_WRITE_BIOS_TARGET}", "sdk-write: persistent VFS example")
         if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_bios_read_start:]).replace(b"\r", b""):

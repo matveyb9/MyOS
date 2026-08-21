@@ -201,6 +201,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `cat` | `cat /system/core/resources/motd.txt` | Показать file. |
 | `cp` | `cp /users/myos/files/a.txt /users/myos/files/b.txt` | Скопировать file через bounded native copy tool. Target должна быть новым absolute path, а её parent уже должна существовать; overwrite не выполняется. `run cp` остаётся compatibility form. |
 | `wc` | `wc /users/myos/files/a.txt` | Stream-читать один absolute readable file chunks VFS по 256 bytes и вывести newline-terminated lines, space/tab/CR/LF-delimited words и bytes. `run wc` остаётся compatibility form. |
+| `grep` | `grep MyOS /system/core/resources/motd.txt` | Вывести newline-terminated lines не длиннее 127 bytes, содержащие один text fragment без spaces, при чтении одного absolute file VFS chunks по 256 bytes. Более длинные lines пропускаются. `run grep` остаётся compatibility form. |
 | `run tree` | `run tree /system` | Рекурсивно показать VFS entries без mutation; принимает ноль или один absolute directory и ограничена 8 levels, 64 entries на directory и 256 printed entries. |
 | `run find` | `run find tree /system/core` | Case-insensitively искать names entries без mutation; принимает fragment и optional absolute directory, с limits 8 levels, 64 entries на directory и 256 scanned entries. |
 | `run stackprobe` | `run stackprobe` | Запустить diagnostic с automatic buffer 12 KiB; ожидаемый checksum `1566720` подтверждает все четыре mapped ring-3 stack pages. |
@@ -228,7 +229,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 ```text
 run hello
 wc /system/core/resources/motd.txt
-run grep MyOS /system/core/resources/motd.txt
+grep MyOS /system/core/resources/motd.txt
 cp /system/core/resources/motd.txt /users/myos/files/motd-copy.txt
 run argshow one two three
 calc 12 / 3

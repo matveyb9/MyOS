@@ -201,6 +201,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `cat` | `cat /system/core/resources/motd.txt` | Display a file. |
 | `cp` | `cp /users/myos/files/a.txt /users/myos/files/b.txt` | Copy a file through the bounded native copy tool. The target must be a new absolute path and its parent must already exist; it is never overwritten. `run cp` remains a compatibility form. |
 | `wc` | `wc /users/myos/files/a.txt` | Stream one absolute readable file in 256-byte VFS chunks and print newline-terminated lines, space/tab/CR/LF-delimited words and bytes. `run wc` remains a compatibility form. |
+| `grep` | `grep MyOS /system/core/resources/motd.txt` | Print newline-terminated lines of at most 127 bytes that contain one unspaced text fragment while reading one absolute file in 256-byte VFS chunks. Longer lines are skipped. `run grep` remains a compatibility form. |
 | `run tree` | `run tree /system` | Recursively show VFS entries without mutation; requires zero or one absolute directory and is limited to 8 levels, 64 entries per directory and 256 printed entries. |
 | `run find` | `run find tree /system/core` | Case-insensitively search entry names without mutation; accepts one fragment and an optional absolute directory, with limits of 8 levels, 64 entries per directory and 256 scanned entries. |
 | `run stackprobe` | `run stackprobe` | Run the 12 KiB automatic-buffer diagnostic; expected checksum is `1566720`, confirming all four mapped ring-3 stack pages. |
@@ -228,7 +229,7 @@ Most built-in programs are started via `run` or `spawn`. Examples:
 ```text
 run hello
 wc /system/core/resources/motd.txt
-run grep MyOS /system/core/resources/motd.txt
+grep MyOS /system/core/resources/motd.txt
 cp /system/core/resources/motd.txt /users/myos/files/motd-copy.txt
 run argshow one two three
 calc 12 / 3

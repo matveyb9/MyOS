@@ -19,7 +19,7 @@ static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
 static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
-    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "touch", "mkdir", "write", "rm",
+    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "touch", "mkdir", "write", "rm",
     "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
@@ -435,6 +435,12 @@ static void command_help(const char *topic) {
         write_text("wc <absolute-file>\n");
         write_text("Counts newline-terminated lines, space/tab/CR/LF-delimited words and bytes in bounded 256-byte VFS chunks.\n");
         write_text("run wc remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "grep")) {
+        write_text("grep <text> <absolute-file>\n");
+        write_text("Prints lines up to 127 bytes containing the unspaced text; longer lines are skipped while the file is read in bounded 256-byte VFS chunks.\n");
+        write_text("run grep remains a compatibility form.\n");
         return;
     }
     if (text_equal(topic, "tree")) {
@@ -1061,6 +1067,30 @@ static void command_wc(const char *argument) {
     (void)run_foreground(program, 0);
 }
 
+static void command_grep(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "grep";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("grep");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Search command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Search command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
 static void command_build(const char *argument) {
     char program[USER_LINE_CAPACITY] = "asm";
     uint64_t length = 3U;
@@ -1224,6 +1254,8 @@ static void execute_command(char *line) {
         command_cp(argument);
     } else if (text_equal(line, "wc")) {
         command_wc(argument);
+    } else if (text_equal(line, "grep")) {
+        command_grep(argument);
     } else if (text_equal(line, "touch")) {
         command_touch(argument);
     } else if (text_equal(line, "mkdir")) {
