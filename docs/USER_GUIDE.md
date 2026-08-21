@@ -220,7 +220,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `spawn` | `spawn sleeper 3` | Run a program in the background. |
 | `wait` / `kill` | `wait 4`, `kill 4` | Wait for or stop a child process. |
 | `set` / `get` / `env` | `set NAME MyOS` | Work with environment variables. |
-| `startgui` | `startgui` | Start the experimental framebuffer GUI. Click `FILES` to browse the logical VFS from `/users/myos/`; it opens writable text files up to 16 KiB in the GUI editor. |
+| `startgui` | `startgui` | Start the experimental framebuffer GUI. Click `FILES` to browse the logical VFS from `/users/myos/`; its `[NEW FILE]` row accepts a slash-free name up to 63 printable ASCII bytes only in `/users/myos`, `/temp`, `/system/data` or `/system/config`, creates a new empty file and opens it in the GUI editor. Existing writable text files up to 16 KiB also open there. |
 | `reboot` / `poweroff` | `reboot` | Reboot or power off the virtual machine. |
 | `clear` | `clear` | Clear the text console. |
 

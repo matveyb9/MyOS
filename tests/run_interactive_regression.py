@@ -71,6 +71,7 @@ COPY_SOURCE_PATH = "/users/myos/files/cp-harness-source.txt"
 COPY_TARGET_PATH = "/users/myos/files/cp-harness-target.txt"
 WC_WORD_PATH = "/users/myos/files/wc-harness.txt"
 GREP_MATCH_PATH = "/users/myos/files/grep-harness.txt"
+GUI_NEW_FILE_PATH = "/users/myos/guinew"
 GUI_EDITOR_FIXTURE_PATH = "/system/core/resources/gui-16k.txt"
 GUI_EDITOR_FIXTURE_PAYLOAD = b"0123456789abcdef" * 1024
 GUI_EDITOR_FIXTURE_LENGTH = len(GUI_EDITOR_FIXTURE_PAYLOAD)
@@ -518,6 +519,41 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_files_create_empty_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        # The fourth centered launcher tile is FILES at x=800..935; the
+        # initial pointer is screen center. The browser NEW FILE row is row
+        # eight at approximately (500, 350) in the NOTES content window.
+        self.qmp_move(delta_x=229)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        browser = self.qmp_screendump("files-create-browser")
+        self.qmp_move(delta_x=-370, delta_y=50)
+        time.sleep(0.10)
+        create_ready = self.qmp_screendump("files-create-ready")
+        self.qmp_left_click()
+        time.sleep(0.25)
+        prompt = self.qmp_screendump("files-create-prompt")
+        self.require_small_framebuffer_transition(browser, prompt, "FILES NEW FILE prompt")
+        self.require_region_transition(create_ready, prompt, 330, 245, 200, 36, "FILES NEW FILE action")
+        for key in ("g", "u", "i", "n", "e", "w"):
+            self.qmp_press(key)
+        self.qmp_press("ret")
+        time.sleep(0.25)
+        editor = self.qmp_screendump("files-create-editor")
+        self.require_small_framebuffer_transition(prompt, editor, "FILES new empty-file editor")
+        self.require_region_transition(prompt, editor, 330, 210, 200, 48, "FILES new empty-file editor action")
+        self.qmp_hotkey("ctrl", "s")
+        time.sleep(0.25)
+        self.qmp_press("esc")
+        time.sleep(0.15)
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_mouse_window_chrome_and_exit(self):
         start = len(self.output)
         self.send(f"startgui {NOTE_PATH}\n")
@@ -689,6 +725,8 @@ def run_bios(image_path, work_dir):
         guest.gui_live_clock_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
+        guest.gui_files_create_empty_and_exit()
+        guest.command(f"run stat {GUI_NEW_FILE_PATH}", "0 bytes")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
         guest.gui_open_and_exit("startgui home")
@@ -1008,6 +1046,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_live_clock_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
+        guest.command(f"run stat {GUI_NEW_FILE_PATH}", "0 bytes")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
     finally:

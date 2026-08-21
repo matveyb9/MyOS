@@ -601,6 +601,7 @@ static char gui_browser_action_at_pointer(const gui_window_t *window) {
         return (char)(MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE + row - 3U);
     }
     if (row == 3U + MYOS_GUI_BROWSER_ENTRY_MAX) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_NEXT; }
+    if (row == 4U + MYOS_GUI_BROWSER_ENTRY_MAX) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_CREATE; }
     return '\0';
 }
 
