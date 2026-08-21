@@ -179,6 +179,14 @@ class Guest:
                     return
         raise RegressionFailure(f"{self.name}: {label} did not change the expected framebuffer region")
 
+    def require_nonuniform_region(self, image, x, y, width, height, label):
+        first = self.ppm_pixel(image, x, y)
+        for row in range(y, y + height):
+            for column in range(x, x + width):
+                if self.ppm_pixel(image, column, row) != first:
+                    return
+        raise RegressionFailure(f"{self.name}: {label} did not render visible text")
+
     def ppm_pixel(self, image, x, y):
         header_end = image.find(b"\n255\n")
         if header_end < 0:
@@ -415,6 +423,8 @@ class Guest:
         time.sleep(0.25)
         self.qmp_move(delta_x=-80)
         before = self.qmp_screendump("desktop-before-click")
+        self.require_nonuniform_region(before, 1168, 12, 56, 7, "desktop clock widget")
+        self.require_nonuniform_region(before, 1156, 764, 100, 7, "desktop task status")
         self.qmp_left_click()
         time.sleep(0.25)
         after = self.qmp_screendump("desktop-after-click")

@@ -4,6 +4,8 @@
 #include <limine.h>
 
 #include <framebuffer.h>
+#include <rtc.h>
+#include <scheduler.h>
 #include <syscall.h>
 #include <vfs.h>
 
@@ -79,6 +81,10 @@ typedef struct framebuffer_console {
     uint64_t gui_pointer_y;
     uint32_t gui_pointer_under[GUI_POINTER_SIZE * GUI_POINTER_SIZE];
     int gui_pointer_under_valid;
+    struct rtc_time gui_clock;
+    uint64_t gui_task_count;
+    uint64_t gui_runnable_count;
+    int gui_clock_valid;
     int active;
 } framebuffer_console_t;
 
@@ -722,6 +728,64 @@ static void draw_gui_pointer(void) {
     console.gui_pointer_under_valid = 1;
 }
 
+static uint64_t gui_format_decimal(char *destination, uint64_t capacity, uint64_t value) {
+    static const char digits[] = "0123456789";
+    char reversed[20];
+    uint64_t count = 0U;
+    uint64_t offset = 0U;
+
+    if (destination == (char *)0 || capacity == 0U) {
+        return 0U;
+    }
+    do {
+        reversed[count++] = digits[value % UINT64_C(10)];
+        value /= UINT64_C(10);
+    } while (value != 0U && count < sizeof(reversed));
+    while (count != 0U && offset + 1U < capacity) {
+        destination[offset++] = reversed[--count];
+    }
+    destination[offset] = '\0';
+    return offset;
+}
+
+static void gui_refresh_status_snapshot(void) {
+    console.gui_task_count = scheduler_task_count();
+    console.gui_runnable_count = scheduler_runnable_task_count();
+    console.gui_clock_valid = rtc_read_time(&console.gui_clock);
+}
+
+static void draw_gui_clock(uint32_t text) {
+    char clock_text[9] = "--:--:--";
+
+    if (console.gui_clock_valid != 0) {
+        clock_text[0] = (char)('0' + console.gui_clock.hour / 10U);
+        clock_text[1] = (char)('0' + console.gui_clock.hour % 10U);
+        clock_text[3] = (char)('0' + console.gui_clock.minute / 10U);
+        clock_text[4] = (char)('0' + console.gui_clock.minute % 10U);
+        clock_text[6] = (char)('0' + console.gui_clock.second / 10U);
+        clock_text[7] = (char)('0' + console.gui_clock.second % 10U);
+    }
+    draw_gui_text(console.width - 112U, 12U, clock_text, text);
+}
+
+static void draw_gui_status_bar(uint32_t top_bar, uint32_t text, const char *help) {
+    char status[32] = "TASKS ";
+    uint64_t offset = 6U;
+
+    offset += gui_format_decimal(status + offset, sizeof(status) - offset, console.gui_task_count);
+    if (offset + 5U < sizeof(status)) {
+        status[offset++] = ' ';
+        status[offset++] = 'R';
+        status[offset++] = 'U';
+        status[offset++] = 'N';
+        status[offset++] = ' ';
+        offset += gui_format_decimal(status + offset, sizeof(status) - offset, console.gui_runnable_count);
+    }
+    fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
+    draw_gui_text(30U, console.height - 36U, help, text);
+    draw_gui_text(console.width - 124U, console.height - 36U, status, text);
+}
+
 static void redraw_gui_desktop(void) {
     const uint32_t desktop = console_rgb(18U, 31U, 56U);
     const uint32_t top_bar = console_rgb(25U, 54U, 92U);
@@ -731,12 +795,12 @@ static void redraw_gui_desktop(void) {
     fill_rect(0U, 0U, console.width, console.height, desktop);
     fill_rect(0U, 0U, console.width, 32U, top_bar);
     draw_gui_text(16U, 12U, "MYOS DESKTOP", text);
+    draw_gui_clock(text);
     fill_rect(console.width - 40U, 7U, 20U, 18U, console_rgb(170U, 70U, 80U));
     draw_gui_text(console.width - 34U, 12U, "X", text);
     if (console.gui_launcher_active != 0) {
         draw_gui_launcher(text);
-        fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-        draw_gui_text(30U, console.height - 36U, "CLICK TILE TO OPEN  TOP X OR CTRL-Q EXITS", text);
+        draw_gui_status_bar(top_bar, text, "CLICK TILE TO OPEN  TOP X OR CTRL-Q EXITS");
     } else {
         for (uint64_t slot = 0U; slot < GUI_WINDOW_COUNT; slot++) {
             const uint8_t window_id = console.gui_z_order[slot];
@@ -746,8 +810,7 @@ static void redraw_gui_desktop(void) {
                 draw_gui_window(window, window_id == console.gui_focus);
             }
         }
-        fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
-        draw_gui_text(30U, console.height - 36U, "TITLE RAISES  X OR ALT-F4 CLOSES  ESC BACK  CTRL-Q EXITS", text);
+        draw_gui_status_bar(top_bar, text, "TITLE RAISES  X OR ALT-F4 CLOSES  ESC BACK  CTRL-Q EXITS");
     }
     draw_gui_pointer();
 }
@@ -936,6 +999,7 @@ int framebuffer_gui_begin(void) {
     console.gui_active = 1;
     gui_reset_content();
     gui_layout_windows();
+    gui_refresh_status_snapshot();
     console.gui_pointer_x = console.width / 2U;
     console.gui_pointer_y = console.height / 2U;
     console.gui_pointer_under_valid = 0;
@@ -993,6 +1057,7 @@ int framebuffer_gui_set_content(const char *title, const uint8_t *data, uint64_t
     }
     console.gui_content_cursor = cursor;
     console.gui_content_viewport = gui_content_line_start(viewport);
+    gui_refresh_status_snapshot();
     if (console.gui_launcher_active == 0) {
         gui_raise_window(GUI_WINDOW_NOTES);
     }

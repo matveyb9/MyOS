@@ -68,6 +68,7 @@ The GUI intentionally remains in **`feature/gui`**. It is started only by the ex
 | `[x]` | File Workspace v1 | `FILES` begins at `/users/myos/`, browses the complete logical VFS through four-entry pages and opens bounded writable regular files in the GUI editor without changing VFS write policy. |
 | `[x]` | Boot UX integration | GUI branch contains stage headers and a clear before normal user-shell entry; BIOS regression and `startgui` regression passed. |
 | `[x]` | Cross-firmware closure | UEFI/OVMF normal boot confirmed stage headers and a clean framebuffer before the user shell. |
+| `[x]` | Desktop clock and task status | The compositor draws a normalized RTC `HH:MM:SS` clock and bounded `TASKS`/`RUN` scheduler snapshots without a new ABI or background repaint loop; BIOS/UEFI QEMU captures require both text regions. |
 
 ## 4. Near-term GUI priorities
 
