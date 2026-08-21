@@ -317,6 +317,32 @@ static void content_append_text(uint8_t *data, uint64_t *length, const char *tex
     }
 }
 
+static void content_append_decimal(uint8_t *data, uint64_t *length, uint64_t value) {
+    char reversed[20];
+    uint64_t count = 0U;
+
+    do {
+        reversed[count++] = (char)('0' + value % UINT64_C(10));
+        value /= UINT64_C(10);
+    } while (value != 0U && count < sizeof(reversed));
+    while (count != 0U) {
+        content_append_char(data, length, reversed[--count]);
+    }
+}
+
+static void content_append_browser_name(uint8_t *data, uint64_t *length, const char *name) {
+    uint64_t index = 0U;
+
+    while (index < 12U && name[index] != '\0') {
+        content_append_char(data, length, name[index]);
+        index++;
+    }
+    while (index < 12U) {
+        content_append_char(data, length, ' ');
+        index++;
+    }
+}
+
 static void content_append_path_tail(uint8_t *data, uint64_t *length, const char *path) {
     const uint64_t path_length = text_length_bounded(path, MYOS_VFS_PATH_MAX);
     const uint64_t start = path_length > 24U ? path_length - 24U : 0U;
@@ -401,10 +427,14 @@ static void show_file_browser(void) {
 
         if (browser_entry_at(slot, &entry) != 0) {
             const char prefix = entry.type == MYOS_VFS_OBJECT_DIRECTORY ? 'D'
-                : (entry.type == MYOS_VFS_OBJECT_REGULAR ? 'F' : 'V');
+                : (entry.type == MYOS_VFS_OBJECT_REGULAR ? 'F'
+                   : (entry.type == MYOS_VFS_OBJECT_SYMBOLIC_LINK ? 'L' : 'V'));
             content_append_char(gui_scratch_data, &length, prefix);
             content_append_char(gui_scratch_data, &length, ' ');
-            content_append_text(gui_scratch_data, &length, entry.name, 12U);
+            content_append_browser_name(gui_scratch_data, &length, entry.name);
+            content_append_char(gui_scratch_data, &length, ' ');
+            content_append_decimal(gui_scratch_data, &length, entry.size);
+            content_append_char(gui_scratch_data, &length, 'B');
         } else {
             content_append_text(gui_scratch_data, &length, "-", 1U);
         }

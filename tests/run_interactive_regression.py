@@ -446,6 +446,7 @@ class Guest:
         time.sleep(0.25)
         browser = self.qmp_screendump("files-browser")
         self.require_framebuffer_transition(launcher, browser, "launcher FILES click")
+        self.require_nonuniform_region(browser, 441, 284, 28, 7, "FILES byte-size metadata")
         # Start at the FILES tile click position (870, 400). The parent row is
         # in the NOTES browser content area at approximately (500, 262).
         self.qmp_move(delta_x=-370, delta_y=138)
