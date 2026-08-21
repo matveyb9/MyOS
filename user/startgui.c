@@ -441,7 +441,7 @@ static void show_file_browser(void) {
         content_append_char(gui_scratch_data, &length, '\n');
     }
     content_append_text(gui_scratch_data, &length, browser_has_next_page() != 0 ? "[NEXT]" : "-", 6U);
-    (void)set_viewer_content("FILES", gui_scratch_data, length, MYOS_GUI_CONTENT_FLAG_BROWSER, 0U, 0U);
+    (void)set_viewer_content(browser_directory, gui_scratch_data, length, MYOS_GUI_CONTENT_FLAG_BROWSER, 0U, 0U);
 }
 
 static int browser_open_entry(uint8_t action) {

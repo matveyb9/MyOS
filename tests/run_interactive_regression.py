@@ -487,6 +487,7 @@ class Guest:
         time.sleep(0.25)
         browser = self.qmp_screendump("files-browser")
         self.require_framebuffer_transition(launcher, browser, "launcher FILES click")
+        self.require_nonuniform_region(browser, 334, 210, 66, 7, "FILES current-path title")
         self.require_nonuniform_region(browser, 441, 284, 28, 7, "FILES byte-size metadata")
         # Start at the FILES tile click position (870, 400). The parent row is
         # in the NOTES browser content area at approximately (500, 262).
@@ -497,6 +498,7 @@ class Guest:
         time.sleep(0.25)
         root_browser = self.qmp_screendump("files-root-browser")
         self.require_region_transition(parent_ready, root_browser, 330, 245, 200, 84, "FILES parent navigation")
+        self.require_region_transition(parent_ready, root_browser, 334, 210, 66, 7, "FILES parent path title")
         # From the parent-row click position (501, 262), the first root entry
         # is the /system directory at browser row three (about y=289).
         self.qmp_move(delta_y=-27)
@@ -506,6 +508,7 @@ class Guest:
         time.sleep(0.25)
         system_browser = self.qmp_screendump("files-system-browser")
         self.require_region_transition(system_ready, system_browser, 330, 245, 200, 84, "FILES /system directory navigation")
+        self.require_region_transition(system_ready, system_browser, 334, 210, 66, 7, "FILES /system path title")
         self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)

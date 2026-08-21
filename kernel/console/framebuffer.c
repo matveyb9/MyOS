@@ -18,7 +18,7 @@
 #define GUI_WINDOW_SYSTEM 0U
 #define GUI_WINDOW_NOTES 1U
 #define GUI_WINDOW_MONITOR 2U
-#define GUI_CONTENT_TITLE_MAX 16U
+#define GUI_CONTENT_TITLE_MAX MYOS_GUI_CONTENT_TITLE_MAX
 #define GUI_CONTENT_MAX MYOS_GUI_CONTENT_MAX
 #define GUI_POINTER_SIZE 11U
 #define GUI_LAUNCHER_TILE_COUNT 4U
@@ -237,6 +237,14 @@ static void draw_gui_text(uint64_t x, uint64_t y, const char *text, uint32_t col
     while (*text != '\0') {
         draw_gui_character(x, y, *text, colour);
         x += 7U;
+        text++;
+    }
+}
+
+static void draw_gui_compact_title(uint64_t x, uint64_t y, const char *text, uint32_t colour) {
+    while (*text != '\0') {
+        draw_gui_character(x, y, *text, colour);
+        x += 6U;
         text++;
     }
 }
@@ -643,7 +651,7 @@ static void draw_gui_window(const gui_window_t *window, int focused) {
     fill_rect(window->x, window->y, window->width, window->height, border);
     fill_rect(window->x + 2U, window->y + 2U, window->width - 4U, window->height - 4U, surface);
     fill_rect(window->x + 2U, window->y + 2U, window->width - 4U, GUI_WINDOW_TITLE_HEIGHT, header);
-    draw_gui_text(window->x + 14U, window->y + 10U, window->title, surface);
+    draw_gui_compact_title(window->x + 14U, window->y + 10U, window->title, surface);
     fill_rect(window->x + window->width - GUI_WINDOW_CLOSE_LEFT_INSET,
               window->y + GUI_WINDOW_CLOSE_TOP_INSET,
               GUI_WINDOW_CLOSE_WIDTH, GUI_WINDOW_CLOSE_HEIGHT, console_rgb(170U, 70U, 80U));
