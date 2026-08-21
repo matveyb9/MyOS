@@ -597,6 +597,12 @@ def run_bios(image_path, work_dir):
         if b"Welcome to MyOS.\nThe initramfs VFS is mounted read-only.\n" not in head_output.replace(b"\r", b""):
             raise RegressionFailure(f"BIOS: head output lacks first two MOTD lines\n{guest._tail()}")
         guest.command("help head", "output is read in 256-byte chunks and capped at 4096 bytes")
+        stat_start = len(guest.output)
+        guest.command("run stat /system/core/resources/motd.txt", "type: regular")
+        stat_output = bytes(guest.output[stat_start:])
+        if b"size: 124 bytes" not in stat_output:
+            raise RegressionFailure(f"BIOS: stat output lacks MOTD size\n{guest._tail()}")
+        guest.command("help stat", "bounded parent-directory enumeration")
         stack_start = len(guest.output)
         guest.command("run stackprobe", "stackprobe:")
         stack_output = bytes(guest.output[stack_start:])
@@ -741,6 +747,11 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         head_output = bytes(guest.output[head_start:])
         if b"Welcome to MyOS.\nThe initramfs VFS is mounted read-only.\n" not in head_output.replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: head output lacks first two MOTD lines\n{guest._tail()}")
+        stat_start = len(guest.output)
+        guest.command("run stat /system/core/resources/motd.txt", "type: regular")
+        stat_output = bytes(guest.output[stat_start:])
+        if b"size: 124 bytes" not in stat_output:
+            raise RegressionFailure(f"UEFI: stat output lacks MOTD size\n{guest._tail()}")
         stack_start = len(guest.output)
         guest.command("run stackprobe", "stackprobe:")
         stack_output = bytes(guest.output[stack_start:])

@@ -47,7 +47,7 @@
 | `[x]` | Kernel diagnostic shell | Prompt `kernel>`, диагностические команды и безопасный вход в user space. |
 | `[x]` | User shell `/init` | Prompt `[myos]$`, history, Up/Down, Tab completion, переменные окружения, arguments и pipes. |
 | `[x]` | Расширение guarded ring-3 stack | `/init` и каждый spawned user program получают четыре mapped pages по 4 KiB (16 KiB суммарно) и одну lower guard page; `stackprobe` проверяет 12 KiB automatic buffer в BIOS и UEFI. |
-| `[x]` | User utilities | `hello`, `sleeper`, `orphaner`, `safety`, `argshow`, `calc`, `pipewrite`, `piperead`, `wc`, `grep`, `edit`, `tree`, `find`, `head`. `tree` и `find` — read-only bounded logical-VFS explorer/search utilities с fixed recursion/output limits; `head` читает начало одного absolute file через chunks 256 bytes с запросом 1–64 lines и output cap 4 KiB. |
+| `[x]` | User utilities | `hello`, `sleeper`, `orphaner`, `safety`, `argshow`, `calc`, `pipewrite`, `piperead`, `wc`, `grep`, `edit`, `tree`, `find`, `head`, `stat`. `tree` и `find` — read-only bounded logical-VFS explorer/search utilities с fixed recursion/output limits; `head` читает начало одного absolute file через chunks 256 bytes с запросом 1–64 lines и output cap 4 KiB; `stat` выводит type и size через bounded parent-directory scan. |
 | `[x]` | Direct calculator | Signed 64-bit arithmetic и quiet output без lifecycle messages. |
 | `[x]` | Автоматический запуск | `/init` запускается через три секунды; `K` отменяет запуск и оставляет пользователя в `kernel>`. |
 | `[x]` | Читаемый boot presentation | Boot log разбит на четыре stage headers; normal user-shell handoff очищает framebuffer, diagnostic path сохраняет log. |

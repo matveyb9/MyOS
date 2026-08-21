@@ -365,7 +365,7 @@ static void environment_expand(const char *source, char *destination, uint64_t c
 static int built_in_program(const char *name) {
     static const char *const names[] = {
         "init", "hello", "sleeper", "orphaner", "safety", "argshow", "calc", "pipewrite",
-        "piperead", "wc", "grep", "edit", "startgui", "install", "asm", "tree", "find", "stackprobe", "head", "cp"
+        "piperead", "wc", "grep", "edit", "startgui", "install", "asm", "tree", "find", "stackprobe", "head", "stat", "cp"
     };
 
     for (uint64_t index = 0U; index < sizeof(names) / sizeof(names[0]); index++) {
@@ -445,6 +445,11 @@ static void command_help(const char *topic) {
         write_text("Prints the first 10 lines by default; output is read in 256-byte chunks and capped at 4096 bytes.\n");
         return;
     }
+    if (text_equal(topic, "stat")) {
+        write_text("run stat <absolute-path>\n");
+        write_text("Reports logical VFS entry type and size by bounded parent-directory enumeration; it never modifies storage.\n");
+        return;
+    }
     if (text_equal(topic, "startgui")) {
         write_text("startgui [absolute-file]\n");
         write_text("Without a file it opens MYOS DESKTOP; click SYSTEM, NOTES or EDIT NOTE. Click top-bar X to exit.\n");
@@ -478,7 +483,7 @@ static void command_help(const char *topic) {
     }
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
-    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run tree [absolute-directory]; run find <name-fragment> [absolute-directory]; run head <absolute-file> [1..64 lines]; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/startgui\n");
+    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run tree [absolute-directory]; run find <name-fragment> [absolute-directory]; run head <absolute-file> [1..64 lines]; run stat <absolute-path>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/startgui\n");
     write_text("Native: build <source.mya> <output.elf>; help asm/edit for syntax and controls\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
