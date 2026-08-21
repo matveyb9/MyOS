@@ -473,8 +473,8 @@ static void command_help(const char *topic) {
     }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
-        write_text("Source: input; time; args; set <0..255>; add/sub <0..255>; store/load <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
-        write_text("input reads one non-CR/LF byte; time prints RTC HH:MM:SS; args writes run arguments; add/sub wrap one byte and require input/set/load; conditional jumps use the same accumulator and target a later label.\n");
+        write_text("Source: input; time; args; set <0..255>; add/sub/mul <0..255>; div <1..255>; store/load <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
+        write_text("input reads one non-CR/LF byte; time prints RTC HH:MM:SS; args writes run arguments; add/sub/mul wrap one byte, div returns an unsigned quotient and rejects zero; all require input/set/load. Conditional jumps use the same accumulator and target a later label.\n");
         write_text("Escape \\n, \\r, \\t, \\\\ and \\\" inside text.\n");
         return;
     }

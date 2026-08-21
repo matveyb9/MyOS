@@ -50,6 +50,11 @@ ARITHMETIC_ELF_PATH = "/users/myos/projects/release-arithmetic.elf"
 ARITHMETIC_APP_PATH = "/apps/release-arithmetic/main.elf"
 INVALID_ARITHMETIC_SOURCE_PATH = "/temp/release-arithmetic-invalid.mya"
 INVALID_ARITHMETIC_ELF_PATH = "/users/myos/projects/release-arithmetic-invalid.elf"
+MULDIV_SOURCE_PATH = "/temp/release-muldiv.mya"
+MULDIV_ELF_PATH = "/users/myos/projects/release-muldiv.elf"
+MULDIV_APP_PATH = "/apps/release-muldiv/main.elf"
+INVALID_DIVISION_SOURCE_PATH = "/temp/release-division-invalid.mya"
+INVALID_DIVISION_ELF_PATH = "/users/myos/projects/release-division-invalid.elf"
 SDK_WRITE_EXAMPLE_PATH = "/system/core/examples/sdk/write.elf"
 SDK_WRITE_APP_PATH = "/apps/sdk-write/main.elf"
 SDK_WRITE_BIOS_TARGET = "/users/myos/files/sdk-write-bios.txt"
@@ -771,6 +776,16 @@ def run_bios(image_path, work_dir):
         if (b"bad\n" in arithmetic_output or b"bad\r\n" in arithmetic_output
                 or (b"ARITH\n" not in arithmetic_output and b"ARITH\r\n" not in arithmetic_output)):
             raise RegressionFailure(f"BIOS: modular add/sub native arithmetic did not preserve the expected zero branch\n{guest._tail()}")
+        muldiv_source = 'set 200;mul 2;add 57;div 3;store 4;set 0;load 4;sub 67;jump_if_zero matched;write "bad\\n";jump done;label matched:;write "MULDIV\\n";label done:;exit 50'
+        guest.console_edit_and_save(MULDIV_SOURCE_PATH, muldiv_source.encode("ascii"))
+        guest.command(f"build {MULDIV_SOURCE_PATH} {MULDIV_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {MULDIV_ELF_PATH} {MULDIV_APP_PATH}", "exited with status 0")
+        muldiv_start = len(guest.output)
+        guest.command("run release-muldiv", "exited with status 50")
+        muldiv_output = bytes(guest.output[muldiv_start:])
+        if (b"bad\n" in muldiv_output or b"bad\r\n" in muldiv_output
+                or (b"MULDIV\n" not in muldiv_output and b"MULDIV\r\n" not in muldiv_output)):
+            raise RegressionFailure(f"BIOS: modular mul/div native arithmetic did not preserve the expected zero branch\n{guest._tail()}")
         args_empty_start = len(guest.output)
         guest.command("run release-args", "exited with status 47")
         args_empty_output = bytes(guest.output[args_empty_start:])
@@ -781,7 +796,7 @@ def run_bios(image_path, work_dir):
         args_output = bytes(guest.output[args_output_start:])
         require_native_line("BIOS native args", args_output, b"[alpha beta]")
         require_time_line("BIOS native args", args_output)
-        diagnostic = "asm: syntax error; set/load/input must precede add/sub and conditional jumps, add/sub are byte values 0..255, store/load slots are 0..7, labels need ':' and jumps must target a later label"
+        diagnostic = "asm: syntax error; set/load/input must precede add/sub/mul/div and conditional jumps, add/sub/mul are byte values 0..255, div is 1..255, store/load slots are 0..7, labels need ':' and jumps must target a later label"
         guest.command(f"write {BACKWARD_SOURCE_PATH} label start:;write \"x\\n\";jump start;exit 0")
         guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}", diagnostic)
         guest.command(f"write {MISSING_SET_SOURCE_PATH} jump_if 65 done;label done:;exit 0")
@@ -792,6 +807,8 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {INVALID_VARIABLE_SOURCE_PATH} {INVALID_VARIABLE_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_ARITHMETIC_SOURCE_PATH} add 1;exit 0")
         guest.command(f"build {INVALID_ARITHMETIC_SOURCE_PATH} {INVALID_ARITHMETIC_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_DIVISION_SOURCE_PATH} set 1;div 0;exit 0")
+        guest.command(f"build {INVALID_DIVISION_SOURCE_PATH} {INVALID_DIVISION_ELF_PATH}", diagnostic)
         guest.command(f"install {SDK_WRITE_EXAMPLE_PATH} {SDK_WRITE_APP_PATH}", "exited with status 0")
         sdk_write_start = len(guest.output)
         guest.command(f"run sdk-write {SDK_WRITE_BIOS_TARGET}", "sdk-write: wrote fixed payload")
@@ -914,6 +931,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if (b"bad\n" in arithmetic_output or b"bad\r\n" in arithmetic_output
                 or (b"ARITH\n" not in arithmetic_output and b"ARITH\r\n" not in arithmetic_output)):
             raise RegressionFailure(f"UEFI: persisted modular add/sub native arithmetic did not preserve the expected zero branch\n{guest._tail()}")
+        muldiv_start = len(guest.output)
+        guest.command("run release-muldiv", "exited with status 50")
+        muldiv_output = bytes(guest.output[muldiv_start:])
+        if (b"bad\n" in muldiv_output or b"bad\r\n" in muldiv_output
+                or (b"MULDIV\n" not in muldiv_output and b"MULDIV\r\n" not in muldiv_output)):
+            raise RegressionFailure(f"UEFI: persisted modular mul/div native arithmetic did not preserve the expected zero branch\n{guest._tail()}")
         args_output_start = len(guest.output)
         guest.command("run release-args ovmf args", "exited with status 47")
         args_output = bytes(guest.output[args_output_start:])
