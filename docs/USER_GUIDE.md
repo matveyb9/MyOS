@@ -171,9 +171,9 @@ After closing QEMU, reboot using the same `myos.img` and read the persistent fil
 
 ### File Workspace v1
 
-Run `startgui` and click **FILES**. The browser begins at `/users/myos/`. Its `[..]`, `[PREV]`, entry rows and `[NEXT]` controls allow mouse-first traversal of every path exposed through the logical VFS, including `/`, `/system/core/`, `/system/live/`, `/apps/`, `/users/` and `/temp/`. Directory rows enter a directory; regular and virtual files are opened safely. Each listed row shows a type marker (`D` directory, `F` regular file, `L` symbolic link, or `V` virtual record), a fixed 12-character visible-name column, and the entry's current VFS byte size with a `B` suffix. These are read-only logical-VFS metadata, not raw disk details. The raw Limine/EFI boot files and `kernel.elf` remain boot artifacts outside this runtime tree.
+Run `startgui` and click **FILES**. The browser begins at `/users/myos/` and shows the complete current logical path in the window title. Its `[..]`, `[PREV]`, entry rows and `[NEXT]` controls allow mouse-first traversal of every path exposed through the logical VFS, including `/`, `/system/core/`, `/system/live/`, `/apps/`, `/users/` and `/temp/`. Directory rows enter a directory; regular and virtual files are opened safely. Each listed row shows a type marker (`D` directory, `F` regular file, `L` symbolic link, or `V` virtual record), a fixed 12-character visible-name column, and the entry's current VFS byte size with a `B` suffix. These are read-only logical-VFS metadata, not raw disk details. The raw Limine/EFI boot files and `kernel.elf` remain boot artifacts outside this runtime tree.
 
-A regular file is editable in GUI only when its current VFS path is writable: `/users/myos/`, `/temp/`, `/system/data/` or `/system/config/`. `Ctrl-S` saves; `Esc`, `Alt+F4` or the NOTES-window `X` discard the unsaved draft. `/system/core/`, `/system/live/` and `/apps/` remain readable but never enter GUI editor mode. The GUI document capacity is **4 KiB (4,096 bytes)**. GUI loading and saving use at most sixteen bounded 256-byte VFS transfers. Use the existing console `edit <path>` command for documents up to 4 KiB, and use bounded program or SDK I/O for larger MYPFS004 files.
+A regular file is editable in GUI only when its current VFS path is writable: `/users/myos/`, `/temp/`, `/system/data/` or `/system/config/`. `Ctrl-S` saves; `Esc`, `Alt+F4` or the NOTES-window `X` discard the unsaved draft. `/system/core/`, `/system/live/` and `/apps/` remain readable but never enter GUI editor mode. The GUI document capacity is **16 KiB (16,384 bytes)**. GUI loading and saving use at most sixty-four bounded 256-byte VFS transfers. The separate console `edit <path>` command remains capped at 4 KiB; use bounded program or SDK I/O for larger MYPFS004 files.
 
 > File Workspace v1 intentionally does not provide graphical create, rename, delete, copy/move, package installation or raw-device operations. Use `touch`, `mkdir`, `rm`, `run cp` and `install` in the shell for those actions.
 
@@ -218,7 +218,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `spawn` | `spawn sleeper 3` | Run a program in the background. |
 | `wait` / `kill` | `wait 4`, `kill 4` | Wait for or stop a child process. |
 | `set` / `get` / `env` | `set NAME MyOS` | Work with environment variables. |
-| `startgui` | `startgui` | Start the experimental framebuffer GUI. Click `FILES` to browse the logical VFS from `/users/myos/`; it opens small writable text files in the GUI editor. |
+| `startgui` | `startgui` | Start the experimental framebuffer GUI. Click `FILES` to browse the logical VFS from `/users/myos/`; it opens writable text files up to 16 KiB in the GUI editor. |
 | `reboot` / `poweroff` | `reboot` | Reboot or power off the virtual machine. |
 | `clear` | `clear` | Clear the text console. |
 

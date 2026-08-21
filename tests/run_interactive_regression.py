@@ -69,6 +69,9 @@ SDK_WRITE_UEFI_TARGET = "/users/myos/files/sdk-write-uefi.txt"
 SDK_WRITE_PAYLOAD = b"sdk-write: persistent VFS example\n"
 COPY_SOURCE_PATH = "/users/myos/files/cp-harness-source.txt"
 COPY_TARGET_PATH = "/users/myos/files/cp-harness-target.txt"
+GUI_EDITOR_FIXTURE_PATH = "/system/core/resources/gui-16k.txt"
+GUI_EDITOR_FIXTURE_PAYLOAD = b"0123456789abcdef" * 1024
+GUI_EDITOR_FIXTURE_LENGTH = len(GUI_EDITOR_FIXTURE_PAYLOAD)
 TIME_LINE = re.compile(rb"(?m)^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\r?$")
 
 
@@ -371,9 +374,9 @@ class Guest:
         time.sleep(0.35)
         editor = self.qmp_screendump("large-note-editor")
         self.send(b"\x13")
-        time.sleep(0.50)
+        time.sleep(2.00)
         viewer = self.qmp_screendump("large-note-viewer")
-        self.require_region_transition(editor, viewer, 330, 205, 160, 20, "4 KiB GUI editor save-to-viewer")
+        self.require_region_transition(editor, viewer, 330, 205, 160, 20, "16 KiB GUI editor save-to-viewer")
         self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
@@ -678,14 +681,6 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
-        large_gui_payload = b"0123456789abcdef" * 256
-        guest.command(f"rm {DEFAULT_GUI_NOTE_PATH}", f"Removed {DEFAULT_GUI_NOTE_PATH}")
-        guest.command(f"run cp /system/core/resources/gui-4k.txt {DEFAULT_GUI_NOTE_PATH}", "Copied 4096 byte(s)")
-        guest.gui_save_large_note_and_exit()
-        large_gui_start = len(guest.output)
-        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "0123456789abcdef")
-        if large_gui_payload not in guest.output[large_gui_start:]:
-            raise RegressionFailure(f"BIOS: 4 KiB GUI editor save/readback is not exact\n{guest._tail()}")
         guest.command(f"write {NOTE_PATH} base")
         guest.gui_modifier_hotkeys_and_exit()
         guest.gui_alt_f4_editor_close_and_exit()
@@ -845,6 +840,14 @@ def run_bios(image_path, work_dir):
         if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"BIOS: sdk-write payload readback is not exact\\n{guest._tail()}")
         guest.command(f"run sdk-write {SDK_WRITE_BIOS_TARGET}", "target must not exist")
+        guest.command(f"rm {DEFAULT_GUI_NOTE_PATH}", f"Removed {DEFAULT_GUI_NOTE_PATH}")
+        guest.command(f"run cp {GUI_EDITOR_FIXTURE_PATH} {DEFAULT_GUI_NOTE_PATH}",
+                      f"Copied {GUI_EDITOR_FIXTURE_LENGTH} byte(s)")
+        guest.gui_save_large_note_and_exit()
+        large_gui_start = len(guest.output)
+        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "0123456789abcdef")
+        if GUI_EDITOR_FIXTURE_PAYLOAD not in guest.output[large_gui_start:]:
+            raise RegressionFailure(f"BIOS: 16 KiB GUI editor save/readback is not exact\n{guest._tail()}")
     finally:
         guest.close()
 
@@ -900,8 +903,9 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         uefi_large_gui_start = len(guest.output)
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "0123456789abcdef")
-        if b"0123456789abcdef" * 256 not in guest.output[uefi_large_gui_start:]:
-            raise RegressionFailure(f"UEFI: persisted 4 KiB GUI editor payload is not exact\n{guest._tail()}")
+        if GUI_EDITOR_FIXTURE_PAYLOAD not in guest.output[uefi_large_gui_start:]:
+            raise RegressionFailure(f"UEFI: persisted 16 KiB GUI editor payload is not exact\n{guest._tail()}")
+        guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.command(f"cat {NOTE_PATH}", "base")
         text_start = len(guest.output)
         guest.command(f"cat {EDITOR_TEXT_PATH}", "first")

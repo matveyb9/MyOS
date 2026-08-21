@@ -54,16 +54,16 @@ The program prints only `editor-built` and returns status `44`. See [Native Buil
 
 | Item | Current rule |
 |---|---|
-| Editable document | At most **4,096 bytes** in memory. |
-| File input/output | Read and write use bounded 256-byte VFS requests. |
+| Console editable document | At most **4,096 bytes** in memory. |
+| Console file input/output | Read and write use bounded 256-byte VFS requests. |
 | Supported content | Printable ASCII, newline and tab are suitable text content; the editor is not a binary-file tool. |
 | File locations | Any mutable absolute VFS file with an existing parent directory. The console workflow follows VFS write policy; File Workspace GUI editing is further limited to selected existing regular files below `/users/myos/`, `/temp/`, `/system/data/` or `/system/config/`. |
 | Save model | `Ctrl-S` replaces the target through remove/create and bounded writes. There is no undo, recovery journal, atomic rename or concurrent-edit coordination yet. |
 
-The 4 KiB editor limit is intentionally below the 128 KiB persistent-file open snapshot and far below the 8 MiB MYPFS004 file ceiling. The File Workspace GUI editor now has the same 4 KiB (4,096-byte) fixed content ceiling and uses at most sixteen 256-byte VFS requests for load or save. It remains a mouse-first editor for selected existing writable files, while the console editor remains the general-purpose path for every mutable absolute VFS file. It keeps the first all-in-memory editor small, deterministic and practical for notes, configuration and native sources. Large-file viewing and editing remain separate future work.
+The console editor’s 4 KiB limit is intentionally below the 128 KiB persistent-file open snapshot and far below the 8 MiB MYPFS004 file ceiling. The separate File Workspace GUI editor accepts a fixed **16 KiB (16,384-byte)** document and loads or saves it through up to sixty-four unchanged 256-byte VFS requests. It remains a mouse-first editor for selected existing writable files, while the console editor remains the general-purpose path for every mutable absolute VFS file. Both stay bounded, deterministic and practical for notes, configuration and native sources; larger viewing and editing remain separate future work.
 
 ## Validation
 
-`make regression` creates and saves a two-line ordinary text file in the console editor, verifies exact BIOS readback, verifies a 4 KiB GUI editor load-save-readback through sixteen VFS chunks seeded from a deterministic initramfs fixture, authors a multi-line conditional `.mya` file in the editor, builds and runs its installed package, then repeats ordinary-text readback, the exact 4 KiB GUI payload and native-package execution after UEFI/OVMF boot. The regression uses a disposable image and does not replace the remaining physical-PC release gate.
+`make regression` creates and saves a two-line ordinary text file in the console editor, verifies exact BIOS readback, verifies a 16 KiB GUI editor load-save-readback through sixty-four VFS chunks seeded from a deterministic initramfs fixture, authors a multi-line conditional `.mya` file in the editor, builds and runs its installed package, then repeats ordinary-text readback, the exact 16 KiB GUI payload and native-package execution after UEFI/OVMF boot. The regression uses a disposable image and does not replace the remaining physical-PC release gate.
 
 For broader shell behavior, see the [User Guide](USER_GUIDE.md). The File Workspace GUI editor and its logical-VFS navigation are described in [GUI Bring-up](GUI_BRINGUP.md).
