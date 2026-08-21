@@ -90,7 +90,7 @@ ls /
 ls /system/live
 ls /system/live/processes
 run tree /system
-run find tree /system/core
+find tree /system/core
 head /system/core/resources/motd.txt 2
 stat /system/core/resources/motd.txt
 tail /system/core/resources/motd.txt 2
@@ -147,7 +147,7 @@ rm /temp/session.txt
 
 ### Native find search
 
-`run find <name-fragment> [absolute-directory]` ищет names entries case-insensitively по logical VFS и выводит matching absolute paths с type markers `[D]`, `[F]` или `[V]`. Optional start directory обязана быть absolute; relative path, empty fragment или extra arguments отклоняются. Поэтому `run find TrEe /system/core` находит `/system/core/apps/tree.elf`. Как и `tree`, `find` read-only и ограничена **восьмью directory levels**, **64 entries в directory** и **256 scanned entries**, поэтому recursive search не становится unbounded consumption user memory или output.
+`find <name-fragment> [absolute-directory]` ищет names entries case-insensitively по logical VFS и выводит matching absolute paths с type markers `[D]`, `[F]` или `[V]`. `run find` остаётся compatibility form. Optional start directory обязана быть absolute; relative path, empty fragment или extra arguments отклоняются. Поэтому `find TrEe /system/core` находит `/system/core/apps/tree.elf`. Как и `tree`, `find` read-only и ограничена **восьмью directory levels**, **64 entries в directory** и **256 scanned entries**, поэтому recursive search не становится unbounded consumption user memory или output.
 
 ### Native head view
 
@@ -203,7 +203,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `wc` | `wc /users/myos/files/a.txt` | Stream-читать один absolute readable file chunks VFS по 256 bytes и вывести newline-terminated lines, space/tab/CR/LF-delimited words и bytes. `run wc` остаётся compatibility form. |
 | `grep` | `grep MyOS /system/core/resources/motd.txt` | Вывести newline-terminated lines не длиннее 127 bytes, содержащие один text fragment без spaces, при чтении одного absolute file VFS chunks по 256 bytes. Более длинные lines пропускаются. `run grep` остаётся compatibility form. |
 | `run tree` | `run tree /system` | Рекурсивно показать VFS entries без mutation; принимает ноль или один absolute directory и ограничена 8 levels, 64 entries на directory и 256 printed entries. |
-| `run find` | `run find tree /system/core` | Case-insensitively искать names entries без mutation; принимает fragment и optional absolute directory, с limits 8 levels, 64 entries на directory и 256 scanned entries. |
+| `find` | `find tree /system/core` | Case-insensitively искать names entries без mutation; принимает fragment и optional absolute directory, с limits 8 levels, 64 entries на directory и 256 scanned entries. `run find` остаётся compatible. |
 | `run stackprobe` | `run stackprobe` | Запустить diagnostic с automatic buffer 12 KiB; ожидаемый checksum `1566720` подтверждает все четыре mapped ring-3 stack pages. |
 | `head` | `head /system/core/resources/motd.txt 2` | Вывести первые 10 строк по умолчанию или 1–64 запрошенные строки одного absolute readable file; VFS I/O использует chunks 256 bytes, а output ограничен 4 KiB. `run head` остаётся compatible. |
 | `stat` | `stat /system/core/resources/motd.txt` | Вывести type и byte size одного absolute logical-VFS entry через bounded scan не более 128 entries его parent; storage не меняется. `run stat` остаётся compatible. |

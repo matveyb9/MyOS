@@ -692,13 +692,14 @@ def run_bios(image_path, work_dir):
             if expected not in tree_output:
                 raise RegressionFailure(f"BIOS: tree output lacks {expected!r}\\n{guest._tail()}")
         guest.command("help tree", "8 levels, 64 entries/directory, 256 entries total")
+        guest.command("help find", "run find remains a compatibility form.")
         find_start = len(guest.output)
-        guest.command("run find TrEe /system/core", "find:")
+        guest.command("find TrEe /system/core", "find:")
         find_output = bytes(guest.output[find_start:])
         for expected in (b"[F] /system/core/apps/tree.elf", b"1 match(es)"):
             if expected not in find_output:
-                raise RegressionFailure(f"BIOS: find output lacks {expected!r}\\n{guest._tail()}")
-        guest.command("help find", "Case-insensitive read-only name search")
+                raise RegressionFailure(f"BIOS: direct find output lacks {expected!r}\\n{guest._tail()}")
+        guest.command("run find TrEe /system/core", "find:")
         guest.command("help head", "run head remains a compatibility form.")
         head_start = len(guest.output)
         guest.command("head /system/core/resources/motd.txt 2", "Welcome to MyOS.")
@@ -969,10 +970,10 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
             if expected not in tree_output:
                 raise RegressionFailure(f"UEFI: tree output lacks {expected!r}\\n{guest._tail()}")
         find_start = len(guest.output)
-        guest.command("run find find /system/core/apps", "find:")
+        guest.command("find find /system/core/apps", "find:")
         find_output = bytes(guest.output[find_start:])
         if b"[F] /system/core/apps/find.elf" not in find_output:
-            raise RegressionFailure(f"UEFI: find output lacks packaged find.elf\n{guest._tail()}")
+            raise RegressionFailure(f"UEFI: direct find output lacks packaged find.elf\n{guest._tail()}")
         head_start = len(guest.output)
         guest.command("head /system/core/resources/motd.txt 2", "Welcome to MyOS.")
         head_output = bytes(guest.output[head_start:])

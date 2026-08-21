@@ -90,7 +90,7 @@ ls /
 ls /system/live
 ls /system/live/processes
 run tree /system
-run find tree /system/core
+find tree /system/core
 head /system/core/resources/motd.txt 2
 stat /system/core/resources/motd.txt
 tail /system/core/resources/motd.txt 2
@@ -147,7 +147,7 @@ After closing QEMU, reboot using the same `myos.img` and read the persistent fil
 
 ### Native find search
 
-`run find <name-fragment> [absolute-directory]` searches entry names case-insensitively across the logical VFS and prints matching absolute paths with `[D]`, `[F]` or `[V]` type markers. The optional start directory must be absolute; a relative path, an empty fragment or extra arguments are rejected. `run find TrEe /system/core` therefore finds `/system/core/apps/tree.elf`. Like `tree`, `find` is read-only and bounded to **eight directory levels**, **64 entries per directory** and **256 scanned entries**, so it cannot turn a recursive search into unbounded memory or output consumption.
+`find <name-fragment> [absolute-directory]` searches entry names case-insensitively across the logical VFS and prints matching absolute paths with `[D]`, `[F]` or `[V]` type markers. `run find` remains a compatibility form. The optional start directory must be absolute; a relative path, an empty fragment or extra arguments are rejected. `find TrEe /system/core` therefore finds `/system/core/apps/tree.elf`. Like `tree`, `find` is read-only and bounded to **eight directory levels**, **64 entries per directory** and **256 scanned entries**, so it cannot turn a recursive search into unbounded memory or output consumption.
 
 ### Native head view
 
@@ -203,7 +203,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `wc` | `wc /users/myos/files/a.txt` | Stream one absolute readable file in 256-byte VFS chunks and print newline-terminated lines, space/tab/CR/LF-delimited words and bytes. `run wc` remains a compatibility form. |
 | `grep` | `grep MyOS /system/core/resources/motd.txt` | Print newline-terminated lines of at most 127 bytes that contain one unspaced text fragment while reading one absolute file in 256-byte VFS chunks. Longer lines are skipped. `run grep` remains a compatibility form. |
 | `run tree` | `run tree /system` | Recursively show VFS entries without mutation; requires zero or one absolute directory and is limited to 8 levels, 64 entries per directory and 256 printed entries. |
-| `run find` | `run find tree /system/core` | Case-insensitively search entry names without mutation; accepts one fragment and an optional absolute directory, with limits of 8 levels, 64 entries per directory and 256 scanned entries. |
+| `find` | `find tree /system/core` | Case-insensitively search entry names without mutation; accepts one fragment and an optional absolute directory, with limits of 8 levels, 64 entries per directory and 256 scanned entries. `run find` remains compatible. |
 | `run stackprobe` | `run stackprobe` | Run the 12 KiB automatic-buffer diagnostic; expected checksum is `1566720`, confirming all four mapped ring-3 stack pages. |
 | `head` | `head /system/core/resources/motd.txt 2` | Print the first 10 lines by default, or 1–64 requested lines, from one absolute readable file; VFS I/O uses 256-byte chunks and output is capped at 4 KiB. `run head` remains compatible. |
 | `stat` | `stat /system/core/resources/motd.txt` | Report the type and byte size of one absolute logical-VFS entry through a bounded scan of at most 128 entries in its parent; never writes storage. `run stat` remains compatible. |
