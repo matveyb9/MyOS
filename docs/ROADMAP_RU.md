@@ -46,7 +46,7 @@
 | `[x]` | Framebuffer text console и COM1 mirror | Диагностика доступна на физическом экране и через serial output QEMU. |
 | `[x]` | Kernel diagnostic shell | Prompt `kernel>`, диагностические команды и безопасный вход в user space. |
 | `[x]` | User shell `/init` | Prompt `[myos]$`, history, Up/Down, Tab completion, переменные окружения, arguments и pipes. |
-| `[x]` | User utilities | `hello`, `sleeper`, `orphaner`, `safety`, `argshow`, `calc`, `pipewrite`, `piperead`, `wc`, `grep`, `edit`. |
+| `[x]` | User utilities | `hello`, `sleeper`, `orphaner`, `safety`, `argshow`, `calc`, `pipewrite`, `piperead`, `wc`, `grep`, `edit`, `tree`. `tree` — read-only bounded logical-VFS explorer с fixed recursion/output limits. |
 | `[x]` | Direct calculator | Signed 64-bit arithmetic и quiet output без lifecycle messages. |
 | `[x]` | Автоматический запуск | `/init` запускается через три секунды; `K` отменяет запуск и оставляет пользователя в `kernel>`. |
 | `[x]` | Читаемый boot presentation | Boot log разбит на четыре stage headers; normal user-shell handoff очищает framebuffer, diagnostic path сохраняет log. |

@@ -577,6 +577,13 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: live inventory directories are missing\n{guest._tail()}")
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         guest.command("ls /system/core", "[dir] apps")
+        tree_start = len(guest.output)
+        guest.command("run tree /system", "tree:")
+        tree_output = bytes(guest.output[tree_start:])
+        for expected in (b"[D] core", b"[D] apps", b"[F] tree.elf", b"tree: "):
+            if expected not in tree_output:
+                raise RegressionFailure(f"BIOS: tree output lacks {expected!r}\\n{guest._tail()}")
+        guest.command("help tree", "8 levels, 64 entries/directory, 256 entries total")
         guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
@@ -700,6 +707,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.command("sysinfo", "MYOS SYSTEM INVENTORY")
         require_system_inventory("UEFI", bytes(guest.output[inventory_start:]), b"UEFI x86_64")
         guest.command("ls /system/core", "[dir] apps")
+        tree_start = len(guest.output)
+        guest.command("run tree /system/core", "tree:")
+        tree_output = bytes(guest.output[tree_start:])
+        for expected in (b"[D] apps", b"[F] tree.elf", b"tree: "):
+            if expected not in tree_output:
+                raise RegressionFailure(f"UEFI: tree output lacks {expected!r}\\n{guest._tail()}")
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         uefi_large_gui_start = len(guest.output)
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "0123456789abcdef")

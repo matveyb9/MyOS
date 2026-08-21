@@ -89,6 +89,7 @@ uptime
 ls /
 ls /system/live
 ls /system/live/processes
+run tree /system
 cat /system/core/resources/motd.txt
 ```
 
@@ -134,6 +135,10 @@ rm /temp/session.txt
 
 After closing QEMU, reboot using the same `myos.img` and read the persistent file at the same absolute path. Do not run `make img` beforehand, because that command creates a new empty data partition.
 
+### Native tree view
+
+`run tree` prints a type-aware recursive view of the logical VFS from `/`. Pass one absolute directory to start elsewhere, for example `run tree /system` or `run tree /users/myos`. Directory rows use `[D]`, regular files use `[F]` with their size, and virtual records use `[V]`. The built-in utility never mutates storage, accepts no relative path, follows only the existing logical VFS enumeration and stops at **eight directory levels**, **64 entries per directory**, or **256 printed entries**. These limits prevent an exploratory command from consuming unbounded user memory or output.
+
 ### File Workspace v1
 
 Run `startgui` and click **FILES**. The browser begins at `/users/myos/`. Its `[..]`, `[PREV]`, entry rows and `[NEXT]` controls allow mouse-first traversal of every path exposed through the logical VFS, including `/`, `/system/core/`, `/system/live/`, `/apps/`, `/users/` and `/temp/`. Directory rows enter a directory; regular and virtual files are opened safely. The raw Limine/EFI boot files and `kernel.elf` remain boot artifacts outside this runtime tree.
@@ -165,6 +170,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `ls` | `ls /users/myos` | Show directory contents. |
 | `cat` | `cat /system/core/resources/motd.txt` | Display a file. |
 | `run cp` | `run cp /users/myos/files/a.txt /users/myos/files/b.txt` | Copy a regular file in bounded chunks. The target must be a new absolute path and its parent must already exist; it is never overwritten. |
+| `run tree` | `run tree /system` | Recursively show VFS entries without mutation; requires zero or one absolute directory and is limited to 8 levels, 64 entries per directory and 256 printed entries. |
 | `touch` | `touch /users/myos/files/note.txt` | Create an empty persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Create a directory. |
 | `write` | `write /users/myos/files/note.txt Hello` | Overwrite a file with a single line. |

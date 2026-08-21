@@ -89,6 +89,7 @@ uptime
 ls /
 ls /system/live
 ls /system/live/processes
+run tree /system
 cat /system/core/resources/motd.txt
 ```
 
@@ -134,6 +135,10 @@ rm /temp/session.txt
 
 После закрытия QEMU снова загрузите **тот же** `myos.img` и прочитайте persistent file по тому же absolute path. Не запускайте перед этим `make img`, потому что команда создаёт новый пустой data partition.
 
+### Native tree view
+
+`run tree` выводит type-aware recursive view logical VFS от `/`. Можно передать один absolute directory, чтобы начать в другом месте, например `run tree /system` или `run tree /users/myos`. Directory rows используют `[D]`, regular files — `[F]` с размером, virtual records — `[V]`. Built-in utility никогда не меняет storage, не принимает relative path, следует только existing logical VFS enumeration и останавливается на **восьми directory levels**, **64 entries в directory** или **256 printed entries**. Эти limits не позволяют exploratory command потреблять unbounded user memory или output.
+
 ### File Workspace v1
 
 Запустите `startgui` и нажмите **FILES**. Browser начинается в `/users/myos/`. Его controls `[..]`, `[PREV]`, entry rows и `[NEXT]` дают mouse-first traversal всех paths, которые открыты через logical VFS, включая `/`, `/system/core/`, `/system/live/`, `/apps/`, `/users/` и `/temp/`. Directory rows открывают каталог; regular и virtual files открываются безопасно. Raw Limine/EFI boot files и `kernel.elf` остаются boot artifacts вне этого runtime tree.
@@ -165,6 +170,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `ls` | `ls /users/myos` | Показать содержимое каталога. |
 | `cat` | `cat /system/core/resources/motd.txt` | Показать file. |
 | `run cp` | `run cp /users/myos/files/a.txt /users/myos/files/b.txt` | Скопировать regular file bounded chunks. Target должна быть новым absolute path, а её parent уже должна существовать; она никогда не перезаписывается. |
+| `run tree` | `run tree /system` | Рекурсивно показать VFS entries без mutation; принимает ноль или один absolute directory и ограничена 8 levels, 64 entries на directory и 256 printed entries. |
 | `touch` | `touch /users/myos/files/note.txt` | Создать пустой persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Создать каталог. |
 | `write` | `write /users/myos/files/note.txt Hello` | Перезаписать file одной строкой. |
