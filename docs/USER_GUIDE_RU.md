@@ -94,6 +94,7 @@ run find tree /system/core
 run head /system/core/resources/motd.txt 2
 run stat /system/core/resources/motd.txt
 run tail /system/core/resources/motd.txt 2
+run sort /system/core/resources/motd.txt
 run stackprobe
 cat /system/core/resources/motd.txt
 ```
@@ -160,6 +161,10 @@ rm /temp/session.txt
 
 `run tail <absolute-file> [1..64 lines]` выводит конец одного readable VFS file. Без optional count он выводит последние **10 строк**; например, `run tail /system/core/resources/motd.txt 2` показывает последние две строки MOTD. Utility принимает один absolute file path и optional decimal count от 1 до 64. Она stream-читает файл через обычные VFS ABI chunks по 256 bytes, но хранит только его последние **4 KiB**, затем выбирает requested trailing lines из этого bounded buffer. Когда более старый content отброшен, выводится `tail: retained last 4096 bytes`; поэтому строка больше retained window может быть partial. Storage никогда не меняется.
 
+### Native sort
+
+`run sort <absolute-file>` читает один text file и выводит его retained lines в **bytewise ASCII ascending order**. Например, `run sort /system/core/resources/motd.txt` выводит строки `The…`, `Use…`, затем `Welcome…`. Operation read-only и использует обычные VFS read chunks по 256 bytes. Для bounded работы сохраняется не более **64 lines**, каждая до **127 bytes**; CR bytes игнорируются, а line или entry за этими limits пропускается с `sort: line or entry limit reached`. Duplicate lines сохраняют original relative order.
+
 ### Native stack probe
 
 `run stackprobe` — read-only diagnostic utility user-program platform. Она заполняет 12 KiB automatic buffer и выводит `stackprobe: 12288 bytes checksum 1566720`. Этот точный результат подтверждает, что current program использует все четыре mapped ring-3 stack pages по 4 KiB; непосредственно ниже них остаётся guard page, перехватывающая downward stack overflow.
@@ -201,6 +206,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `run head` | `run head /system/core/resources/motd.txt 2` | Вывести первые 10 строк по умолчанию или 1–64 запрошенные строки одного absolute readable file; VFS I/O использует chunks 256 bytes, а output ограничен 4 KiB. |
 | `run stat` | `run stat /system/core/resources/motd.txt` | Вывести type и byte size одного absolute logical-VFS entry через bounded scan не более 128 entries его parent; storage не меняется. |
 | `run tail` | `run tail /system/core/resources/motd.txt 2` | Вывести последние 10 строк по умолчанию или 1–64 запрошенные trailing lines одного absolute readable file; stream-читает VFS chunks 256 bytes, сохраняя только последние 4 KiB. |
+| `run sort` | `run sort /system/core/resources/motd.txt` | Отсортировать до 64 retained text lines в bytewise ASCII ascending order; каждая line ограничена 127 bytes, storage не меняется. |
 | `touch` | `touch /users/myos/files/note.txt` | Создать пустой persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Создать каталог. |
 | `write` | `write /users/myos/files/note.txt Hello` | Перезаписать file одной строкой. |
