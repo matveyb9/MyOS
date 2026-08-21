@@ -90,6 +90,7 @@ ls /
 ls /system/live
 ls /system/live/processes
 run tree /system
+run find tree /system/core
 cat /system/core/resources/motd.txt
 ```
 
@@ -139,6 +140,10 @@ After closing QEMU, reboot using the same `myos.img` and read the persistent fil
 
 `run tree` prints a type-aware recursive view of the logical VFS from `/`. Pass one absolute directory to start elsewhere, for example `run tree /system` or `run tree /users/myos`. Directory rows use `[D]`, regular files use `[F]` with their size, and virtual records use `[V]`. The built-in utility never mutates storage, accepts no relative path, follows only the existing logical VFS enumeration and stops at **eight directory levels**, **64 entries per directory**, or **256 printed entries**. These limits prevent an exploratory command from consuming unbounded user memory or output.
 
+### Native find search
+
+`run find <name-fragment> [absolute-directory]` searches entry names case-insensitively across the logical VFS and prints matching absolute paths with `[D]`, `[F]` or `[V]` type markers. The optional start directory must be absolute; a relative path, an empty fragment or extra arguments are rejected. `run find TrEe /system/core` therefore finds `/system/core/apps/tree.elf`. Like `tree`, `find` is read-only and bounded to **eight directory levels**, **64 entries per directory** and **256 scanned entries**, so it cannot turn a recursive search into unbounded memory or output consumption.
+
 ### File Workspace v1
 
 Run `startgui` and click **FILES**. The browser begins at `/users/myos/`. Its `[..]`, `[PREV]`, entry rows and `[NEXT]` controls allow mouse-first traversal of every path exposed through the logical VFS, including `/`, `/system/core/`, `/system/live/`, `/apps/`, `/users/` and `/temp/`. Directory rows enter a directory; regular and virtual files are opened safely. The raw Limine/EFI boot files and `kernel.elf` remain boot artifacts outside this runtime tree.
@@ -171,6 +176,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `cat` | `cat /system/core/resources/motd.txt` | Display a file. |
 | `run cp` | `run cp /users/myos/files/a.txt /users/myos/files/b.txt` | Copy a regular file in bounded chunks. The target must be a new absolute path and its parent must already exist; it is never overwritten. |
 | `run tree` | `run tree /system` | Recursively show VFS entries without mutation; requires zero or one absolute directory and is limited to 8 levels, 64 entries per directory and 256 printed entries. |
+| `run find` | `run find tree /system/core` | Case-insensitively search entry names without mutation; accepts one fragment and an optional absolute directory, with limits of 8 levels, 64 entries per directory and 256 scanned entries. |
 | `touch` | `touch /users/myos/files/note.txt` | Create an empty persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Create a directory. |
 | `write` | `write /users/myos/files/note.txt Hello` | Overwrite a file with a single line. |

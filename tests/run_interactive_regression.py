@@ -584,6 +584,13 @@ def run_bios(image_path, work_dir):
             if expected not in tree_output:
                 raise RegressionFailure(f"BIOS: tree output lacks {expected!r}\\n{guest._tail()}")
         guest.command("help tree", "8 levels, 64 entries/directory, 256 entries total")
+        find_start = len(guest.output)
+        guest.command("run find TrEe /system/core", "find:")
+        find_output = bytes(guest.output[find_start:])
+        for expected in (b"[F] /system/core/apps/tree.elf", b"1 match(es)"):
+            if expected not in find_output:
+                raise RegressionFailure(f"BIOS: find output lacks {expected!r}\\n{guest._tail()}")
+        guest.command("help find", "Case-insensitive read-only name search")
         guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
@@ -713,6 +720,11 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         for expected in (b"[D] apps", b"[F] tree.elf", b"tree: "):
             if expected not in tree_output:
                 raise RegressionFailure(f"UEFI: tree output lacks {expected!r}\\n{guest._tail()}")
+        find_start = len(guest.output)
+        guest.command("run find find /system/core/apps", "find:")
+        find_output = bytes(guest.output[find_start:])
+        if b"[F] /system/core/apps/find.elf" not in find_output:
+            raise RegressionFailure(f"UEFI: find output lacks packaged find.elf\\n{guest._tail()}")
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         uefi_large_gui_start = len(guest.output)
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "0123456789abcdef")

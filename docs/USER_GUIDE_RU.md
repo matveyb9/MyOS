@@ -90,6 +90,7 @@ ls /
 ls /system/live
 ls /system/live/processes
 run tree /system
+run find tree /system/core
 cat /system/core/resources/motd.txt
 ```
 
@@ -139,6 +140,10 @@ rm /temp/session.txt
 
 `run tree` выводит type-aware recursive view logical VFS от `/`. Можно передать один absolute directory, чтобы начать в другом месте, например `run tree /system` или `run tree /users/myos`. Directory rows используют `[D]`, regular files — `[F]` с размером, virtual records — `[V]`. Built-in utility никогда не меняет storage, не принимает relative path, следует только existing logical VFS enumeration и останавливается на **восьми directory levels**, **64 entries в directory** или **256 printed entries**. Эти limits не позволяют exploratory command потреблять unbounded user memory или output.
 
+### Native find search
+
+`run find <name-fragment> [absolute-directory]` ищет names entries case-insensitively по logical VFS и выводит matching absolute paths с type markers `[D]`, `[F]` или `[V]`. Optional start directory обязана быть absolute; relative path, empty fragment или extra arguments отклоняются. Поэтому `run find TrEe /system/core` находит `/system/core/apps/tree.elf`. Как и `tree`, `find` read-only и ограничена **восьмью directory levels**, **64 entries в directory** и **256 scanned entries**, поэтому recursive search не становится unbounded consumption user memory или output.
+
 ### File Workspace v1
 
 Запустите `startgui` и нажмите **FILES**. Browser начинается в `/users/myos/`. Его controls `[..]`, `[PREV]`, entry rows и `[NEXT]` дают mouse-first traversal всех paths, которые открыты через logical VFS, включая `/`, `/system/core/`, `/system/live/`, `/apps/`, `/users/` и `/temp/`. Directory rows открывают каталог; regular и virtual files открываются безопасно. Raw Limine/EFI boot files и `kernel.elf` остаются boot artifacts вне этого runtime tree.
@@ -171,6 +176,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `cat` | `cat /system/core/resources/motd.txt` | Показать file. |
 | `run cp` | `run cp /users/myos/files/a.txt /users/myos/files/b.txt` | Скопировать regular file bounded chunks. Target должна быть новым absolute path, а её parent уже должна существовать; она никогда не перезаписывается. |
 | `run tree` | `run tree /system` | Рекурсивно показать VFS entries без mutation; принимает ноль или один absolute directory и ограничена 8 levels, 64 entries на directory и 256 printed entries. |
+| `run find` | `run find tree /system/core` | Case-insensitively искать names entries без mutation; принимает fragment и optional absolute directory, с limits 8 levels, 64 entries на directory и 256 scanned entries. |
 | `touch` | `touch /users/myos/files/note.txt` | Создать пустой persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Создать каталог. |
 | `write` | `write /users/myos/files/note.txt Hello` | Перезаписать file одной строкой. |
