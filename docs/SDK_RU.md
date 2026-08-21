@@ -19,6 +19,7 @@
 | Build template | `sdk/Makefile` | Собирает заданный C-файл в готовый MyOS ELF. |
 | Проверочный пример | `sdk/examples/hello.c` | Выводит сообщение и принятую строку аргументов. |
 | Практический SDK tool | `sdk/examples/cp.c` | Копирует existing regular file в новый absolute target только через public SDK VFS wrappers. Образ stage-ит его как `/system/core/apps/cp.elf`. |
+| VFS write example | `sdk/examples/write.c` | Создаёт один новый absolute target и записывает fixed bounded payload через public create/write/remove wrappers. Образ stage-ит его как `/system/core/examples/sdk/write.elf`. |
 
 ## Требования и сборка
 
@@ -94,6 +95,16 @@ cat /users/myos/files/target.txt
 
 Инструмент читает и записывает запросами по 256 bytes, поддерживает empty source files и files до existing 8 MiB regular-file ceiling и удаляет только свой newly-created partial target при неудаче copy.
 
+Второй packaged example, `write.elf`, изолирует lifecycle create/write без зависимости от source file. Установите его, выберите **новый** absolute target и прочитайте fixed payload:
+
+```text
+install /system/core/examples/sdk/write.elf /apps/sdk-write/main.elf
+run sdk-write /users/myos/files/sdk-write-example.txt
+cat /users/myos/files/sdk-write-example.txt
+```
+
+Он записывает ровно `sdk-write: persistent VFS example\n` одним public VFS write request. Target должна отсутствовать, а её parent directory уже существовать. Неудачная запись удаляет только target, созданный этим запуском; existing target никогда не перезаписывается.
+
 | Ограничение | Текущее значение |
 |---|---:|
 | Persistent VFS objects | До 128 файлов и каталогов в MYPFS004. |
@@ -101,9 +112,9 @@ cat /users/myos/files/target.txt
 | Persistent executable target | `/apps/<name>/main.elf`; короткое имя `<name>` разрешается shell в этот target. |
 | Длина absolute program path | До 111 visible ASCII bytes плюс NUL terminator. |
 | Длина передаваемой строки arguments | До 127 visible bytes плюс NUL terminator. |
-| Initramfs staging path примера | `/system/core/examples/sdk/hello.elf`. |
+| Initramfs staging paths примеров | `/system/core/examples/sdk/hello.elf` и `/system/core/examples/sdk/write.elf`. |
 | Live SDK tool path | `/system/core/apps/cp.elf`, resolved как `run cp`. |
-| `cp` destination rule | Absolute path, absent target и already-existing parent directory; existing targets никогда не перезаписываются. |
+| Target rule `cp` и `sdk-write` | Absolute path, absent target и already-existing parent directory; existing targets никогда не перезаписываются. |
 
 ## Как заменить пример своей программой
 
@@ -119,11 +130,12 @@ MYPFS004 предоставляет настоящую файловую иера
 |---|---|
 | Host build | `make -C sdk APP=sdk/examples/hello.c OUT=sdk/build/sdk-hello.elf` завершилась без warnings и errors. |
 | ELF inspection | Получен statically linked `ELF64 ET_EXEC` для x86-64 с entry `0x40005f` и loadable text/rodata segments. |
-| Image build | `make img` добавляет SDK sample как `/system/core/examples/sdk/hello.elf`. |
+| Image build | `make img` добавляет SDK samples как `/system/core/examples/sdk/hello.elf` и `/system/core/examples/sdk/write.elf`. |
 | Install and run | `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`, затем `run sdk-hello external SDK validation` вывели приветствие и полную строку аргументов; status `0`. |
 | Persistence | После fresh BIOS boot `run sdk-hello persisted` успешно запускает ранее установленный ELF из MYPFS004 application package. |
 | UEFI execution | OVMF boot с тем же `myos.img` успешно запустил persisted app командой `run sdk-hello uefi`. |
 | SDK VFS copy | SDK-built live `cp` скопировал editor-authored persistent file размером 305 bytes через 256-byte request boundary, отклонил вторую overwrite attempt, а exact target data сохранились после UEFI. |
+| SDK VFS write | Packaged example `sdk-write` создал новый persistent target, записал exact fixed payload, отклонил overwrite attempt, затем установленный package создал и прочитал другой target после UEFI boot. |
 
 ## Не входит в данный этап
 

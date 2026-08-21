@@ -19,6 +19,7 @@ At this milestone the SDK is intentionally compact: it does not include POSIX, a
 | Build template | `sdk/Makefile` | Builds a given C file into a ready MyOS ELF. |
 | Validation example | `sdk/examples/hello.c` | Prints a message and the received argument string. |
 | Practical SDK tool | `sdk/examples/cp.c` | Copies an existing regular file to a new absolute target through only the public SDK VFS wrappers. The image stages it as `/system/core/apps/cp.elf`. |
+| VFS write example | `sdk/examples/write.c` | Creates one new absolute target and writes a fixed bounded payload through the public create/write/remove wrappers. The image stages it as `/system/core/examples/sdk/write.elf`. |
 
 ## Requirements and build
 
@@ -94,6 +95,16 @@ cat /users/myos/files/target.txt
 
 The tool reads and writes in 256-byte requests, supports empty source files and files up to the existing 8 MiB regular-file ceiling, and removes only its newly-created partial target when a copy fails.
 
+The second packaged example, `write.elf`, isolates the create/write lifecycle without a source-file dependency. Install it, select one **new** absolute target and inspect its fixed payload:
+
+```text
+install /system/core/examples/sdk/write.elf /apps/sdk-write/main.elf
+run sdk-write /users/myos/files/sdk-write-example.txt
+cat /users/myos/files/sdk-write-example.txt
+```
+
+It writes exactly `sdk-write: persistent VFS example\n` in one public VFS write request. The target must be absent and its parent directory must already exist. A failed write removes only the target created by this run; an existing target is never overwritten.
+
 | Limitation | Current value |
 |---|---:|
 | Persistent VFS objects | Up to 128 files and directories in MYPFS004. |
@@ -101,9 +112,9 @@ The tool reads and writes in 256-byte requests, supports empty source files and 
 | Persistent executable target | `/apps/<name>/main.elf`; the short name `<name>` is resolved by the shell to this target. |
 | Length of absolute program path | Up to 111 visible ASCII bytes plus NUL terminator. |
 | Length of passed arguments string | Up to 127 visible bytes plus NUL terminator. |
-| Initramfs staging path of the example | `/system/core/examples/sdk/hello.elf`. |
+| Initramfs staging paths of the examples | `/system/core/examples/sdk/hello.elf` and `/system/core/examples/sdk/write.elf`. |
 | Live SDK tool path | `/system/core/apps/cp.elf`, resolved as `run cp`. |
-| `cp` destination rule | Absolute path, absent target, and an already-existing parent directory; existing targets are never overwritten. |
+| `cp` and `sdk-write` target rule | Absolute path, absent target, and an already-existing parent directory; existing targets are never overwritten. |
 
 ## How to replace the example with your own program
 
@@ -119,11 +130,12 @@ Validation was performed on the `feature/gui` branch in QEMU Q35 BIOS with raw `
 |---|---|
 | Host build | `make -C sdk APP=sdk/examples/hello.c OUT=sdk/build/sdk-hello.elf` completed with no warnings or errors. |
 | ELF inspection | A statically linked `ELF64 ET_EXEC` for x86-64 was produced with entry `0x40005f` and loadable text/rodata segments. |
-| Image build | `make img` adds the SDK sample as `/system/core/examples/sdk/hello.elf`. |
+| Image build | `make img` adds the SDK samples as `/system/core/examples/sdk/hello.elf` and `/system/core/examples/sdk/write.elf`. |
 | Install and run | `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`, then `run sdk-hello external SDK validation` printed the greeting and the full argument string; status `0`. |
 | Persistence | After a fresh BIOS boot `run sdk-hello persisted` successfully runs the previously installed ELF from the MYPFS004 application package. |
 | UEFI execution | OVMF boot with the same `myos.img` successfully ran the persisted app with `run sdk-hello uefi`. |
 | SDK VFS copy | The SDK-built live `cp` copied an editor-authored 305-byte persistent file across the 256-byte request boundary, rejected a second overwrite attempt, and its exact target data persisted through UEFI. |
+| SDK VFS write | The packaged `sdk-write` example created a new persistent target, wrote its exact fixed payload, rejected an overwrite attempt, then the installed package created and read back another target after UEFI boot. |
 
 ## Not included in this milestone
 

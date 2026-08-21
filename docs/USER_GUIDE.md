@@ -250,7 +250,7 @@ After reboot reinstallation is not required:
 run sdk-hello persisted
 ```
 
-The SDK builds freestanding C11 programs on the host computer. Its public header includes bounded VFS read/create/write/remove wrappers, demonstrated by the image’s live `cp` utility. `cp` requires two absolute paths, never overwrites an existing target and removes only a partial target it created after a failure. The detailed workflow, ABI, and linker contract are in [SDK.md](SDK.md). For the first in-OS workflow use the restricted assembler described in the next section; a richer native C frontend is a later milestone.
+The SDK builds freestanding C11 programs on the host computer. Its public header includes bounded VFS read/create/write/remove wrappers, demonstrated by the image’s live `cp` utility and packaged `sdk-write` reference example. `cp` requires two absolute paths, while `sdk-write` accepts one new absolute target and writes a fixed payload; neither overwrites an existing target, and both remove only a partial target they created after a failure. To try the writer, run `install /system/core/examples/sdk/write.elf /apps/sdk-write/main.elf`, then `run sdk-write /users/myos/files/sdk-write-example.txt` and `cat` that path. The detailed workflow, ABI, and linker contract are in [SDK.md](SDK.md). For the first in-OS workflow use the restricted assembler described in the next section; a richer native C frontend is a later milestone.
 
 ## 8. Native build directly in MyOS
 

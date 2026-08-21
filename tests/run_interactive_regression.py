@@ -45,6 +45,11 @@ VARIABLE_ELF_PATH = "/users/myos/projects/release-vars.elf"
 VARIABLE_APP_PATH = "/apps/release-vars/main.elf"
 INVALID_VARIABLE_SOURCE_PATH = "/temp/release-vars-invalid.mya"
 INVALID_VARIABLE_ELF_PATH = "/users/myos/projects/release-vars-invalid.elf"
+SDK_WRITE_EXAMPLE_PATH = "/system/core/examples/sdk/write.elf"
+SDK_WRITE_APP_PATH = "/apps/sdk-write/main.elf"
+SDK_WRITE_BIOS_TARGET = "/users/myos/files/sdk-write-bios.txt"
+SDK_WRITE_UEFI_TARGET = "/users/myos/files/sdk-write-uefi.txt"
+SDK_WRITE_PAYLOAD = b"sdk-write: persistent VFS example\n"
 COPY_SOURCE_PATH = "/users/myos/files/cp-harness-source.txt"
 COPY_TARGET_PATH = "/users/myos/files/cp-harness-target.txt"
 TIME_LINE = re.compile(rb"(?m)^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\r?$")
@@ -755,6 +760,17 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {CONDITIONAL_BACKWARD_SOURCE_PATH} {CONDITIONAL_BACKWARD_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_VARIABLE_SOURCE_PATH} set 1;store 8;exit 0")
         guest.command(f"build {INVALID_VARIABLE_SOURCE_PATH} {INVALID_VARIABLE_ELF_PATH}", diagnostic)
+        guest.command(f"install {SDK_WRITE_EXAMPLE_PATH} {SDK_WRITE_APP_PATH}", "exited with status 0")
+        sdk_write_start = len(guest.output)
+        guest.command(f"run sdk-write {SDK_WRITE_BIOS_TARGET}", "sdk-write: wrote fixed payload")
+        sdk_write_output = bytes(guest.output[sdk_write_start:])
+        if SDK_WRITE_BIOS_TARGET.encode("ascii") not in sdk_write_output:
+            raise RegressionFailure(f"BIOS: sdk-write did not report its target\\n{guest._tail()}")
+        sdk_write_read_start = len(guest.output)
+        guest.command(f"cat {SDK_WRITE_BIOS_TARGET}", "sdk-write: persistent VFS example")
+        if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_read_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"BIOS: sdk-write payload readback is not exact\\n{guest._tail()}")
+        guest.command(f"run sdk-write {SDK_WRITE_BIOS_TARGET}", "target must not exist")
     finally:
         guest.close()
 
@@ -825,6 +841,19 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if copy_payload not in copy_read_output:
             raise RegressionFailure(f"UEFI: persisted SDK cp target readback is not exact\n{guest._tail()}")
         guest.command(f"run cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
+        sdk_write_bios_read_start = len(guest.output)
+        guest.command(f"cat {SDK_WRITE_BIOS_TARGET}", "sdk-write: persistent VFS example")
+        if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_bios_read_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"UEFI: persisted BIOS sdk-write payload is not exact\\n{guest._tail()}")
+        sdk_write_uefi_start = len(guest.output)
+        guest.command(f"run sdk-write {SDK_WRITE_UEFI_TARGET}", "sdk-write: wrote fixed payload")
+        sdk_write_uefi_output = bytes(guest.output[sdk_write_uefi_start:])
+        if SDK_WRITE_UEFI_TARGET.encode("ascii") not in sdk_write_uefi_output:
+            raise RegressionFailure(f"UEFI: persisted sdk-write package did not report its target\\n{guest._tail()}")
+        sdk_write_uefi_read_start = len(guest.output)
+        guest.command(f"cat {SDK_WRITE_UEFI_TARGET}", "sdk-write: persistent VFS example")
+        if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_uefi_read_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"UEFI: sdk-write UEFI payload readback is not exact\\n{guest._tail()}")
         run_start = len(guest.output)
         guest.command("run editor-harness", "editor")
         run_output = guest.output[run_start:]

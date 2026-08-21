@@ -28,6 +28,7 @@ USER_TAIL      := $(USER_BUILD_DIR)/tail
 USER_SORT      := $(USER_BUILD_DIR)/sort
 SDK_HELLO      := $(BUILD_DIR)/sdk/sdk-hello.elf
 SDK_CP         := $(BUILD_DIR)/sdk/cp.elf
+SDK_WRITE      := $(BUILD_DIR)/sdk/sdk-write.elf
 USER_MOTD      := user/motd.txt
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
@@ -192,10 +193,13 @@ $(SDK_HELLO): sdk/examples/hello.c sdk/Makefile sdk/lib/crt0.c sdk/include/myos.
 $(SDK_CP): sdk/examples/cp.c sdk/Makefile sdk/lib/crt0.c sdk/include/myos.h sdk/myos-user.ld
 	$(MAKE) -C sdk APP=$(abspath sdk/examples/cp.c) OUT=$(abspath $@)
 
-sdk-stage: $(SDK_HELLO) $(SDK_CP)
+$(SDK_WRITE): sdk/examples/write.c sdk/Makefile sdk/lib/crt0.c sdk/include/myos.h sdk/myos-user.ld
+	$(MAKE) -C sdk APP=$(abspath sdk/examples/write.c) OUT=$(abspath $@)
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_STARTGUI) $(USER_INSTALL) $(USER_ASM) $(USER_TREE) $(USER_FIND) $(USER_STACKPROBE) $(USER_HEAD) $(USER_STAT) $(USER_TAIL) $(USER_SORT) $(SDK_HELLO) $(SDK_CP) $(USER_MOTD) user/gui_4k_fixture.txt tools/mkcpio.py Makefile
-	python3 tools/mkcpio.py $@ system/core/apps/init.elf $(USER_INIT) system/core/apps/hello.elf $(USER_HELLO) system/core/apps/sleeper.elf $(USER_SLEEPER) system/core/apps/orphaner.elf $(USER_ORPHANER) system/core/apps/safety.elf $(USER_SAFETY) system/core/apps/argshow.elf $(USER_ARGSHOW) system/core/apps/calc.elf $(USER_CALC) system/core/apps/pipewrite.elf $(USER_PIPEWRITE) system/core/apps/piperead.elf $(USER_PIPEREAD) system/core/apps/wc.elf $(USER_WC) system/core/apps/grep.elf $(USER_GREP) system/core/apps/edit.elf $(USER_EDIT) system/core/apps/startgui.elf $(USER_STARTGUI) system/core/apps/install.elf $(USER_INSTALL) system/core/apps/asm.elf $(USER_ASM) system/core/apps/tree.elf $(USER_TREE) system/core/apps/find.elf $(USER_FIND) system/core/apps/stackprobe.elf $(USER_STACKPROBE) system/core/apps/head.elf $(USER_HEAD) system/core/apps/stat.elf $(USER_STAT) system/core/apps/tail.elf $(USER_TAIL) system/core/apps/sort.elf $(USER_SORT) system/core/examples/sdk/hello.elf $(SDK_HELLO) system/core/apps/cp.elf $(SDK_CP) system/core/resources/motd.txt $(USER_MOTD) system/core/resources/gui-4k.txt user/gui_4k_fixture.txt
+sdk-stage: $(SDK_HELLO) $(SDK_CP) $(SDK_WRITE)
+
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_STARTGUI) $(USER_INSTALL) $(USER_ASM) $(USER_TREE) $(USER_FIND) $(USER_STACKPROBE) $(USER_HEAD) $(USER_STAT) $(USER_TAIL) $(USER_SORT) $(SDK_HELLO) $(SDK_CP) $(SDK_WRITE) $(USER_MOTD) user/gui_4k_fixture.txt tools/mkcpio.py Makefile
+	python3 tools/mkcpio.py $@ system/core/apps/init.elf $(USER_INIT) system/core/apps/hello.elf $(USER_HELLO) system/core/apps/sleeper.elf $(USER_SLEEPER) system/core/apps/orphaner.elf $(USER_ORPHANER) system/core/apps/safety.elf $(USER_SAFETY) system/core/apps/argshow.elf $(USER_ARGSHOW) system/core/apps/calc.elf $(USER_CALC) system/core/apps/pipewrite.elf $(USER_PIPEWRITE) system/core/apps/piperead.elf $(USER_PIPEREAD) system/core/apps/wc.elf $(USER_WC) system/core/apps/grep.elf $(USER_GREP) system/core/apps/edit.elf $(USER_EDIT) system/core/apps/startgui.elf $(USER_STARTGUI) system/core/apps/install.elf $(USER_INSTALL) system/core/apps/asm.elf $(USER_ASM) system/core/apps/tree.elf $(USER_TREE) system/core/apps/find.elf $(USER_FIND) system/core/apps/stackprobe.elf $(USER_STACKPROBE) system/core/apps/head.elf $(USER_HEAD) system/core/apps/stat.elf $(USER_STAT) system/core/apps/tail.elf $(USER_TAIL) system/core/apps/sort.elf $(USER_SORT) system/core/examples/sdk/hello.elf $(SDK_HELLO) system/core/examples/sdk/write.elf $(SDK_WRITE) system/core/apps/cp.elf $(SDK_CP) system/core/resources/motd.txt $(USER_MOTD) system/core/resources/gui-4k.txt user/gui_4k_fixture.txt
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)

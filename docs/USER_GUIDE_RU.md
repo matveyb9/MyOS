@@ -250,7 +250,7 @@ run sdk-hello external SDK validation
 run sdk-hello persisted
 ```
 
-SDK собирает собственные freestanding C11 programs на host computer. Его public header содержит bounded VFS read/create/write/remove wrappers, которые демонстрирует live utility `cp` в образе. `cp` требует два absolute paths, никогда не перезаписывает existing target и удаляет только partial target, созданный им при failure. Подробный workflow, ABI и linker contract приведены в [SDK_RU.md](SDK_RU.md). Для первого in-OS workflow используйте restricted assembler из следующего раздела; более богатый native C frontend остаётся последующим milestone.
+SDK собирает собственные freestanding C11 programs на host computer. Его public header содержит bounded VFS read/create/write/remove wrappers, которые демонстрируют live utility `cp` и packaged reference example `sdk-write` в образе. `cp` требует два absolute paths, а `sdk-write` принимает один новый absolute target и записывает fixed payload; ни один не перезаписывает existing target, а оба удаляют только partial target, созданный ими при failure. Чтобы попробовать writer, выполните `install /system/core/examples/sdk/write.elf /apps/sdk-write/main.elf`, затем `run sdk-write /users/myos/files/sdk-write-example.txt` и `cat` этого пути. Подробный workflow, ABI и linker contract приведены в [SDK_RU.md](SDK_RU.md). Для первого in-OS workflow используйте restricted assembler из следующего раздела; более богатый native C frontend остаётся последующим milestone.
 
 ## 8. Native build прямо в MyOS
 
