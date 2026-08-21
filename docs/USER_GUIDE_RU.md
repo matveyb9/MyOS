@@ -91,7 +91,7 @@ ls /system/live
 ls /system/live/processes
 run tree /system
 run find tree /system/core
-run head /system/core/resources/motd.txt 2
+head /system/core/resources/motd.txt 2
 stat /system/core/resources/motd.txt
 run tail /system/core/resources/motd.txt 2
 sort /system/core/resources/motd.txt
@@ -151,7 +151,7 @@ rm /temp/session.txt
 
 ### Native head view
 
-`run head <absolute-file> [1..64 lines]` выводит начало одного readable VFS file. Без optional count он выводит первые **10 строк**; например, `run head /system/core/resources/motd.txt 2` показывает первые две строки MOTD. Utility принимает только один absolute file path и optional decimal count от 1 до 64. Она читает через обычные VFS ABI chunks по 256 bytes и останавливается после **4 KiB** output, даже если запрошенная граница строк ещё не встретилась, поэтому malformed или необычно длинная строка не создаёт unbounded output. Storage никогда не меняется.
+`head <absolute-file> [1..64 lines]` выводит начало одного readable VFS file. Без optional count он выводит первые **10 строк**; например, `head /system/core/resources/motd.txt 2` показывает первые две строки MOTD. `run head` остаётся compatibility form. Utility принимает только один absolute file path и optional decimal count от 1 до 64. Она читает через обычные VFS ABI chunks по 256 bytes и останавливается после **4 KiB** output, даже если запрошенная граница строк ещё не встретилась, поэтому malformed или необычно длинная строка не создаёт unbounded output. Storage никогда не меняется.
 
 ### Native stat lookup
 
@@ -205,7 +205,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `run tree` | `run tree /system` | Рекурсивно показать VFS entries без mutation; принимает ноль или один absolute directory и ограничена 8 levels, 64 entries на directory и 256 printed entries. |
 | `run find` | `run find tree /system/core` | Case-insensitively искать names entries без mutation; принимает fragment и optional absolute directory, с limits 8 levels, 64 entries на directory и 256 scanned entries. |
 | `run stackprobe` | `run stackprobe` | Запустить diagnostic с automatic buffer 12 KiB; ожидаемый checksum `1566720` подтверждает все четыре mapped ring-3 stack pages. |
-| `run head` | `run head /system/core/resources/motd.txt 2` | Вывести первые 10 строк по умолчанию или 1–64 запрошенные строки одного absolute readable file; VFS I/O использует chunks 256 bytes, а output ограничен 4 KiB. |
+| `head` | `head /system/core/resources/motd.txt 2` | Вывести первые 10 строк по умолчанию или 1–64 запрошенные строки одного absolute readable file; VFS I/O использует chunks 256 bytes, а output ограничен 4 KiB. `run head` остаётся compatible. |
 | `stat` | `stat /system/core/resources/motd.txt` | Вывести type и byte size одного absolute logical-VFS entry через bounded scan не более 128 entries его parent; storage не меняется. `run stat` остаётся compatible. |
 | `run tail` | `run tail /system/core/resources/motd.txt 2` | Вывести последние 10 строк по умолчанию или 1–64 запрошенные trailing lines одного absolute readable file; stream-читает VFS chunks 256 bytes, сохраняя только последние 4 KiB. |
 | `sort` | `sort /system/core/resources/motd.txt` | Отсортировать до 64 retained text lines в bytewise ASCII ascending order; каждая line ограничена 127 bytes, storage не меняется. `run sort` остаётся compatible. |

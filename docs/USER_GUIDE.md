@@ -91,7 +91,7 @@ ls /system/live
 ls /system/live/processes
 run tree /system
 run find tree /system/core
-run head /system/core/resources/motd.txt 2
+head /system/core/resources/motd.txt 2
 stat /system/core/resources/motd.txt
 run tail /system/core/resources/motd.txt 2
 sort /system/core/resources/motd.txt
@@ -151,7 +151,7 @@ After closing QEMU, reboot using the same `myos.img` and read the persistent fil
 
 ### Native head view
 
-`run head <absolute-file> [1..64 lines]` prints the beginning of one readable VFS file. Without the optional count it prints the first **10 lines**; for example, `run head /system/core/resources/motd.txt 2` displays the first two MOTD lines. The utility accepts only one absolute file path and an optional decimal count from 1 through 64. It reads through the normal 256-byte VFS ABI chunks and stops after **4 KiB** of output even if the requested line boundary has not yet appeared, so a malformed or unusually long line cannot create unbounded output. It never modifies storage.
+`head <absolute-file> [1..64 lines]` prints the beginning of one readable VFS file. Without the optional count it prints the first **10 lines**; for example, `head /system/core/resources/motd.txt 2` displays the first two MOTD lines. `run head` remains a compatibility form. The utility accepts only one absolute file path and an optional decimal count from 1 through 64. It reads through the normal 256-byte VFS ABI chunks and stops after **4 KiB** of output even if the requested line boundary has not yet appeared, so a malformed or unusually long line cannot create unbounded output. It never modifies storage.
 
 ### Native stat lookup
 
@@ -205,7 +205,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `run tree` | `run tree /system` | Recursively show VFS entries without mutation; requires zero or one absolute directory and is limited to 8 levels, 64 entries per directory and 256 printed entries. |
 | `run find` | `run find tree /system/core` | Case-insensitively search entry names without mutation; accepts one fragment and an optional absolute directory, with limits of 8 levels, 64 entries per directory and 256 scanned entries. |
 | `run stackprobe` | `run stackprobe` | Run the 12 KiB automatic-buffer diagnostic; expected checksum is `1566720`, confirming all four mapped ring-3 stack pages. |
-| `run head` | `run head /system/core/resources/motd.txt 2` | Print the first 10 lines by default, or 1–64 requested lines, from one absolute readable file; VFS I/O uses 256-byte chunks and output is capped at 4 KiB. |
+| `head` | `head /system/core/resources/motd.txt 2` | Print the first 10 lines by default, or 1–64 requested lines, from one absolute readable file; VFS I/O uses 256-byte chunks and output is capped at 4 KiB. `run head` remains compatible. |
 | `stat` | `stat /system/core/resources/motd.txt` | Report the type and byte size of one absolute logical-VFS entry through a bounded scan of at most 128 entries in its parent; never writes storage. `run stat` remains compatible. |
 | `run tail` | `run tail /system/core/resources/motd.txt 2` | Print the last 10 lines by default, or 1–64 requested trailing lines, from one absolute readable file; streams 256-byte VFS chunks while retaining only the final 4 KiB. |
 | `sort` | `sort /system/core/resources/motd.txt` | Sort up to 64 retained text lines in bytewise ASCII ascending order; each line is capped at 127 bytes and storage is never modified. `run sort` remains compatible. |

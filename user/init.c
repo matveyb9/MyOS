@@ -19,7 +19,7 @@ static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
 static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
-    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "sort", "stat", "touch", "mkdir", "write", "rm",
+    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "head", "sort", "stat", "touch", "mkdir", "write", "rm",
     "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
@@ -454,8 +454,9 @@ static void command_help(const char *topic) {
         return;
     }
     if (text_equal(topic, "head")) {
-        write_text("run head <absolute-file> [1..64 lines]\n");
+        write_text("head <absolute-file> [1..64 lines]\n");
         write_text("Prints the first 10 lines by default; output is read in 256-byte chunks and capped at 4096 bytes.\n");
+        write_text("run head remains a compatibility form.\n");
         return;
     }
     if (text_equal(topic, "sort")) {
@@ -508,7 +509,7 @@ static void command_help(const char *topic) {
     }
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
-    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run tree [absolute-directory]; run find <name-fragment> [absolute-directory]; run head <absolute-file> [1..64 lines]; stat <absolute-path>; run tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
+    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; run tree [absolute-directory]; run find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; run tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
     write_text("Native: build <source.mya> <output.elf>; help asm/edit for syntax and controls\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
@@ -1069,6 +1070,30 @@ static void command_wc(const char *argument) {
     (void)run_foreground(program, 0);
 }
 
+static void command_head(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "head";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("head");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Head command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Head command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
 static void command_sort(const char *argument) {
     char program[USER_LINE_CAPACITY] = "sort";
     uint64_t length = 4U;
@@ -1306,6 +1331,8 @@ static void execute_command(char *line) {
         command_wc(argument);
     } else if (text_equal(line, "grep")) {
         command_grep(argument);
+    } else if (text_equal(line, "head")) {
+        command_head(argument);
     } else if (text_equal(line, "sort")) {
         command_sort(argument);
     } else if (text_equal(line, "stat")) {
