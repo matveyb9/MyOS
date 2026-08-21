@@ -43,6 +43,7 @@
 #define NATIVE_INSTRUCTION_NOT UINT64_C(18)
 #define NATIVE_INSTRUCTION_AND UINT64_C(19)
 #define NATIVE_INSTRUCTION_OR UINT64_C(20)
+#define NATIVE_INSTRUCTION_XOR UINT64_C(21)
 
 struct native_instruction {
     uint64_t kind;
@@ -364,7 +365,8 @@ static int parse_source(uint64_t source_length, uint64_t *instruction_count, uin
                    || word_is(source_buffer, start, word_length, "mul") != 0
                    || word_is(source_buffer, start, word_length, "div") != 0
                    || word_is(source_buffer, start, word_length, "and") != 0
-                   || word_is(source_buffer, start, word_length, "or") != 0) {
+                   || word_is(source_buffer, start, word_length, "or") != 0
+                   || word_is(source_buffer, start, word_length, "xor") != 0) {
             struct native_instruction *instruction = &instructions[*instruction_count];
 
             if (condition_ready == 0) { return 0; }
@@ -384,8 +386,10 @@ static int parse_source(uint64_t source_length, uint64_t *instruction_count, uin
                 instruction->kind = NATIVE_INSTRUCTION_DIV;
             } else if (word_is(source_buffer, start, word_length, "and") != 0) {
                 instruction->kind = NATIVE_INSTRUCTION_AND;
-            } else {
+            } else if (word_is(source_buffer, start, word_length, "or") != 0) {
                 instruction->kind = NATIVE_INSTRUCTION_OR;
+            } else {
+                instruction->kind = NATIVE_INSTRUCTION_XOR;
             }
         } else if (word_is(source_buffer, start, word_length, "not") != 0) {
             if (condition_ready == 0) { return 0; }
@@ -484,7 +488,7 @@ static uint64_t instruction_size(uint64_t kind) {
     if (kind == NATIVE_INSTRUCTION_DIV) { return UINT64_C(14); }
     if (kind == NATIVE_INSTRUCTION_CMP) { return UINT64_C(13); }
     if (kind == NATIVE_INSTRUCTION_NOT) { return UINT64_C(2); }
-    if (kind == NATIVE_INSTRUCTION_AND || kind == NATIVE_INSTRUCTION_OR) { return UINT64_C(3); }
+    if (kind == NATIVE_INSTRUCTION_AND || kind == NATIVE_INSTRUCTION_OR || kind == NATIVE_INSTRUCTION_XOR) { return UINT64_C(3); }
     if (kind == NATIVE_INSTRUCTION_EXIT) { return UINT64_C(20); }
     return 0U;
 }
@@ -587,9 +591,16 @@ static int build_elf(uint64_t instruction_count, uint64_t literal_length, uint64
         } else if (instructions[index].kind == NATIVE_INSTRUCTION_NOT) {
             elf_buffer[code++] = 0xF6U; elf_buffer[code++] = 0xD3U;
         } else if (instructions[index].kind == NATIVE_INSTRUCTION_AND
-                   || instructions[index].kind == NATIVE_INSTRUCTION_OR) {
+                   || instructions[index].kind == NATIVE_INSTRUCTION_OR
+                   || instructions[index].kind == NATIVE_INSTRUCTION_XOR) {
             elf_buffer[code++] = 0x80U;
-            elf_buffer[code++] = instructions[index].kind == NATIVE_INSTRUCTION_AND ? 0xE3U : 0xCBU;
+            if (instructions[index].kind == NATIVE_INSTRUCTION_AND) {
+                elf_buffer[code++] = 0xE3U;
+            } else if (instructions[index].kind == NATIVE_INSTRUCTION_OR) {
+                elf_buffer[code++] = 0xCBU;
+            } else {
+                elf_buffer[code++] = 0xF3U;
+            }
             elf_buffer[code++] = (uint8_t)instructions[index].condition_value;
         } else if (instructions[index].kind == NATIVE_INSTRUCTION_MUL) {
             elf_buffer[code++] = 0x89U; elf_buffer[code++] = 0xD8U;
@@ -772,7 +783,7 @@ void _start(uint64_t argc, const char *arguments) {
 
     if (argc != 1U || copy_path(source_path, sizeof(source_path), arguments, &argument_position) == 0) {
         write_text("Usage: run asm <source.mya> <output.elf>\n");
-        write_text("Source: set <0..255>; not; add/sub/mul/and/or <0..255>; div <1..255>; store/load/cmp <0..7>; input; time; args; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
+        write_text("Source: set <0..255>; not; add/sub/mul/and/or/xor <0..255>; div <1..255>; store/load/cmp <0..7>; input; time; args; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
         (void)system_call(MYOS_SYS_EXIT, 2U, 0U, 0U);
     }
     while (arguments[argument_position] == ' ') { argument_position++; }
@@ -783,7 +794,7 @@ void _start(uint64_t argc, const char *arguments) {
     }
     if (parse_source(source_length, &instruction_count, &label_count, &literal_length) == 0
         || resolve_jumps(instruction_count, label_count) == 0) {
-        write_text("asm: syntax error; set/load/input must precede not/add/sub/mul/div/and/or/cmp and conditional jumps, add/sub/mul/and/or are byte values 0..255, div is 1..255, store/load/cmp slots are 0..7, labels need ':' and jumps must target a later label\n");
+        write_text("asm: syntax error; set/load/input must precede not/add/sub/mul/div/and/or/xor/cmp and conditional jumps, add/sub/mul/and/or/xor are byte values 0..255, div is 1..255, store/load/cmp slots are 0..7, labels need ':' and jumps must target a later label\n");
         (void)system_call(MYOS_SYS_EXIT, 2U, 0U, 0U);
     }
     if (build_elf(instruction_count, literal_length, &image_length) == 0

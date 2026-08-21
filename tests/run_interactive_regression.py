@@ -58,6 +58,13 @@ BITWISE_ELF_PATH = "/users/myos/projects/release-bitwise.elf"
 BITWISE_APP_PATH = "/apps/release-bitwise/main.elf"
 INVALID_BITWISE_SOURCE_PATH = "/temp/release-bitwise-invalid.mya"
 INVALID_BITWISE_ELF_PATH = "/users/myos/projects/release-bitwise-invalid.elf"
+XOR_SOURCE_PATH = "/temp/release-xor.mya"
+XOR_ELF_PATH = "/users/myos/projects/release-xor.elf"
+XOR_APP_PATH = "/apps/release-xor/main.elf"
+INVALID_XOR_SOURCE_PATH = "/temp/release-xor-invalid.mya"
+INVALID_XOR_ELF_PATH = "/users/myos/projects/release-xor-invalid.elf"
+INVALID_XOR_BOUND_SOURCE_PATH = "/temp/release-xor-bound-invalid.mya"
+INVALID_XOR_BOUND_ELF_PATH = "/users/myos/projects/release-xor-bound-invalid.elf"
 INVALID_DIVISION_SOURCE_PATH = "/temp/release-division-invalid.mya"
 INVALID_DIVISION_ELF_PATH = "/users/myos/projects/release-division-invalid.elf"
 CMP_SOURCE_PATH = "/temp/release-cmp.mya"
@@ -862,6 +869,16 @@ def run_bios(image_path, work_dir):
         if (b"bad\n" in bitwise_output or b"bad\r\n" in bitwise_output
                 or (b"BITWISE\n" not in bitwise_output and b"BITWISE\r\n" not in bitwise_output)):
             raise RegressionFailure(f"BIOS: bounded native not/and/or did not preserve the expected byte branch\n{guest._tail()}")
+        xor_source = 'set 170;xor 255;xor 85;store 7;set 1;load 7;jump_if_zero matched;write "bad\\n";jump done;label matched:;write "XOR\\n";label done:;exit 53'
+        guest.console_edit_and_save(XOR_SOURCE_PATH, xor_source.encode("ascii"))
+        guest.command(f"build {XOR_SOURCE_PATH} {XOR_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {XOR_ELF_PATH} {XOR_APP_PATH}", "exited with status 0")
+        xor_start = len(guest.output)
+        guest.command("run release-xor", "exited with status 53")
+        xor_output = bytes(guest.output[xor_start:])
+        if (b"bad\n" in xor_output or b"bad\r\n" in xor_output
+                or (b"XOR\n" not in xor_output and b"XOR\r\n" not in xor_output)):
+            raise RegressionFailure(f"BIOS: bounded native xor did not preserve the expected zero byte branch\n{guest._tail()}")
         cmp_source = 'set 73;store 5;set 73;cmp 5;jump_if_zero equal;write "bad\\n";jump after_equal;label equal:;write "EQ\\n";label after_equal:;set 72;cmp 5;jump_if_nonzero different;write "bad\\n";jump done;label different:;write "NE\\n";label done:;exit 51'
         guest.console_edit_and_save(CMP_SOURCE_PATH, cmp_source.encode("ascii"))
         guest.command(f"build {CMP_SOURCE_PATH} {CMP_ELF_PATH}", "exited with status 0")
@@ -883,7 +900,7 @@ def run_bios(image_path, work_dir):
         args_output = bytes(guest.output[args_output_start:])
         require_native_line("BIOS native args", args_output, b"[alpha beta]")
         require_time_line("BIOS native args", args_output)
-        diagnostic = "asm: syntax error; set/load/input must precede not/add/sub/mul/div/and/or/cmp and conditional jumps, add/sub/mul/and/or are byte values 0..255, div is 1..255, store/load/cmp slots are 0..7, labels need ':' and jumps must target a later label"
+        diagnostic = "asm: syntax error; set/load/input must precede not/add/sub/mul/div/and/or/xor/cmp and conditional jumps, add/sub/mul/and/or/xor are byte values 0..255, div is 1..255, store/load/cmp slots are 0..7, labels need ':' and jumps must target a later label"
         guest.command(f"write {BACKWARD_SOURCE_PATH} label start:;write \"x\\n\";jump start;exit 0")
         guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}", diagnostic)
         guest.command(f"write {MISSING_SET_SOURCE_PATH} jump_if 65 done;label done:;exit 0")
@@ -896,6 +913,10 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {INVALID_ARITHMETIC_SOURCE_PATH} {INVALID_ARITHMETIC_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_BITWISE_SOURCE_PATH} not;exit 0")
         guest.command(f"build {INVALID_BITWISE_SOURCE_PATH} {INVALID_BITWISE_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_XOR_SOURCE_PATH} xor 1;exit 0")
+        guest.command(f"build {INVALID_XOR_SOURCE_PATH} {INVALID_XOR_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_XOR_BOUND_SOURCE_PATH} set 1;xor 256;exit 0")
+        guest.command(f"build {INVALID_XOR_BOUND_SOURCE_PATH} {INVALID_XOR_BOUND_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_DIVISION_SOURCE_PATH} set 1;div 0;exit 0")
         guest.command(f"build {INVALID_DIVISION_SOURCE_PATH} {INVALID_DIVISION_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_CMP_SOURCE_PATH} cmp 0;exit 0")
@@ -1051,6 +1072,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if (b"bad\n" in bitwise_output or b"bad\r\n" in bitwise_output
                 or (b"BITWISE\n" not in bitwise_output and b"BITWISE\r\n" not in bitwise_output)):
             raise RegressionFailure(f"UEFI: persisted bounded native not/and/or did not preserve the expected byte branch\n{guest._tail()}")
+        xor_start = len(guest.output)
+        guest.command("run release-xor", "exited with status 53")
+        xor_output = bytes(guest.output[xor_start:])
+        if (b"bad\n" in xor_output or b"bad\r\n" in xor_output
+                or (b"XOR\n" not in xor_output and b"XOR\r\n" not in xor_output)):
+            raise RegressionFailure(f"UEFI: persisted bounded native xor did not preserve the expected zero byte branch\n{guest._tail()}")
         cmp_start = len(guest.output)
         guest.command("run release-cmp", "exited with status 51")
         cmp_output = bytes(guest.output[cmp_start:])
