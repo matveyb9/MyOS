@@ -19,7 +19,7 @@ static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
 static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
-    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "touch", "mkdir", "write", "rm",
+    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "touch", "mkdir", "write", "rm",
     "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
@@ -429,6 +429,12 @@ static void command_help(const char *topic) {
         write_text("cp <absolute-source> <new-absolute-target>\n");
         write_text("Copies one file through the bounded native cp app; target must not exist and parent directory must exist.\n");
         write_text("run cp remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "wc")) {
+        write_text("wc <absolute-file>\n");
+        write_text("Counts newline-terminated lines, space/tab/CR/LF-delimited words and bytes in bounded 256-byte VFS chunks.\n");
+        write_text("run wc remains a compatibility form.\n");
         return;
     }
     if (text_equal(topic, "tree")) {
@@ -1031,6 +1037,30 @@ static void command_cp(const char *argument) {
     (void)run_foreground(program, 0);
 }
 
+static void command_wc(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "wc";
+    uint64_t length = 2U;
+
+    if (argument[0] == '\0') {
+        command_help("wc");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Word-count command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Word-count command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
 static void command_build(const char *argument) {
     char program[USER_LINE_CAPACITY] = "asm";
     uint64_t length = 3U;
@@ -1192,6 +1222,8 @@ static void execute_command(char *line) {
         command_cat(argument);
     } else if (text_equal(line, "cp")) {
         command_cp(argument);
+    } else if (text_equal(line, "wc")) {
+        command_wc(argument);
     } else if (text_equal(line, "touch")) {
         command_touch(argument);
     } else if (text_equal(line, "mkdir")) {

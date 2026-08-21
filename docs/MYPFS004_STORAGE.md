@@ -87,7 +87,7 @@ All checks below were performed on QEMU Q35 with `myos.img` attached as `-drive 
 |---|---|
 | Fresh format and hierarchy | Passed: `/`, `/system`, `/apps`, `/users/myos`, `/temp` and `/system/live/processes` are present on the final image. |
 | Growth and fragmentation | Passed: a temporary verifier wrote 1 MiB to `mypfs004-first.bin` with bounded 256-byte writes; an interleaved 64 KiB barrier file forced a second extent; exact pattern readback passed. |
-| Persistence | Passed: a fresh BIOS mount showed `mypfs004-first.bin` sized 1,048,576 bytes, and `run wc` fully read 4,096 lines, 12,289 words and 1,048,576 bytes. |
+| Persistence | Passed: a fresh BIOS mount showed `mypfs004-first.bin` sized 1,048,576 bytes, and direct `wc` fully read 4,096 lines, 12,289 words and 1,048,576 bytes; `run wc` remains compatible. |
 | SDK application | Passed: `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`; the app executed with arguments before and after a fresh BIOS boot, as well as under UEFI/OVMF. |
 | MYPFS003 migration | Passed: a fixture with hierarchy and a known payload converted via `M4MG`; the durable superblock became `MYPFS004`, the journal cleared, and the payload was readable after a second clean mount. |
 | MYPFS002 migration | Passed: the `disk/note` fixture migrated to `/users/myos/files/notes/note`; the durable superblock became `MYPFS004`, the legacy journal cleared, and the payload was readable after a second clean mount. |

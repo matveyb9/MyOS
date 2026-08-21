@@ -87,7 +87,7 @@ MYPFS004 does not add symbolic-link creation, hard links, GUI shortcuts, compres
 |---|---|
 | Fresh format и hierarchy | Passed: `/`, `/system`, `/apps`, `/users/myos`, `/temp` и `/system/live/processes` доступны на final image. |
 | Growth и fragmentation | Passed: temporary verifier записал 1 MiB в `mypfs004-first.bin` bounded 256-byte writes; interleaved 64 KiB barrier file вынудил second extent; exact pattern readback passed. |
-| Persistence | Passed: fresh BIOS mount показал `mypfs004-first.bin` размером 1,048,576 bytes, а `run wc` полностью прочитал 4,096 lines, 12,289 words и 1,048,576 bytes. |
+| Persistence | Passed: fresh BIOS mount показал `mypfs004-first.bin` размером 1,048,576 bytes, а direct `wc` полностью прочитал 4,096 lines, 12,289 words и 1,048,576 bytes; `run wc` остаётся compatible. |
 | SDK application | Passed: `install /system/core/examples/sdk/hello.elf /apps/sdk-hello/main.elf`; app executed with arguments before and after a fresh BIOS boot, а также через UEFI/OVMF. |
 | MYPFS003 migration | Passed: fixture с hierarchy и known payload перешёл через `M4MG`; durable superblock стал `MYPFS004`, journal очистился, payload читался после second clean mount. |
 | MYPFS002 migration | Passed: fixture `disk/note` migrated to `/users/myos/files/notes/note`; durable superblock стал `MYPFS004`, legacy journal очистился, payload читался после second clean mount. |

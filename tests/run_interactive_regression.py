@@ -69,6 +69,7 @@ SDK_WRITE_UEFI_TARGET = "/users/myos/files/sdk-write-uefi.txt"
 SDK_WRITE_PAYLOAD = b"sdk-write: persistent VFS example\n"
 COPY_SOURCE_PATH = "/users/myos/files/cp-harness-source.txt"
 COPY_TARGET_PATH = "/users/myos/files/cp-harness-target.txt"
+WC_WORD_PATH = "/users/myos/files/wc-harness.txt"
 GUI_EDITOR_FIXTURE_PATH = "/system/core/resources/gui-16k.txt"
 GUI_EDITOR_FIXTURE_PAYLOAD = b"0123456789abcdef" * 1024
 GUI_EDITOR_FIXTURE_LENGTH = len(GUI_EDITOR_FIXTURE_PAYLOAD)
@@ -711,6 +712,11 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: SDK cp target readback is not exact\n{guest._tail()}")
         guest.command(f"cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
         guest.command(f"run cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
+        wc_payload = b"x " * 127 + b"edge\n"
+        guest.console_edit_and_save(WC_WORD_PATH, wc_payload)
+        guest.command("help wc", "run wc remains a compatibility form.")
+        guest.command(f"wc {WC_WORD_PATH}", f"1 lines, 128 words, 259 bytes: {WC_WORD_PATH}")
+        guest.command(f"run wc {WC_WORD_PATH}", "1 lines, 128 words, 259 bytes")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
         guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
@@ -921,6 +927,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if copy_payload not in copy_read_output:
             raise RegressionFailure(f"UEFI: persisted SDK cp target readback is not exact\n{guest._tail()}")
         guest.command(f"cp {COPY_SOURCE_PATH} {COPY_TARGET_PATH}", "target must not exist")
+        guest.command(f"wc {WC_WORD_PATH}", f"1 lines, 128 words, 259 bytes: {WC_WORD_PATH}")
         sdk_write_bios_read_start = len(guest.output)
         guest.command(f"cat {SDK_WRITE_BIOS_TARGET}", "sdk-write: persistent VFS example")
         if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_bios_read_start:]).replace(b"\r", b""):
