@@ -338,7 +338,7 @@ class Guest:
         self.send(b"\x13")
         time.sleep(0.50)
         viewer = self.qmp_screendump("large-note-viewer")
-        self.require_region_transition(editor, viewer, 330, 205, 160, 20, "1 KiB GUI editor save-to-viewer")
+        self.require_region_transition(editor, viewer, 330, 205, 160, 20, "4 KiB GUI editor save-to-viewer")
         self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
@@ -381,6 +381,7 @@ class Guest:
         time.sleep(0.25)
         editor = self.qmp_screendump("alt-f4-editor-open")
         self.qmp_hotkey("alt", "f4")
+        time.sleep(0.35)
         viewer = self.qmp_screendump("alt-f4-editor-viewer")
         self.require_region_transition(editor, viewer, 332, 210, 96, 12, "Alt+F4 editor close to viewer")
         self.qmp_hotkey("ctrl", "q")
@@ -579,14 +580,14 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
-        large_gui_payload = b"g" * 1024
+        large_gui_payload = b"0123456789abcdef" * 256
         guest.command(f"rm {DEFAULT_GUI_NOTE_PATH}", f"Removed {DEFAULT_GUI_NOTE_PATH}")
-        guest.console_edit_and_save(DEFAULT_GUI_NOTE_PATH, large_gui_payload)
+        guest.command(f"run cp /system/core/resources/gui-4k.txt {DEFAULT_GUI_NOTE_PATH}", "Copied 4096 byte(s)")
         guest.gui_save_large_note_and_exit()
         large_gui_start = len(guest.output)
-        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "g")
+        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "0123456789abcdef")
         if large_gui_payload not in guest.output[large_gui_start:]:
-            raise RegressionFailure(f"BIOS: 1 KiB GUI editor save/readback is not exact\n{guest._tail()}")
+            raise RegressionFailure(f"BIOS: 4 KiB GUI editor save/readback is not exact\n{guest._tail()}")
         guest.command(f"write {NOTE_PATH} base")
         guest.gui_modifier_hotkeys_and_exit()
         guest.gui_alt_f4_editor_close_and_exit()
@@ -701,9 +702,9 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.command("ls /system/core", "[dir] apps")
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         uefi_large_gui_start = len(guest.output)
-        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "g")
-        if b"g" * 1024 not in guest.output[uefi_large_gui_start:]:
-            raise RegressionFailure(f"UEFI: persisted 1 KiB GUI editor payload is not exact\n{guest._tail()}")
+        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "0123456789abcdef")
+        if b"0123456789abcdef" * 256 not in guest.output[uefi_large_gui_start:]:
+            raise RegressionFailure(f"UEFI: persisted 4 KiB GUI editor payload is not exact\n{guest._tail()}")
         guest.command(f"cat {NOTE_PATH}", "base")
         text_start = len(guest.output)
         guest.command(f"cat {EDITOR_TEXT_PATH}", "first")

@@ -18,6 +18,9 @@
 static char selected_disk_path[GUI_NOTE_PATH_CAPACITY] = GUI_NOTE_PATH;
 static char browser_directory[MYOS_VFS_PATH_MAX] = GUI_BROWSER_START_PATH;
 static uint64_t browser_page;
+static uint8_t gui_scratch_data[MYOS_GUI_CONTENT_MAX];
+static uint8_t gui_editor_data[MYOS_GUI_CONTENT_MAX];
+static struct myos_gui_content_request gui_content_request;
 
 static void load_viewer_file(const char *path);
 static int edit_selected_disk_file(void);
@@ -138,29 +141,29 @@ static void selected_disk_title(char *title) {
 
 static int set_viewer_content(const char *title, const uint8_t *data, uint64_t length, uint64_t flags,
                               uint64_t cursor, uint64_t viewport) {
-    struct myos_gui_content_request content = { 0U, 0U, 0U, 0U, { 0 }, { 0 } };
-
-    copy_title(content.title, title);
-    for (uint64_t index = 0U; index < length; index++) {
-        content.data[index] = data[index];
+    if (data == (const uint8_t *)0 || length > MYOS_GUI_CONTENT_MAX) {
+        return 0;
     }
-    content.length = length;
-    content.flags = flags;
-    content.cursor = cursor;
-    content.viewport = viewport;
-    return system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_SET_CONTENT, (uint64_t)(uintptr_t)&content,
-                       sizeof(content)) != UINT64_MAX;
+    copy_title(gui_content_request.title, title);
+    for (uint64_t index = 0U; index < length; index++) {
+        gui_content_request.data[index] = data[index];
+    }
+    gui_content_request.length = length;
+    gui_content_request.flags = flags;
+    gui_content_request.cursor = cursor;
+    gui_content_request.viewport = viewport;
+    return system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_SET_CONTENT, (uint64_t)(uintptr_t)&gui_content_request,
+                       sizeof(gui_content_request)) != UINT64_MAX;
 }
 
 static void set_viewer_status(const char *message) {
-    uint8_t data[MYOS_GUI_CONTENT_MAX] = { 0 };
     uint64_t length = 0U;
 
     while (length < MYOS_GUI_CONTENT_MAX && message[length] != '\0') {
-        data[length] = (uint8_t)message[length];
+        gui_scratch_data[length] = (uint8_t)message[length];
         length++;
     }
-    (void)set_viewer_content("VIEWER", data, length, 0U, 0U, 0U);
+    (void)set_viewer_content("VIEWER", gui_scratch_data, length, 0U, 0U, 0U);
 }
 
 static void show_desktop_home(void) {
@@ -386,30 +389,29 @@ static int browser_has_next_page(void) {
 }
 
 static void show_file_browser(void) {
-    uint8_t data[MYOS_GUI_CONTENT_MAX] = { 0 };
     uint64_t length = 0U;
 
-    content_append_text(data, &length, "PATH ", 5U);
-    content_append_path_tail(data, &length, browser_directory);
-    content_append_char(data, &length, '\n');
-    content_append_text(data, &length, "[..]\n", 5U);
-    content_append_text(data, &length, "[PREV]\n", 7U);
+    content_append_text(gui_scratch_data, &length, "PATH ", 5U);
+    content_append_path_tail(gui_scratch_data, &length, browser_directory);
+    content_append_char(gui_scratch_data, &length, '\n');
+    content_append_text(gui_scratch_data, &length, "[..]\n", 5U);
+    content_append_text(gui_scratch_data, &length, "[PREV]\n", 7U);
     for (uint64_t slot = 0U; slot < GUI_BROWSER_PAGE_SIZE; slot++) {
         struct myos_vfs_directory_entry entry;
 
         if (browser_entry_at(slot, &entry) != 0) {
             const char prefix = entry.type == MYOS_VFS_OBJECT_DIRECTORY ? 'D'
                 : (entry.type == MYOS_VFS_OBJECT_REGULAR ? 'F' : 'V');
-            content_append_char(data, &length, prefix);
-            content_append_char(data, &length, ' ');
-            content_append_text(data, &length, entry.name, 12U);
+            content_append_char(gui_scratch_data, &length, prefix);
+            content_append_char(gui_scratch_data, &length, ' ');
+            content_append_text(gui_scratch_data, &length, entry.name, 12U);
         } else {
-            content_append_text(data, &length, "-", 1U);
+            content_append_text(gui_scratch_data, &length, "-", 1U);
         }
-        content_append_char(data, &length, '\n');
+        content_append_char(gui_scratch_data, &length, '\n');
     }
-    content_append_text(data, &length, browser_has_next_page() != 0 ? "[NEXT]" : "-", 6U);
-    (void)set_viewer_content("FILES", data, length, MYOS_GUI_CONTENT_FLAG_BROWSER, 0U, 0U);
+    content_append_text(gui_scratch_data, &length, browser_has_next_page() != 0 ? "[NEXT]" : "-", 6U);
+    (void)set_viewer_content("FILES", gui_scratch_data, length, MYOS_GUI_CONTENT_FLAG_BROWSER, 0U, 0U);
 }
 
 static int browser_open_entry(uint8_t action) {
@@ -482,9 +484,8 @@ static int select_next_disk_file(void) {
 }
 
 static void load_viewer_file(const char *path) {
-    uint8_t data[MYOS_GUI_CONTENT_MAX] = { 0 };
     char title[MYOS_GUI_CONTENT_TITLE_MAX] = { 0 };
-    const uint64_t count = read_viewer_file(path, data, sizeof(data));
+    const uint64_t count = read_viewer_file(path, gui_scratch_data, sizeof(gui_scratch_data));
 
     if (count == GUI_BROWSER_READ_TOO_LARGE) {
         set_viewer_status("FILE TOO LARGE FOR GUI");
@@ -500,7 +501,7 @@ static void load_viewer_file(const char *path) {
     } else {
         copy_title(title, "FILE VIEWER");
     }
-    if (set_viewer_content(title, data, count, 0U, 0U, 0U) == 0) {
+    if (set_viewer_content(title, gui_scratch_data, count, 0U, 0U, 0U) == 0) {
         set_viewer_status("VIEWER UPDATE FAILED");
     }
 }
@@ -608,8 +609,7 @@ static void editor_insert_byte(uint8_t *data, uint64_t *length, uint64_t *cursor
 }
 
 static int edit_selected_disk_file(void) {
-    uint8_t data[MYOS_GUI_CONTENT_MAX] = { 0 };
-    uint64_t length = read_viewer_file(selected_disk_path, data, sizeof(data));
+    uint64_t length = read_viewer_file(selected_disk_path, gui_editor_data, sizeof(gui_editor_data));
     uint64_t cursor;
 
     if (selected_disk_path_is_writable() == 0) {
@@ -627,9 +627,9 @@ static int edit_selected_disk_file(void) {
     for (;;) {
         char character;
         uint64_t read_result;
-        const uint64_t viewport = editor_viewport_for_cursor(data, length, cursor);
+        const uint64_t viewport = editor_viewport_for_cursor(gui_editor_data, length, cursor);
 
-        if (set_viewer_content("EDIT NOTE", data, length, MYOS_GUI_CONTENT_FLAG_EDITABLE, cursor, viewport) == 0) {
+        if (set_viewer_content("EDIT NOTE", gui_editor_data, length, MYOS_GUI_CONTENT_FLAG_EDITABLE, cursor, viewport) == 0) {
             return GUI_EDITOR_RESULT_VIEWER;
         }
         read_result = system_call(MYOS_SYS_READ, 0U, (uint64_t)(uintptr_t)&character, 1U);
@@ -658,7 +658,7 @@ static int edit_selected_disk_file(void) {
             return GUI_EDITOR_RESULT_VIEWER;
         }
         if ((uint8_t)character == UINT8_C(0x13)) {
-            if (save_selected_disk_file(data, length) != 0) {
+            if (save_selected_disk_file(gui_editor_data, length) != 0) {
                 load_viewer_file(selected_disk_path);
             } else {
                 set_viewer_status("SAVE FAILED");
@@ -674,43 +674,43 @@ static int edit_selected_disk_file(void) {
                 cursor++;
             }
         } else if ((uint8_t)character == MYOS_INPUT_KEY_HOME) {
-            cursor = editor_line_start(data, length, cursor);
+            cursor = editor_line_start(gui_editor_data, length, cursor);
         } else if ((uint8_t)character == MYOS_INPUT_KEY_END) {
-            cursor = editor_line_end(data, length, editor_line_start(data, length, cursor));
+            cursor = editor_line_end(gui_editor_data, length, editor_line_start(gui_editor_data, length, cursor));
         } else if ((uint8_t)character == MYOS_INPUT_KEY_UP) {
-            const uint64_t current_start = editor_line_start(data, length, cursor);
+            const uint64_t current_start = editor_line_start(gui_editor_data, length, cursor);
 
             if (current_start != 0U) {
-                const uint64_t previous_start = editor_line_start(data, length, current_start - 1U);
-                const uint64_t previous_end = editor_line_end(data, length, previous_start);
+                const uint64_t previous_start = editor_line_start(gui_editor_data, length, current_start - 1U);
+                const uint64_t previous_end = editor_line_end(gui_editor_data, length, previous_start);
                 const uint64_t column = cursor - current_start;
                 const uint64_t previous_length = previous_end - previous_start;
 
                 cursor = previous_start + (column < previous_length ? column : previous_length);
             }
         } else if ((uint8_t)character == MYOS_INPUT_KEY_DOWN) {
-            const uint64_t current_start = editor_line_start(data, length, cursor);
-            const uint64_t current_end = editor_line_end(data, length, current_start);
+            const uint64_t current_start = editor_line_start(gui_editor_data, length, cursor);
+            const uint64_t current_end = editor_line_end(gui_editor_data, length, current_start);
 
             if (current_end < length) {
                 const uint64_t next_start = current_end + 1U;
-                const uint64_t next_end = editor_line_end(data, length, next_start);
+                const uint64_t next_end = editor_line_end(gui_editor_data, length, next_start);
                 const uint64_t column = cursor - current_start;
                 const uint64_t next_length = next_end - next_start;
 
                 cursor = next_start + (column < next_length ? column : next_length);
             }
         } else if ((uint8_t)character == MYOS_INPUT_KEY_DELETE) {
-            editor_delete_at_cursor(data, &length, cursor);
+            editor_delete_at_cursor(gui_editor_data, &length, cursor);
         } else if (character == '\b' || (uint8_t)character == UINT8_C(0x7F)) {
             if (cursor != 0U) {
                 cursor--;
-                editor_delete_at_cursor(data, &length, cursor);
+                editor_delete_at_cursor(gui_editor_data, &length, cursor);
             }
         } else if (character == '\r' || character == '\n') {
-            editor_insert_byte(data, &length, &cursor, (uint8_t)'\n');
+            editor_insert_byte(gui_editor_data, &length, &cursor, (uint8_t)'\n');
         } else if ((uint8_t)character >= 32U && (uint8_t)character <= 126U) {
-            editor_insert_byte(data, &length, &cursor, (uint8_t)character);
+            editor_insert_byte(gui_editor_data, &length, &cursor, (uint8_t)character);
         }
     }
 }
