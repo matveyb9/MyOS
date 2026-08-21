@@ -365,7 +365,7 @@ static void environment_expand(const char *source, char *destination, uint64_t c
 static int built_in_program(const char *name) {
     static const char *const names[] = {
         "init", "hello", "sleeper", "orphaner", "safety", "argshow", "calc", "pipewrite",
-        "piperead", "wc", "grep", "edit", "startgui", "install", "asm", "tree", "find", "cp"
+        "piperead", "wc", "grep", "edit", "startgui", "install", "asm", "tree", "find", "stackprobe", "cp"
     };
 
     for (uint64_t index = 0U; index < sizeof(names) / sizeof(names[0]); index++) {

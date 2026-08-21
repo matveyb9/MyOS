@@ -591,6 +591,11 @@ def run_bios(image_path, work_dir):
             if expected not in find_output:
                 raise RegressionFailure(f"BIOS: find output lacks {expected!r}\\n{guest._tail()}")
         guest.command("help find", "Case-insensitive read-only name search")
+        stack_start = len(guest.output)
+        guest.command("run stackprobe", "stackprobe:")
+        stack_output = bytes(guest.output[stack_start:])
+        if b"stackprobe: 12288 bytes checksum 1566720" not in stack_output:
+            raise RegressionFailure(f"BIOS: four-page user stack probe failed\\n{guest._tail()}")
         guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
@@ -725,6 +730,11 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         find_output = bytes(guest.output[find_start:])
         if b"[F] /system/core/apps/find.elf" not in find_output:
             raise RegressionFailure(f"UEFI: find output lacks packaged find.elf\\n{guest._tail()}")
+        stack_start = len(guest.output)
+        guest.command("run stackprobe", "stackprobe:")
+        stack_output = bytes(guest.output[stack_start:])
+        if b"stackprobe: 12288 bytes checksum 1566720" not in stack_output:
+            raise RegressionFailure(f"UEFI: four-page user stack probe failed\\n{guest._tail()}")
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         uefi_large_gui_start = len(guest.output)
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "0123456789abcdef")

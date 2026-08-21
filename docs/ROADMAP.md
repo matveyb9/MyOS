@@ -46,6 +46,7 @@ The console stage is complete and fixed by the release **`v0.12.1-console`**. Su
 | `[x]` | Framebuffer text console and COM1 mirror | Diagnostics available on the physical screen and via QEMU serial output. |
 | `[x]` | Kernel diagnostic shell | Prompt `kernel>`, diagnostic commands and safe handoff into user space. |
 | `[x]` | User shell `/init` | Prompt `[myos]$`, history, Up/Down, Tab completion, environment variables, arguments and pipes. |
+| `[x]` | Guarded ring-3 stack expansion | `/init` and every spawned user program receive four mapped 4 KiB stack pages (16 KiB total) and one lower guard page; `stackprobe` validates a 12 KiB automatic buffer in BIOS and UEFI. |
 | `[x]` | User utilities | `hello`, `sleeper`, `orphaner`, `safety`, `argshow`, `calc`, `pipewrite`, `piperead`, `wc`, `grep`, `edit`, `tree`, `find`. `tree` and `find` are read-only bounded logical-VFS explorer/search utilities with fixed recursion/output limits. |
 | `[x]` | Direct calculator | Signed 64-bit arithmetic and quiet output without lifecycle messages. |
 | `[x]` | Automatic launch | `/init` launches after three seconds; `K` cancels the launch and leaves the user at `kernel>`. |

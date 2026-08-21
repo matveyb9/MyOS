@@ -46,6 +46,7 @@
 | `[x]` | Framebuffer text console и COM1 mirror | Диагностика доступна на физическом экране и через serial output QEMU. |
 | `[x]` | Kernel diagnostic shell | Prompt `kernel>`, диагностические команды и безопасный вход в user space. |
 | `[x]` | User shell `/init` | Prompt `[myos]$`, history, Up/Down, Tab completion, переменные окружения, arguments и pipes. |
+| `[x]` | Расширение guarded ring-3 stack | `/init` и каждый spawned user program получают четыре mapped pages по 4 KiB (16 KiB суммарно) и одну lower guard page; `stackprobe` проверяет 12 KiB automatic buffer в BIOS и UEFI. |
 | `[x]` | User utilities | `hello`, `sleeper`, `orphaner`, `safety`, `argshow`, `calc`, `pipewrite`, `piperead`, `wc`, `grep`, `edit`, `tree`, `find`. `tree` и `find` — read-only bounded logical-VFS explorer/search utilities с fixed recursion/output limits. |
 | `[x]` | Direct calculator | Signed 64-bit arithmetic и quiet output без lifecycle messages. |
 | `[x]` | Автоматический запуск | `/init` запускается через три секунды; `K` отменяет запуск и оставляет пользователя в `kernel>`. |

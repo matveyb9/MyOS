@@ -19,7 +19,9 @@
 #define ELF64_PT_LOAD UINT32_C(1)
 #define ELF64_PF_WRITE UINT32_C(2)
 #define INIT_STACK_PAGE UINT64_C(0x00007FFFFFFFF000)
-#define INIT_STACK_GUARD UINT64_C(0x00007FFFFFFFE000)
+#define INIT_STACK_PAGE_COUNT UINT64_C(4)
+#define INIT_STACK_LOWEST_PAGE (INIT_STACK_PAGE - (INIT_STACK_PAGE_COUNT - UINT64_C(1)) * UINT64_C(4096))
+#define INIT_STACK_GUARD (INIT_STACK_LOWEST_PAGE - UINT64_C(4096))
 #define INIT_STACK_TOP UINT64_C(0x00007FFFFFFFFFF0)
 #define INIT_ARGUMENTS_ADDRESS (INIT_STACK_PAGE + UINT64_C(256))
 #define INIT_MAX_PAGES 32U
@@ -66,7 +68,7 @@ static int init_started;
 static struct loaded_page loaded_pages[INIT_MAX_PAGES];
 static uint64_t loaded_page_count;
 static struct paging_space init_address_space;
-static uint64_t init_stack_frame;
+static uint64_t init_stack_frames[INIT_STACK_PAGE_COUNT];
 
 static uint64_t align_up4(uint64_t value) {
     return (value + 3U) & ~UINT64_C(3);
@@ -214,12 +216,14 @@ static void unload_pages(void) {
         (void)pmm_free_frame(loaded_pages[index].physical_address);
     }
     loaded_page_count = 0U;
-    (void)paging_unmap_page(INIT_STACK_PAGE);
-    (void)paging_unmap_page(INIT_STACK_GUARD);
-    if (init_stack_frame != PMM_INVALID_ADDRESS) {
-        (void)pmm_free_frame(init_stack_frame);
-        init_stack_frame = PMM_INVALID_ADDRESS;
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        (void)paging_unmap_page(INIT_STACK_LOWEST_PAGE + index * UINT64_C(4096));
+        if (init_stack_frames[index] != PMM_INVALID_ADDRESS) {
+            (void)pmm_free_frame(init_stack_frames[index]);
+            init_stack_frames[index] = PMM_INVALID_ADDRESS;
+        }
     }
+    (void)paging_unmap_page(INIT_STACK_GUARD);
 }
 
 static int load_page(uint64_t virtual_address, uint64_t flags) {
@@ -347,7 +351,9 @@ int initramfs_init(const struct limine_module_response *modules) {
     loaded_page_count = 0U;
     init_address_space.root_physical = 0U;
     init_address_space.mapping_count = 0U;
-    init_stack_frame = PMM_INVALID_ADDRESS;
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        init_stack_frames[index] = PMM_INVALID_ADDRESS;
+    }
     if (modules == (const struct limine_module_response *)0) {
         return 0;
     }
@@ -411,11 +417,18 @@ int initramfs_start_init(void) {
         || load_elf_init(image, image_size, &entry) == 0) {
         goto cleanup;
     }
-    init_stack_frame = pmm_allocate_user_frame();
-    if (init_stack_frame == PMM_INVALID_ADDRESS
-        || paging_space_map_guard(&init_address_space, INIT_STACK_GUARD) == 0
-        || paging_map_page(INIT_STACK_PAGE, init_stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0
-        || copy_user_arguments("", &argument_address) == 0) {
+    if (paging_space_map_guard(&init_address_space, INIT_STACK_GUARD) == 0) {
+        goto cleanup;
+    }
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        init_stack_frames[index] = pmm_allocate_user_frame();
+        if (init_stack_frames[index] == PMM_INVALID_ADDRESS
+            || paging_map_page(INIT_STACK_LOWEST_PAGE + index * UINT64_C(4096), init_stack_frames[index],
+                               PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0) {
+            goto cleanup;
+        }
+    }
+    if (copy_user_arguments("", &argument_address) == 0) {
         goto cleanup;
     }
     task_id = scheduler_create_user_task("init", &init_address_space, entry, INIT_STACK_TOP,
@@ -445,7 +458,8 @@ int initramfs_spawn(const char *path, const char *arguments, uint64_t input_pipe
     struct vfs_file disk_file;
     uint64_t entry;
     uint64_t argument_address;
-    uint64_t stack_frame = PMM_INVALID_ADDRESS;
+    uint64_t stack_frames[INIT_STACK_PAGE_COUNT] = { PMM_INVALID_ADDRESS, PMM_INVALID_ADDRESS,
+                                                       PMM_INVALID_ADDRESS, PMM_INVALID_ADDRESS };
     struct paging_space address_space = { 0U, 0U };
     int task_id;
 
@@ -464,17 +478,26 @@ int initramfs_spawn(const char *path, const char *arguments, uint64_t input_pipe
     arch_disable_interrupts();
     /* The running init task owns the previous pages; new pages are tracked only for this spawn attempt. */
     loaded_page_count = 0U;
-    init_stack_frame = PMM_INVALID_ADDRESS;
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        init_stack_frames[index] = PMM_INVALID_ADDRESS;
+    }
     if (paging_space_create_user(&address_space) == 0
         || paging_space_activate(&address_space) == 0
         || load_elf_init(image, image_size, &entry) == 0) {
         goto cleanup;
     }
-    stack_frame = pmm_allocate_user_frame();
-    if (stack_frame == PMM_INVALID_ADDRESS
-        || paging_space_map_guard(&address_space, INIT_STACK_GUARD) == 0
-        || paging_map_page(INIT_STACK_PAGE, stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0
-        || copy_user_arguments(arguments, &argument_address) == 0) {
+    if (paging_space_map_guard(&address_space, INIT_STACK_GUARD) == 0) {
+        goto cleanup;
+    }
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        stack_frames[index] = pmm_allocate_user_frame();
+        if (stack_frames[index] == PMM_INVALID_ADDRESS
+            || paging_map_page(INIT_STACK_LOWEST_PAGE + index * UINT64_C(4096), stack_frames[index],
+                               PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0) {
+            goto cleanup;
+        }
+    }
+    if (copy_user_arguments(arguments, &argument_address) == 0) {
         goto cleanup;
     }
     task_id = scheduler_create_user_task(path, &address_space, entry, INIT_STACK_TOP,
@@ -497,10 +520,13 @@ cleanup:
         (void)paging_unmap_page(loaded_pages[index].virtual_address);
         (void)pmm_free_frame(loaded_pages[index].physical_address);
     }
-    if (stack_frame != PMM_INVALID_ADDRESS) {
-        (void)paging_unmap_page(INIT_STACK_PAGE);
-        (void)pmm_free_frame(stack_frame);
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        (void)paging_unmap_page(INIT_STACK_LOWEST_PAGE + index * UINT64_C(4096));
+        if (stack_frames[index] != PMM_INVALID_ADDRESS) {
+            (void)pmm_free_frame(stack_frames[index]);
+        }
     }
+    (void)paging_unmap_page(INIT_STACK_GUARD);
     (void)paging_activate_kernel_space();
     if (address_space.root_physical != 0U) {
         (void)paging_space_destroy_user(&address_space);

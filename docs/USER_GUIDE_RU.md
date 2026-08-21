@@ -91,6 +91,7 @@ ls /system/live
 ls /system/live/processes
 run tree /system
 run find tree /system/core
+run stackprobe
 cat /system/core/resources/motd.txt
 ```
 
@@ -144,6 +145,10 @@ rm /temp/session.txt
 
 `run find <name-fragment> [absolute-directory]` ищет names entries case-insensitively по logical VFS и выводит matching absolute paths с type markers `[D]`, `[F]` или `[V]`. Optional start directory обязана быть absolute; relative path, empty fragment или extra arguments отклоняются. Поэтому `run find TrEe /system/core` находит `/system/core/apps/tree.elf`. Как и `tree`, `find` read-only и ограничена **восьмью directory levels**, **64 entries в directory** и **256 scanned entries**, поэтому recursive search не становится unbounded consumption user memory или output.
 
+### Native stack probe
+
+`run stackprobe` — read-only diagnostic utility user-program platform. Она заполняет 12 KiB automatic buffer и выводит `stackprobe: 12288 bytes checksum 1566720`. Этот точный результат подтверждает, что current program использует все четыре mapped ring-3 stack pages по 4 KiB; непосредственно ниже них остаётся guard page, перехватывающая downward stack overflow.
+
 ### File Workspace v1
 
 Запустите `startgui` и нажмите **FILES**. Browser начинается в `/users/myos/`. Его controls `[..]`, `[PREV]`, entry rows и `[NEXT]` дают mouse-first traversal всех paths, которые открыты через logical VFS, включая `/`, `/system/core/`, `/system/live/`, `/apps/`, `/users/` и `/temp/`. Directory rows открывают каталог; regular и virtual files открываются безопасно. Raw Limine/EFI boot files и `kernel.elf` остаются boot artifacts вне этого runtime tree.
@@ -177,6 +182,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `run cp` | `run cp /users/myos/files/a.txt /users/myos/files/b.txt` | Скопировать regular file bounded chunks. Target должна быть новым absolute path, а её parent уже должна существовать; она никогда не перезаписывается. |
 | `run tree` | `run tree /system` | Рекурсивно показать VFS entries без mutation; принимает ноль или один absolute directory и ограничена 8 levels, 64 entries на directory и 256 printed entries. |
 | `run find` | `run find tree /system/core` | Case-insensitively искать names entries без mutation; принимает fragment и optional absolute directory, с limits 8 levels, 64 entries на directory и 256 scanned entries. |
+| `run stackprobe` | `run stackprobe` | Запустить diagnostic с automatic buffer 12 KiB; ожидаемый checksum `1566720` подтверждает все четыре mapped ring-3 stack pages. |
 | `touch` | `touch /users/myos/files/note.txt` | Создать пустой persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Создать каталог. |
 | `write` | `write /users/myos/files/note.txt Hello` | Перезаписать file одной строкой. |

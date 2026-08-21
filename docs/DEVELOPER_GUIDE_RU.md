@@ -109,12 +109,13 @@ Limine supplies the framebuffer, memory map, firmware information, RSDP and init
 | Target architecture | x86_64 only; no 32-bit compatibility target. |
 | Task slots | 16 total scheduler slots. |
 | Kernel stack | 64 KiB per task. |
+| Ring-3 user stack | 16 KiB: четыре mapped pages по 4 KiB непосредственно ниже `INIT_STACK_TOP`, с одной unmapped guard page ниже. |
 | Scheduling | PIT IRQ0 at 100 Hz; round-robin READY task selection. |
 | User mapping range | `0x0000000000001000`–`0x00007FFFFFFFFFFF`. |
 | Kernel heap | 1 GiB virtual reservation at `0xFFFF900000000000`. |
 | Process states | UNUSED, READY, RUNNING, SLEEPING, ZOMBIE, WAITING and INPUT. |
 
-The scheduler updates TSS RSP0 and activates the task address space on each context switch. `wait`, `sleep`, console input and pipe reads block through scheduler state rather than busy-waiting.
+Loader выделяет четыре user-stack frames независимо для `/init` и каждого spawned user program, сначала резервирует lower unmapped guard, а все mapped frames освобождает только в соответствующем pre-task failure path. После создания task её address space владеет frames. Scheduler updates TSS RSP0 and activates the task address space on each context switch. `wait`, `sleep`, console input and pipe reads block through scheduler state rather than busy-waiting.
 
 ## 4. Syscall boundary
 
@@ -183,7 +184,7 @@ Before committing a console change, at minimum perform:
 |---|---|
 | `make all img` | Strict `-Werror` build and both artifacts complete. |
 | `make smoke` | Reproducible raw-image BIOS and UEFI markers pass: expected firmware, persistent AHCI mount and automatic `[myos]$` entry. |
-| `make regression` | Disposable-image QMP PS/2 `Alt+Tab` focus, `Alt+F4` закрытие focused MONITOR, `Esc` viewer return, `Alt+F4` editor cancel-to-viewer и `Ctrl+Q` clean exit проходят в BIOS и UEFI; также проходят mouse activation compact tiles NOTES и FILES, FILES parent navigation, controls закрытия SYSTEM/MONITOR, подъём MONITOR по title bar, viewer close-to-home, editor cancel-to-viewer и запуск discovered installed-app tile с PPM framebuffer transitions. Read-only System Inventory tree `/system/live/` и `sysinfo` output проходят в обоих firmware paths. Retained alias `startgui home`, GUI note editing, paced editor-authored 305-byte SDK `cp` copy через VFS chunk boundary, exact readback и overwrite rejection, editor source workflow, legacy zero/nonzero branches, empty и forwarded native `args`, native `input` exact-match/fallback paths, valid RTC `HH:MM:SS` output и rejected targets также проходят. UEFI повторяет полную GUI modifier/mouse surface, чтение persisted text/copied target, package execution и clean GUI return. |
+| `make regression` | Disposable-image QMP PS/2 `Alt+Tab` focus, `Alt+F4` закрытие focused MONITOR, `Esc` viewer return, `Alt+F4` editor cancel-to-viewer и `Ctrl+Q` clean exit проходят в BIOS и UEFI; также проходят mouse activation compact tiles NOTES и FILES, FILES parent navigation, controls закрытия SYSTEM/MONITOR, подъём MONITOR по title bar, viewer close-to-home, editor cancel-to-viewer и запуск discovered installed-app tile с PPM framebuffer transitions. Read-only System Inventory tree `/system/live/` и `sysinfo` output проходят в обоих firmware paths. Native `stackprobe` touches 12 KiB automatic buffer и verifies checksum `1566720` в обоих firmware paths, доказывая mapping всех четырёх user-stack pages. Retained alias `startgui home`, GUI note editing, paced editor-authored 305-byte SDK `cp` copy через VFS chunk boundary, exact readback и overwrite rejection, editor source workflow, legacy zero/nonzero branches, empty и forwarded native `args`, native `input` exact-match/fallback paths, valid RTC `HH:MM:SS` output и rejected targets также проходят. UEFI повторяет полную GUI modifier/mouse surface, чтение persisted text/copied target, package execution и clean GUI return. |
 | `make release-check` | Clean source tree, clean rebuild, `make smoke`, `make regression`, source commit and SHA-256 artifacts all pass; no tag or remote publication occurs. |
 | BIOS raw image | Limine boot, automatic `/init` after three seconds, then user shell. |
 | BIOS cancellation | `K` during countdown keeps kernel shell; manual `init` reaches user shell. |
