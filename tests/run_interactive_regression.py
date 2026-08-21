@@ -65,6 +65,11 @@ INVALID_XOR_SOURCE_PATH = "/temp/release-xor-invalid.mya"
 INVALID_XOR_ELF_PATH = "/users/myos/projects/release-xor-invalid.elf"
 INVALID_XOR_BOUND_SOURCE_PATH = "/temp/release-xor-bound-invalid.mya"
 INVALID_XOR_BOUND_ELF_PATH = "/users/myos/projects/release-xor-bound-invalid.elf"
+SHIFT_SOURCE_PATH = "/temp/release-shift.mya"
+SHIFT_ELF_PATH = "/users/myos/projects/release-shift.elf"
+SHIFT_APP_PATH = "/apps/release-shift/main.elf"
+INVALID_SHIFT_SOURCE_PATH = "/temp/release-shift-invalid.mya"
+INVALID_SHIFT_ELF_PATH = "/users/myos/projects/release-shift-invalid.elf"
 INVALID_DIVISION_SOURCE_PATH = "/temp/release-division-invalid.mya"
 INVALID_DIVISION_ELF_PATH = "/users/myos/projects/release-division-invalid.elf"
 CMP_SOURCE_PATH = "/temp/release-cmp.mya"
@@ -885,6 +890,16 @@ def run_bios(image_path, work_dir):
         if (b"bad\n" in xor_output or b"bad\r\n" in xor_output
                 or (b"XOR\n" not in xor_output and b"XOR\r\n" not in xor_output)):
             raise RegressionFailure(f"BIOS: bounded native xor did not preserve the expected zero byte branch\n{guest._tail()}")
+        shift_source = 'set 3;shl 5;shr 4;store 1;set 0;load 1;jump_if 6 matched;write "bad\\n";jump done;label matched:;write "SHIFT\\n";label done:;exit 54'
+        guest.console_edit_and_save(SHIFT_SOURCE_PATH, shift_source.encode("ascii"))
+        guest.command(f"build {SHIFT_SOURCE_PATH} {SHIFT_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {SHIFT_ELF_PATH} {SHIFT_APP_PATH}", "exited with status 0")
+        shift_start = len(guest.output)
+        guest.command("run release-shift", "exited with status 54")
+        shift_output = bytes(guest.output[shift_start:])
+        if (b"bad\n" in shift_output or b"bad\r\n" in shift_output
+                or (b"SHIFT\n" not in shift_output and b"SHIFT\r\n" not in shift_output)):
+            raise RegressionFailure(f"BIOS: bounded native shl/shr did not preserve the expected byte branch\n{guest._tail()}")
         cmp_source = 'set 73;store 5;set 73;cmp 5;jump_if_zero equal;write "bad\\n";jump after_equal;label equal:;write "EQ\\n";label after_equal:;set 72;cmp 5;jump_if_nonzero different;write "bad\\n";jump done;label different:;write "NE\\n";label done:;exit 51'
         guest.console_edit_and_save(CMP_SOURCE_PATH, cmp_source.encode("ascii"))
         guest.command(f"build {CMP_SOURCE_PATH} {CMP_ELF_PATH}", "exited with status 0")
@@ -906,7 +921,7 @@ def run_bios(image_path, work_dir):
         args_output = bytes(guest.output[args_output_start:])
         require_native_line("BIOS native args", args_output, b"[alpha beta]")
         require_time_line("BIOS native args", args_output)
-        diagnostic = "asm: syntax error; set/load/input must precede not/add/sub/mul/div/and/or/xor/cmp and conditional jumps, add/sub/mul/and/or/xor are byte values 0..255, div is 1..255, store/load/cmp slots are 0..7, labels need ':' and jumps must target a later label"
+        diagnostic = "asm: syntax error; set/load/input must precede"
         guest.command(f"write {BACKWARD_SOURCE_PATH} label start:;write \"x\\n\";jump start;exit 0")
         guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}", diagnostic)
         guest.command(f"write {MISSING_SET_SOURCE_PATH} jump_if 65 done;label done:;exit 0")
@@ -923,6 +938,12 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {INVALID_XOR_SOURCE_PATH} {INVALID_XOR_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_XOR_BOUND_SOURCE_PATH} set 1;xor 256;exit 0")
         guest.command(f"build {INVALID_XOR_BOUND_SOURCE_PATH} {INVALID_XOR_BOUND_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_SHIFT_SOURCE_PATH} shl 1;exit 0")
+        guest.command(f"build {INVALID_SHIFT_SOURCE_PATH} {INVALID_SHIFT_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_SHIFT_SOURCE_PATH} set 1;shl 0;exit 0")
+        guest.command(f"build {INVALID_SHIFT_SOURCE_PATH} {INVALID_SHIFT_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_SHIFT_SOURCE_PATH} set 1;shr 8;exit 0")
+        guest.command(f"build {INVALID_SHIFT_SOURCE_PATH} {INVALID_SHIFT_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_DIVISION_SOURCE_PATH} set 1;div 0;exit 0")
         guest.command(f"build {INVALID_DIVISION_SOURCE_PATH} {INVALID_DIVISION_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_CMP_SOURCE_PATH} cmp 0;exit 0")
@@ -1084,6 +1105,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if (b"bad\n" in xor_output or b"bad\r\n" in xor_output
                 or (b"XOR\n" not in xor_output and b"XOR\r\n" not in xor_output)):
             raise RegressionFailure(f"UEFI: persisted bounded native xor did not preserve the expected zero byte branch\n{guest._tail()}")
+        shift_start = len(guest.output)
+        guest.command("run release-shift", "exited with status 54")
+        shift_output = bytes(guest.output[shift_start:])
+        if (b"bad\n" in shift_output or b"bad\r\n" in shift_output
+                or (b"SHIFT\n" not in shift_output and b"SHIFT\r\n" not in shift_output)):
+            raise RegressionFailure(f"UEFI: persisted bounded native shl/shr did not preserve the expected byte branch\n{guest._tail()}")
         cmp_start = len(guest.output)
         guest.command("run release-cmp", "exited with status 51")
         cmp_output = bytes(guest.output[cmp_start:])
