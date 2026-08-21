@@ -55,6 +55,13 @@ MULDIV_ELF_PATH = "/users/myos/projects/release-muldiv.elf"
 MULDIV_APP_PATH = "/apps/release-muldiv/main.elf"
 INVALID_DIVISION_SOURCE_PATH = "/temp/release-division-invalid.mya"
 INVALID_DIVISION_ELF_PATH = "/users/myos/projects/release-division-invalid.elf"
+CMP_SOURCE_PATH = "/temp/release-cmp.mya"
+CMP_ELF_PATH = "/users/myos/projects/release-cmp.elf"
+CMP_APP_PATH = "/apps/release-cmp/main.elf"
+INVALID_CMP_SOURCE_PATH = "/temp/release-cmp-invalid.mya"
+INVALID_CMP_ELF_PATH = "/users/myos/projects/release-cmp-invalid.elf"
+INVALID_CMP_SLOT_SOURCE_PATH = "/temp/release-cmp-slot-invalid.mya"
+INVALID_CMP_SLOT_ELF_PATH = "/users/myos/projects/release-cmp-slot-invalid.elf"
 SDK_WRITE_EXAMPLE_PATH = "/system/core/examples/sdk/write.elf"
 SDK_WRITE_APP_PATH = "/apps/sdk-write/main.elf"
 SDK_WRITE_BIOS_TARGET = "/users/myos/files/sdk-write-bios.txt"
@@ -786,6 +793,17 @@ def run_bios(image_path, work_dir):
         if (b"bad\n" in muldiv_output or b"bad\r\n" in muldiv_output
                 or (b"MULDIV\n" not in muldiv_output and b"MULDIV\r\n" not in muldiv_output)):
             raise RegressionFailure(f"BIOS: modular mul/div native arithmetic did not preserve the expected zero branch\n{guest._tail()}")
+        cmp_source = 'set 73;store 5;set 73;cmp 5;jump_if_zero equal;write "bad\\n";jump after_equal;label equal:;write "EQ\\n";label after_equal:;set 72;cmp 5;jump_if_nonzero different;write "bad\\n";jump done;label different:;write "NE\\n";label done:;exit 51'
+        guest.console_edit_and_save(CMP_SOURCE_PATH, cmp_source.encode("ascii"))
+        guest.command(f"build {CMP_SOURCE_PATH} {CMP_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {CMP_ELF_PATH} {CMP_APP_PATH}", "exited with status 0")
+        cmp_start = len(guest.output)
+        guest.command("run release-cmp", "exited with status 51")
+        cmp_output = bytes(guest.output[cmp_start:])
+        if (b"bad\n" in cmp_output or b"bad\r\n" in cmp_output
+                or (b"EQ\n" not in cmp_output and b"EQ\r\n" not in cmp_output)
+                or (b"NE\n" not in cmp_output and b"NE\r\n" not in cmp_output)):
+            raise RegressionFailure(f"BIOS: native cmp did not preserve equal and non-equal private-slot branches\n{guest._tail()}")
         args_empty_start = len(guest.output)
         guest.command("run release-args", "exited with status 47")
         args_empty_output = bytes(guest.output[args_empty_start:])
@@ -796,7 +814,7 @@ def run_bios(image_path, work_dir):
         args_output = bytes(guest.output[args_output_start:])
         require_native_line("BIOS native args", args_output, b"[alpha beta]")
         require_time_line("BIOS native args", args_output)
-        diagnostic = "asm: syntax error; set/load/input must precede add/sub/mul/div and conditional jumps, add/sub/mul are byte values 0..255, div is 1..255, store/load slots are 0..7, labels need ':' and jumps must target a later label"
+        diagnostic = "asm: syntax error; set/load/input must precede add/sub/mul/div/cmp and conditional jumps, add/sub/mul are byte values 0..255, div is 1..255, store/load/cmp slots are 0..7, labels need ':' and jumps must target a later label"
         guest.command(f"write {BACKWARD_SOURCE_PATH} label start:;write \"x\\n\";jump start;exit 0")
         guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}", diagnostic)
         guest.command(f"write {MISSING_SET_SOURCE_PATH} jump_if 65 done;label done:;exit 0")
@@ -809,6 +827,10 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {INVALID_ARITHMETIC_SOURCE_PATH} {INVALID_ARITHMETIC_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_DIVISION_SOURCE_PATH} set 1;div 0;exit 0")
         guest.command(f"build {INVALID_DIVISION_SOURCE_PATH} {INVALID_DIVISION_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_CMP_SOURCE_PATH} cmp 0;exit 0")
+        guest.command(f"build {INVALID_CMP_SOURCE_PATH} {INVALID_CMP_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_CMP_SLOT_SOURCE_PATH} set 1;cmp 8;exit 0")
+        guest.command(f"build {INVALID_CMP_SLOT_SOURCE_PATH} {INVALID_CMP_SLOT_ELF_PATH}", diagnostic)
         guest.command(f"install {SDK_WRITE_EXAMPLE_PATH} {SDK_WRITE_APP_PATH}", "exited with status 0")
         sdk_write_start = len(guest.output)
         guest.command(f"run sdk-write {SDK_WRITE_BIOS_TARGET}", "sdk-write: wrote fixed payload")
@@ -937,6 +959,13 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if (b"bad\n" in muldiv_output or b"bad\r\n" in muldiv_output
                 or (b"MULDIV\n" not in muldiv_output and b"MULDIV\r\n" not in muldiv_output)):
             raise RegressionFailure(f"UEFI: persisted modular mul/div native arithmetic did not preserve the expected zero branch\n{guest._tail()}")
+        cmp_start = len(guest.output)
+        guest.command("run release-cmp", "exited with status 51")
+        cmp_output = bytes(guest.output[cmp_start:])
+        if (b"bad\n" in cmp_output or b"bad\r\n" in cmp_output
+                or (b"EQ\n" not in cmp_output and b"EQ\r\n" not in cmp_output)
+                or (b"NE\n" not in cmp_output and b"NE\r\n" not in cmp_output)):
+            raise RegressionFailure(f"UEFI: persisted native cmp did not preserve equal and non-equal private-slot branches\n{guest._tail()}")
         args_output_start = len(guest.output)
         guest.command("run release-args ovmf args", "exited with status 47")
         args_output = bytes(guest.output[args_output_start:])

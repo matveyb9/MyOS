@@ -56,13 +56,14 @@ Statements разделяются `;` или концом строки. `#` на
 | `div <1..255>` | Делит initialized current condition на один nonzero unsigned byte и сохраняет unsigned integer quotient. |
 | `store <0..7>` | Копирует current unsigned condition byte в один из восьми private program-variable slots. Текущее condition value не меняется. |
 | `load <0..7>` | Восстанавливает private program-variable byte как current condition value для последующих conditional jumps. |
+| `cmp <0..7>` | Сравнивает initialized current condition с private slot и заменяет его на `0` при равенстве или `1` при различии. |
 | `jump name` | Безусловно переходит на строго более позднюю label. |
 | `jump_if_zero name` | Переходит на строго более позднюю label, только если текущее condition value равно zero. |
 | `jump_if_nonzero name` | Переходит на строго более позднюю label, только если текущее condition value не равно zero. |
 | `jump_if <0..255> name` | Переходит на строго более позднюю label, только если текущее condition value точно совпадает с выбранным unsigned byte. |
 | `exit <0..255>` | Вызывает `MYOS_SYS_EXIT` с выбранным status; обязательный final executable statement. |
 
-`add`, `sub`, `mul` и `div` требуют более ранний `input`, `set` или `load`. Первые три сохраняют это initialized single condition value, обновляя его modulo 256; `div` заменяет его unsigned integer quotient и отклоняет zero source operand. Conditional jump также требует это initialized value. `store` копирует его без изменения, а `write`, `time` и `label` его не очищают. Target должен существовать и быть расположен позже в source. Это сохраняет source-level paths конечными: loops, backward/current targets и indirect jumps отклоняются. `input` может ждать human или serial input, но не добавляет source-language loop.
+`add`, `sub`, `mul`, `div` и `cmp` требуют более ранний `input`, `set` или `load`. Первые три сохраняют это initialized single condition value, обновляя его modulo 256; `div` заменяет его unsigned integer quotient и отклоняет zero source operand; `cmp` заменяет его на `0` при равенстве или `1` при различии с выбранным private slot. Conditional jump также требует это initialized value. `store` копирует его без изменения, а `write`, `time` и `label` его не очищают. Target должен существовать и быть расположен позже в source. Это сохраняет source-level paths конечными: loops, backward/current targets и indirect jumps отклоняются. `input` может ждать human или serial input, но не добавляет source-language loop.
 
 ```text
 # Exact match: только заглавная A выбирает первый путь.
@@ -79,7 +80,7 @@ exit 0
 
 ## Generated code и bounds
 
-Generated entry prologue сохраняет loader-provided argument pointer в fixed private data segment. `args` заново загружает этот pointer, сканирует не более 127 bytes до NUL terminator и выполняет один write syscall, только когда supplied string не пуста. `set` генерирует `mov ebx, imm32`. `input` помещает один байт в data offset `8` через `MYOS_SYS_READ`, перезагружает scratch pointer после syscall boundary, отфильтровывает `CR` и `LF`, затем помещает принятый байт в `EBX`. `time` читает fixed layout `myos_rtc_time` по offset `8` той же private 32-byte area и форматирует часы, минуты и секунды в two decimal digits перед одним write syscall. `store` генерирует один absolute byte store из `BL` в offset `24..31`; `load` генерирует один zero-extending absolute byte load в `EBX` из выбранного slot. `add` и `sub` генерируют соответственно `add bl, imm8` и `sub bl, imm8`. `mul` генерирует `mov eax, ebx; imul eax, eax, imm32; movzx ebx, al`; `div` генерирует `mov eax, ebx; xor edx, edx; mov ecx, imm32; div ecx; movzx ebx, al`. Required nonzero divisor и byte accumulator гарантируют, что division не вызывает trap и не выдаёт quotient выше 255, а каждая операция восстанавливает zero-extended byte в `EBX` для последующих comparisons.
+Generated entry prologue сохраняет loader-provided argument pointer в fixed private data segment. `args` заново загружает этот pointer, сканирует не более 127 bytes до NUL terminator и выполняет один write syscall, только когда supplied string не пуста. `set` генерирует `mov ebx, imm32`. `input` помещает один байт в data offset `8` через `MYOS_SYS_READ`, перезагружает scratch pointer после syscall boundary, отфильтровывает `CR` и `LF`, затем помещает принятый байт в `EBX`. `time` читает fixed layout `myos_rtc_time` по offset `8` той же private 32-byte area и форматирует часы, минуты и секунды в two decimal digits перед одним write syscall. `store` генерирует один absolute byte store из `BL` в offset `24..31`; `load` генерирует один zero-extending absolute byte load в `EBX` из выбранного slot. `add` и `sub` генерируют соответственно `add bl, imm8` и `sub bl, imm8`. `mul` генерирует `mov eax, ebx; imul eax, eax, imm32; movzx ebx, al`; `div` генерирует `mov eax, ebx; xor edx, edx; mov ecx, imm32; div ecx; movzx ebx, al`; `cmp` генерирует `cmp bl, byte [absolute slot]; setne bl; movzx ebx, bl`. Required nonzero divisor и byte accumulator гарантируют, что division не вызывает trap и не выдаёт quotient выше 255, а каждая arithmetic или comparison operation восстанавливает zero-extended byte в `EBX` для последующих branches.
 
 Каждый zero/non-zero branch генерирует `test ebx, ebx`, сразу за которым следует fixed-size `JZ rel32` или `JNZ rel32`. `jump_if` генерирует `cmp ebx, imm32`, за которым следует `JZ rel32`. Поэтому generated branches не зависят от flags, оставленных syscall или другой instruction. `jump` остаётся `E9 rel32`, а assembler разрешает все labels до формирования ELF.
 
@@ -87,18 +88,18 @@ Generated entry prologue сохраняет loader-provided argument pointer в 
 |---|---|
 | Source file | Не более 2 047 bytes, чтение bounded VFS requests по 256 bytes. |
 | Text literals | Не более 2 048 bytes суммарно. |
-| Executable statements | Не более 64 суммарных `write`, `args`, `input`, `time`, `set`, `add`, `sub`, `mul`, `div`, `store`, `load`, jump и `exit` instructions. |
+| Executable statements | Не более 64 суммарных `write`, `args`, `input`, `time`, `set`, `add`, `sub`, `mul`, `div`, `store`, `load`, `cmp`, jump и `exit` instructions. |
 | Arguments | Existing loader ABI string из `run <name> [arguments]`, не более 127 visible bytes; `args` только читает и выводит её. |
 | Labels | Не более 16 unique labels; identifiers содержат 1–31 ASCII characters. |
 | Control flow | Forward-only `jump`, `jump_if_zero`, `jump_if_nonzero` и `jump_if`; source-level loops и indirect targets отсутствуют. |
-| Condition | Одно value `0..255` в generated `EBX`, initialized `input`, `set` или `load`; `add`, `sub` и `mul` обновляют low byte modulo 256, а `div` использует unsigned quotient с required divisor `1..255`. General user-addressable mutable memory отсутствует. |
+| Condition | Одно value `0..255` в generated `EBX`, initialized `input`, `set` или `load`; `add`, `sub` и `mul` обновляют low byte modulo 256, `div` использует unsigned quotient с required divisor `1..255`, а `cmp <0..7>` записывает `0` для equality или `1` для inequality с private slot. General user-addressable mutable memory отсутствует. |
 | Generated ELF | Не более 8 192 bytes, запись bounded VFS writes по 256 bytes. |
 | ELF layout | Один RX `PT_LOAD` по `0x400000` и fixed RW `PT_LOAD` размером 32 bytes по `0x401000`: bytes `0..7` сохраняют entry argument pointer, bytes `8..23` — private input/time scratch data, а bytes `24..31` — восемь zero-initialized slots `store`/`load`. Relocation, libc и dynamic linker отсутствуют. |
 
-Эти границы сохраняют parsing, target resolution, code generation и storage статичными и проверяемыми. Invalid syntax, duplicate labels, slot вне `0..7`, add/sub/mul operand вне `0..255`, divisor вне `1..255`, arithmetic или conditional jump без `input`, `set` или `load`, missing/non-forward targets, malformed paths или output-write failure оставляют shell usable и возвращают non-zero status.
+Эти границы сохраняют parsing, target resolution, code generation и storage статичными и проверяемыми. Invalid syntax, duplicate labels, store/load/cmp slot вне `0..7`, add/sub/mul operand вне `0..255`, divisor вне `1..255`, arithmetic/cmp или conditional jump без `input`, `set` или `load`, missing/non-forward targets, malformed paths или output-write failure оставляют shell usable и возвращают non-zero status.
 
 ```text
-asm: syntax error; set/load/input must precede add/sub/mul/div and conditional jumps, add/sub/mul are byte values 0..255, div is 1..255, store/load slots are 0..7, labels need ':' and jumps must target a later label
+asm: syntax error; set/load/input must precede add/sub/mul/div/cmp and conditional jumps, add/sub/mul are byte values 0..255, div is 1..255, store/load/cmp slots are 0..7, labels need ':' and jumps must target a later label
 ```
 
 ## Завершённая проверка
@@ -113,8 +114,9 @@ asm: syntax error; set/load/input must precede add/sub/mul/div and conditional j
 | BIOS native variables | Собранная программа сохраняет `73` в slot `2`, перезаписывает active condition, загружает slot `2`, выбирает exact-match branch `VAR` и завершается со status `48`. Slot `8` отклоняется. |
 | BIOS byte arithmetic | Вторая программа вычисляет `(250 + 8 - 2) mod 256`, сохраняет и повторно загружает intermediate byte, выбирает zero branch, выводит `ARITH` и завершается со status `49`; uninitialized `add` отклоняется. |
 | BIOS multiply/divide | Третья программа вычисляет `((200 * 2 mod 256) + 57) / 3 = 67`, сохраняет и повторно загружает quotient, выбирает zero branch после вычитания `67`, выводит `MULDIV` и завершается со status `50`; `div 0` отклоняется. |
+| BIOS private comparison | Четвёртая программа сохраняет `73` в slot `5`, проверяет equality с `cmp 5` через `jump_if_zero`, затем проверяет inequality после `set 72` через `jump_if_nonzero`; она выводит `EQ` и `NE`, завершается со status `51` и отклоняет uninitialized comparison или slot `8`. |
 | Rejection cases | Missing condition, ordinary backward target и exact-conditional backward target возвращают documented syntax diagnostic и status `2`. |
-| UEFI persistence | Установленные input/time, argument и variable packages снова запускаются после UEFI/OVMF boot; `A` выбирает ожидаемый path, `[ovmf args]` выводится из forwarded arguments, package `store`/`load` выбирает `VAR`, persisted add/sub arithmetic package выбирает `ARITH`, persisted mul/div package выбирает `MULDIV`, а каждая time line остаётся корректной. |
+| UEFI persistence | Установленные input/time, argument и variable packages снова запускаются после UEFI/OVMF boot; `A` выбирает ожидаемый path, `[ovmf args]` выводится из forwarded arguments, package `store`/`load` выбирает `VAR`, persisted add/sub arithmetic package выбирает `ARITH`, persisted mul/div package выбирает `MULDIV`, persisted comparison package выбирает и `EQ`, и `NE`, а каждая time line остаётся корректной. |
 | Automated regression | `make regression` выполняет disposable-image BIOS GUI/editor/native workflow, затем проверяет persistent files и installed native packages при UEFI/OVMF. |
 
 ## Связь с SDK и следующий шаг
