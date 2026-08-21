@@ -93,6 +93,7 @@ run tree /system
 run find tree /system/core
 run head /system/core/resources/motd.txt 2
 run stat /system/core/resources/motd.txt
+run tail /system/core/resources/motd.txt 2
 run stackprobe
 cat /system/core/resources/motd.txt
 ```
@@ -155,6 +156,10 @@ rm /temp/session.txt
 
 `run stat <absolute-path>` выводит logical VFS **type** и **size** одного existing file, directory или virtual record. Например, `run stat /system/core/resources/motd.txt` выводит entry `regular` и её byte size, а `run stat /system/live/boot/info` — entry `virtual`. Tool разрешает final path component сканированием не более **128 entries** его parent через existing VFS list ABI, сравнивает ASCII names case-insensitively как filesystem и не выполняет writes. Для invalid или missing entry выводится `stat: path not found`.
 
+### Native tail view
+
+`run tail <absolute-file> [1..64 lines]` выводит конец одного readable VFS file. Без optional count он выводит последние **10 строк**; например, `run tail /system/core/resources/motd.txt 2` показывает последние две строки MOTD. Utility принимает один absolute file path и optional decimal count от 1 до 64. Она stream-читает файл через обычные VFS ABI chunks по 256 bytes, но хранит только его последние **4 KiB**, затем выбирает requested trailing lines из этого bounded buffer. Когда более старый content отброшен, выводится `tail: retained last 4096 bytes`; поэтому строка больше retained window может быть partial. Storage никогда не меняется.
+
 ### Native stack probe
 
 `run stackprobe` — read-only diagnostic utility user-program platform. Она заполняет 12 KiB automatic buffer и выводит `stackprobe: 12288 bytes checksum 1566720`. Этот точный результат подтверждает, что current program использует все четыре mapped ring-3 stack pages по 4 KiB; непосредственно ниже них остаётся guard page, перехватывающая downward stack overflow.
@@ -195,6 +200,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `run stackprobe` | `run stackprobe` | Запустить diagnostic с automatic buffer 12 KiB; ожидаемый checksum `1566720` подтверждает все четыре mapped ring-3 stack pages. |
 | `run head` | `run head /system/core/resources/motd.txt 2` | Вывести первые 10 строк по умолчанию или 1–64 запрошенные строки одного absolute readable file; VFS I/O использует chunks 256 bytes, а output ограничен 4 KiB. |
 | `run stat` | `run stat /system/core/resources/motd.txt` | Вывести type и byte size одного absolute logical-VFS entry через bounded scan не более 128 entries его parent; storage не меняется. |
+| `run tail` | `run tail /system/core/resources/motd.txt 2` | Вывести последние 10 строк по умолчанию или 1–64 запрошенные trailing lines одного absolute readable file; stream-читает VFS chunks 256 bytes, сохраняя только последние 4 KiB. |
 | `touch` | `touch /users/myos/files/note.txt` | Создать пустой persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Создать каталог. |
 | `write` | `write /users/myos/files/note.txt Hello` | Перезаписать file одной строкой. |

@@ -93,6 +93,7 @@ run tree /system
 run find tree /system/core
 run head /system/core/resources/motd.txt 2
 run stat /system/core/resources/motd.txt
+run tail /system/core/resources/motd.txt 2
 run stackprobe
 cat /system/core/resources/motd.txt
 ```
@@ -155,6 +156,10 @@ After closing QEMU, reboot using the same `myos.img` and read the persistent fil
 
 `run stat <absolute-path>` reports the logical VFS **type** and **size** of one existing file, directory or virtual record. For example, `run stat /system/core/resources/motd.txt` reports a `regular` entry and its byte size; `run stat /system/live/boot/info` reports a `virtual` entry. The tool resolves the final path component by scanning at most **128 entries** in its parent through the existing VFS list ABI, matches ASCII names case-insensitively like the filesystem, and performs no writes. It reports `stat: path not found` for an invalid or missing entry.
 
+### Native tail view
+
+`run tail <absolute-file> [1..64 lines]` prints the end of one readable VFS file. Without the optional count it prints the final **10 lines**; for example, `run tail /system/core/resources/motd.txt 2` displays the final two MOTD lines. The utility accepts one absolute file path and an optional decimal count from 1 through 64. It streams the file through normal 256-byte VFS ABI chunks but retains only its final **4 KiB**, then selects the requested trailing lines from that bounded buffer. When older content is discarded, it reports `tail: retained last 4096 bytes`; consequently, a line that is larger than the retained window may be partial. It never modifies storage.
+
 ### Native stack probe
 
 `run stackprobe` is a read-only diagnostic utility for the user-program platform. It fills a 12 KiB automatic buffer and prints `stackprobe: 12288 bytes checksum 1566720`. That exact result confirms the current program can use all four mapped 4 KiB ring-3 stack pages; a guard page remains immediately below them to catch downward stack overflow.
@@ -195,6 +200,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `run stackprobe` | `run stackprobe` | Run the 12 KiB automatic-buffer diagnostic; expected checksum is `1566720`, confirming all four mapped ring-3 stack pages. |
 | `run head` | `run head /system/core/resources/motd.txt 2` | Print the first 10 lines by default, or 1–64 requested lines, from one absolute readable file; VFS I/O uses 256-byte chunks and output is capped at 4 KiB. |
 | `run stat` | `run stat /system/core/resources/motd.txt` | Report the type and byte size of one absolute logical-VFS entry through a bounded scan of at most 128 entries in its parent; never writes storage. |
+| `run tail` | `run tail /system/core/resources/motd.txt 2` | Print the last 10 lines by default, or 1–64 requested trailing lines, from one absolute readable file; streams 256-byte VFS chunks while retaining only the final 4 KiB. |
 | `touch` | `touch /users/myos/files/note.txt` | Create an empty persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Create a directory. |
 | `write` | `write /users/myos/files/note.txt Hello` | Overwrite a file with a single line. |
