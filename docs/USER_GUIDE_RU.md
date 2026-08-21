@@ -138,7 +138,7 @@ rm /temp/session.txt
 
 Запустите `startgui` и нажмите **FILES**. Browser начинается в `/users/myos/`. Его controls `[..]`, `[PREV]`, entry rows и `[NEXT]` дают mouse-first traversal всех paths, которые открыты через logical VFS, включая `/`, `/system/core/`, `/system/live/`, `/apps/`, `/users/` и `/temp/`. Directory rows открывают каталог; regular и virtual files открываются безопасно. Raw Limine/EFI boot files и `kernel.elf` остаются boot artifacts вне этого runtime tree.
 
-Regular file доступен для GUI edit только при writable VFS path: `/users/myos/`, `/temp/`, `/system/data/` или `/system/config/`. `Ctrl-S` сохраняет; `Esc`, `Alt+F4` или `X` окна NOTES отбрасывают несохранённый draft. `/system/core/`, `/system/live/` и `/apps/` остаются readable, но никогда не переходят в GUI editor mode. GUI document capacity — **128 bytes**. Для documents до 4 KiB используйте existing console `edit <path>`, а для больших MYPFS004 files — bounded program или SDK I/O.
+Regular file доступен для GUI edit только при writable VFS path: `/users/myos/`, `/temp/`, `/system/data/` или `/system/config/`. `Ctrl-S` сохраняет; `Esc`, `Alt+F4` или `X` окна NOTES отбрасывают несохранённый draft. `/system/core/`, `/system/live/` и `/apps/` остаются readable, но никогда не переходят в GUI editor mode. GUI document capacity — **1 KiB (1 024 bytes)**. GUI loading и saving используют не более четырёх bounded VFS transfers по 256 bytes. Для documents до 4 KiB используйте existing console `edit <path>`, а для больших MYPFS004 files — bounded program или SDK I/O.
 
 > File Workspace v1 намеренно не предоставляет graphical create, rename, delete, copy/move, package installation или raw-device operations. Для этого используйте shell `touch`, `mkdir`, `rm`, `run cp` и `install`.
 

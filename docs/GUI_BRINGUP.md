@@ -78,8 +78,8 @@ The validation program prints a greeting and the accepted argument string. After
 | Launcher | In desktop-home mode, four compact fixed clickable tiles — `SYSTEM`, `NOTES`, `EDIT NOTE` and `FILES` — plus up to four discovered `/apps/<name>/main.elf` package tiles replace the ordinary windows. |
 | Windows | Outside launcher mode, three static bounded window records: `SYSTEM`, `NOTES` and `MONITOR`, each with a visible title-bar `X`. |
 | Z-order | Focused window is raised to the front; every non-launcher content update also raises `NOTES` so the current viewer or editor is visible. Focus, visibility, layout and content events perform a bounded full redraw composition, whereas ordinary pointer movement updates only the cursor region. |
-| Viewer | `NOTES` displays up to 128 bytes of the selected VFS file. A larger readable file is rejected with a GUI capacity status instead of being truncated or copied past the fixed buffer. |
-| File loading | `startgui <absolute-path>` reads the first 128 bytes of the specified VFS file. |
+| Viewer | `NOTES` displays up to 1 KiB (1,024 bytes) of the selected VFS file. A larger readable file is rejected with a GUI capacity status instead of being truncated or copied past the fixed buffer. |
+| File loading | `startgui <absolute-path>` reads up to the first 1 KiB (1,024 bytes) of the specified VFS file. |
 | File Workspace | `FILES` begins at `/users/myos/`, supports parent, directory-entry and paged navigation across the complete logical VFS without ending the GUI session, and identifies directories, regular files and virtual entries. |
 | Desktop home | Bare `startgui` renders the mouse-first `MYOS DESKTOP` launcher; `startgui home` is a compatibility alias. Its fixed system tiles and top-bar exit rectangle remain actionable, and it adds at most four app tiles discovered only from the first 64 `/apps` entries with a verified regular non-empty `main.elf`. It does not scan arbitrary paths or retain unbounded state. |
 | Persistent selection | The `NOTES` tile opens the bounded personal-notes route; it selects the next existing note through a directory-scoped VFS enumeration. |
@@ -101,23 +101,23 @@ In the editor ordinary printable keys become draft text and are not forwarded to
 
 ## Editor limits and ABI boundary
 
-`NOTES` uses the descriptor `MYOS_GUI_SET_CONTENT = 3` in `MYOS_SYS_GUI_SESSION`. The request accepts one mutually exclusive content mode: editable text, launcher content or browser content. Launcher mode enables four compact fixed launcher hit rectangles and up to four bounded package hit rectangles discovered from `/apps`; browser mode enables bounded parent, previous, entry-row and next-page rectangles inside NOTES. The kernel accepts content requests only from the current GUI owner with an active session, copies the request after validating the user buffer mapping and does not retain user pointers. The framebuffer owns its own static copies of title and data. The GUI periodically uses directory-scoped `MYOS_SYS_VFS_LIST` for `/users/myos/files/notes/` and keeps the selected absolute path in bounded static storage. The editor removes the selected file, creates it via the unified VFS and writes one bounded payload at offset `0`.
+`NOTES` uses the descriptor `MYOS_GUI_SET_CONTENT = 3` in `MYOS_SYS_GUI_SESSION`. The request accepts one mutually exclusive content mode: editable text, launcher content or browser content. Launcher mode enables four compact fixed launcher hit rectangles and up to four bounded package hit rectangles discovered from `/apps`; browser mode enables bounded parent, previous, entry-row and next-page rectangles inside NOTES. The kernel accepts content requests only from the current GUI owner with an active session, copies the request after validating the user buffer mapping and does not retain user pointers. The framebuffer owns its own static copies of title and data. The GUI periodically uses directory-scoped `MYOS_SYS_VFS_LIST` for `/users/myos/files/notes/` and keeps the selected absolute path in bounded static storage. The editor removes the selected file, creates it via the unified VFS and writes up to four bounded payload chunks at 256-byte-aligned offsets.
 
 | Field or operation | Limit | Purpose |
 |---|---:|---|
 | `MYOS_GUI_CONTENT_TITLE_MAX` | 16 bytes | NUL-terminated title for the NOTES window. |
-| `MYOS_GUI_CONTENT_MAX` | 128 bytes | Maximum viewer content and editor draft length. |
-| `struct myos_gui_content_request` | 176 bytes | `length`, `flags`, `cursor`, `viewport`, `title[16]`, `data[128]`; fits within the syscall user-copy limit of 256 bytes. |
+| `MYOS_GUI_CONTENT_MAX` | 1 KiB (1,024 bytes) | Maximum viewer content and editor draft length. |
+| `struct myos_gui_content_request` | 1,072 bytes | `length`, `flags`, `cursor`, `viewport`, `title[16]`, `data[1024]`; copied only by the active GUI-session path after a dedicated mapped-range validation. The ordinary 512-byte syscall I/O limit is unchanged. |
 | `struct myos_vfs_write_request` | 384 bytes | Unified bounded write request; fits within the syscall user-copy limit of 512 bytes. |
-| File read | Up to 256 bytes | One bounded `MYOS_SYS_VFS_READ` request from ring 3; the GUI viewer applies its own 128-byte content limit. |
+| File read | Up to 1 KiB | Ring 3 uses at most four bounded 256-byte `MYOS_SYS_VFS_READ` requests; the GUI viewer applies its own 1 KiB content limit. |
 | File browser | Four entries per page | FILES starts at `/users/myos/`, re-enumerates the selected logical VFS entry before changing directory or opening it, and allows traversal to `/` without exposing raw boot media. |
 | Persistent selection | Up to 64 scanned directory indices | The NOTES shortcut uses `MYOS_SYS_VFS_LIST` only in the notes directory. |
 | Launcher app discovery | Up to 64 `/apps` indices and four visible tiles | Kernel and ring 3 independently accept only package directories with a non-empty regular `main.elf`. |
 | Selected path | Up to 111 ASCII bytes plus NUL | FILES stores a selected absolute VFS path; direct `startgui <path>` remains viewer-first and `/apps/` retains its executable workflow. |
-| Persistent save | Up to 128 bytes per editor update | `VFS_REMOVE`, `VFS_CREATE_FILE`, then bounded `VFS_WRITE` only under existing VFS-writable roots: `/users/myos/`, `/temp/`, `/system/data/` and `/system/config/`. `/system/core/`, `/system/live/`, `/apps/` and raw boot media remain non-mutable. |
+| Persistent save | Up to 1 KiB per editor update | `VFS_REMOVE`, `VFS_CREATE_FILE`, then up to four bounded 256-byte `VFS_WRITE` requests only under existing VFS-writable roots: `/users/myos/`, `/temp/`, `/system/data/` and `/system/config/`. `/system/core/`, `/system/live/`, `/apps/` and raw boot media remain non-mutable. |
 | Allocation | Static storage | No heap allocations or background operations; selected path, cursor and viewport remain bounded state. |
 
-Text wraps within the internal surface of NOTES. Characters outside printable ASCII are rendered as `?` by the renderer; newline starts the next logical line. In the editor the kernel draws a cyan caret at the index passed by the ring-3 program; the viewport starts at a logical line boundary and keeps the caret line visible in the window up to 20 lines. Content updates trigger a redraw but do not run layout initialization, thus preserving current visibility, focus and window manager z-order. A draft that reaches 128 bytes will not accept new bytes until reduced by `Backspace` or `Delete`.
+Text wraps within the internal surface of NOTES. Characters outside printable ASCII are rendered as `?` by the renderer; newline starts the next logical line. In the editor the kernel draws a cyan caret at the index passed by the ring-3 program; the viewport starts at a logical line boundary and keeps the caret line visible in the window up to 20 lines. Content updates trigger a redraw but do not run layout initialization, thus preserving current visibility, focus and window manager z-order. A draft that reaches 1 KiB (1,024 bytes) will not accept new bytes until reduced by `Backspace` or `Delete`.
 
 ## Architectural boundaries
 

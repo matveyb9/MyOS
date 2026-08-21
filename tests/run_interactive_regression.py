@@ -326,6 +326,23 @@ class Guest:
         self.expect("exited with status 0", start, timeout=60.0)
         self.expect(PROMPT, start)
 
+    def gui_save_large_note_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        self.qmp_move(delta_x=115)
+        self.qmp_left_click()
+        time.sleep(0.35)
+        editor = self.qmp_screendump("large-note-editor")
+        self.send(b"\x13")
+        time.sleep(0.50)
+        viewer = self.qmp_screendump("large-note-viewer")
+        self.require_region_transition(editor, viewer, 330, 205, 160, 20, "1 KiB GUI editor save-to-viewer")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_open_and_exit(self, command=None):
         start = len(self.output)
         self.send((command or f"startgui {NOTE_PATH}") + "\n")
@@ -562,6 +579,14 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {DEFAULT_GUI_NOTE_PATH} base")
         guest.gui_edit_and_exit()
         guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
+        large_gui_payload = b"g" * 1024
+        guest.command(f"rm {DEFAULT_GUI_NOTE_PATH}", f"Removed {DEFAULT_GUI_NOTE_PATH}")
+        guest.console_edit_and_save(DEFAULT_GUI_NOTE_PATH, large_gui_payload)
+        guest.gui_save_large_note_and_exit()
+        large_gui_start = len(guest.output)
+        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "g")
+        if large_gui_payload not in guest.output[large_gui_start:]:
+            raise RegressionFailure(f"BIOS: 1 KiB GUI editor save/readback is not exact\n{guest._tail()}")
         guest.command(f"write {NOTE_PATH} base")
         guest.gui_modifier_hotkeys_and_exit()
         guest.gui_alt_f4_editor_close_and_exit()
@@ -675,7 +700,10 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         require_system_inventory("UEFI", bytes(guest.output[inventory_start:]), b"UEFI x86_64")
         guest.command("ls /system/core", "[dir] apps")
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
-        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "base!")
+        uefi_large_gui_start = len(guest.output)
+        guest.command(f"cat {DEFAULT_GUI_NOTE_PATH}", "g")
+        if b"g" * 1024 not in guest.output[uefi_large_gui_start:]:
+            raise RegressionFailure(f"UEFI: persisted 1 KiB GUI editor payload is not exact\n{guest._tail()}")
         guest.command(f"cat {NOTE_PATH}", "base")
         text_start = len(guest.output)
         guest.command(f"cat {EDITOR_TEXT_PATH}", "first")

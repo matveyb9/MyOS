@@ -84,7 +84,7 @@ Boot-компоненты Limine, `kernel.elf`, boot configuration и raw initra
 | Runtime writes | Любая write/create/remove операция под `/system/live/` отклоняется. |
 | Temp lifetime | Все `/temp/` objects находятся в RAM и исчезают после reboot. |
 | GUI File Workspace | `startgui` → `FILES` начинается в `/users/myos/`, может перечислять и проходить все directories logical VFS до `/` и не открывает raw boot partitions. |
-| GUI mutation boundary | 128-byte GUI editor открывает только selected existing regular files под `/users/myos/`, `/temp/`, `/system/data/` или `/system/config/`; он не делает `/system/core/`, `/system/live/` или `/apps/` writable. |
+| GUI mutation boundary | 1 KiB GUI editor открывает только selected existing regular files под `/users/myos/`, `/temp/`, `/system/data/` или `/system/config/`; он не делает `/system/core/`, `/system/live/` или `/apps/` writable. |
 
 ### File Workspace v1
 

@@ -84,7 +84,7 @@ A future separate milestone may add personal application installation in `/users
 | Runtime writes | Any write/create/remove operation under `/system/live/` is rejected. |
 | Temp lifetime | All `/temp/` objects reside in RAM and disappear after reboot. |
 | GUI File Workspace | `startgui` → `FILES` begins at `/users/myos/`, may enumerate and traverse every logical VFS directory up to `/`, and does not expose raw boot partitions. |
-| GUI mutation boundary | The 128-byte GUI editor opens only selected existing regular files under `/users/myos/`, `/temp/`, `/system/data/` or `/system/config/`; it does not make `/system/core/`, `/system/live/` or `/apps/` writable. |
+| GUI mutation boundary | The 1 KiB GUI editor opens only selected existing regular files under `/users/myos/`, `/temp/`, `/system/data/` or `/system/config/`; it does not make `/system/core/`, `/system/live/` or `/apps/` writable. |
 
 ### File Workspace v1
 

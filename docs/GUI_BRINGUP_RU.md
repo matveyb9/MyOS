@@ -78,8 +78,8 @@ run sdk-hello external SDK validation
 | Launcher | В desktop-home mode четыре compact fixed clickable tiles — `SYSTEM`, `NOTES`, `EDIT NOTE` и `FILES` — и до четырёх обнаруженных package tiles `/apps/<name>/main.elf` заменяют ordinary windows. |
 | Windows | Вне launcher mode используются три статические bounded window records: `SYSTEM`, `NOTES` и `MONITOR`; у каждого есть видимый title-bar `X`. |
 | Z-order | Focused window поднимается на передний план; каждое non-launcher content update также поднимает `NOTES`, поэтому текущий viewer или editor видим. Focus, visibility, layout и content events выполняют bounded full redraw композиции, тогда как ordinary pointer movement обновляет только cursor region. |
-| Viewer | `NOTES` отображает до 128 bytes выбранного VFS file. Большой readable file отклоняется статусом GUI capacity вместо truncation или copy за пределы fixed buffer. |
-| File loading | `startgui <absolute-path>` читает до 128 bytes указанного VFS file. |
+| Viewer | `NOTES` отображает до 1 KiB (1 024 bytes) выбранного VFS file. Большой readable file отклоняется статусом GUI capacity вместо truncation или copy за пределы fixed buffer. |
+| File loading | `startgui <absolute-path>` читает до первых 1 KiB (1 024 bytes) указанного VFS file. |
 | File Workspace | `FILES` начинает в `/users/myos/`, поддерживает parent, directory-entry и paged navigation по полной logical VFS без завершения GUI session и различает directories, regular files и virtual entries. |
 | Desktop home | Bare `startgui` рисует mouse-first launcher `MYOS DESKTOP`; `startgui home` — compatibility alias. Его fixed system tiles и top-bar exit rectangle сохраняют действие, а до четырёх app tiles обнаруживаются только среди первых 64 `/apps` entries с verified regular non-empty `main.elf`. Launcher не сканирует arbitrary paths и не хранит unbounded state. |
 | Persistent selection | Tile `NOTES` открывает bounded personal-notes route; он выбирает следующую existing note через directory-scoped VFS enumeration. |
@@ -101,23 +101,23 @@ run sdk-hello external SDK validation
 
 ## Ограничения editor и граница ABI
 
-`NOTES` использует дескриптор `MYOS_GUI_SET_CONTENT = 3` в `MYOS_SYS_GUI_SESSION`. Request допускает один mutually exclusive content mode: editable text, launcher content или browser content. Launcher mode включает четыре compact fixed launcher hit rectangles и до четырёх bounded package hit rectangles, обнаруженных в `/apps`; browser mode включает bounded rectangles parent, previous, entry-row и next-page внутри NOTES. Kernel принимает content request лишь от текущего GUI owner при активной session, копирует request после проверки отображения user buffer и не хранит user pointers. Framebuffer владеет собственными статическими copies title и data. GUI циклически использует directory-scoped `MYOS_SYS_VFS_LIST` для `/users/myos/files/notes/` и держит выбранный absolute path в bounded static storage. Editor удаляет выбранный file, создаёт его через unified VFS и записывает один bounded payload с offset `0`.
+`NOTES` использует дескриптор `MYOS_GUI_SET_CONTENT = 3` в `MYOS_SYS_GUI_SESSION`. Request допускает один mutually exclusive content mode: editable text, launcher content или browser content. Launcher mode включает четыре compact fixed launcher hit rectangles и до четырёх bounded package hit rectangles, обнаруженных в `/apps`; browser mode включает bounded rectangles parent, previous, entry-row и next-page внутри NOTES. Kernel принимает content request лишь от текущего GUI owner при активной session, копирует request после проверки отображения user buffer и не хранит user pointers. Framebuffer владеет собственными статическими copies title и data. GUI циклически использует directory-scoped `MYOS_SYS_VFS_LIST` для `/users/myos/files/notes/` и держит выбранный absolute path в bounded static storage. Editor удаляет выбранный file, создаёт его через unified VFS и записывает до четырёх bounded payload chunks с offset, кратным 256 bytes.
 
 | Поле или операция | Ограничение | Назначение |
 |---|---:|---|
 | `MYOS_GUI_CONTENT_TITLE_MAX` | 16 bytes | NUL-terminated title для NOTES window. |
-| `MYOS_GUI_CONTENT_MAX` | 128 bytes | Максимальная длина viewer content и editor draft. |
-| `struct myos_gui_content_request` | 176 bytes | `length`, `flags`, `cursor`, `viewport`, `title[16]`, `data[128]`; укладывается в syscall user-copy limit 256 bytes. |
+| `MYOS_GUI_CONTENT_MAX` | 1 KiB (1 024 bytes) | Максимальная длина viewer content и editor draft. |
+| `struct myos_gui_content_request` | 1 072 bytes | `length`, `flags`, `cursor`, `viewport`, `title[16]`, `data[1024]`; копируется только active GUI-session path после отдельной проверки mapped range. Обычный syscall I/O limit 512 bytes не меняется. |
 | `struct myos_vfs_write_request` | 384 bytes | Unified bounded write request; укладывается в syscall user-copy limit 512 bytes. |
-| File read | До 256 bytes | Один bounded `MYOS_SYS_VFS_READ` request из ring 3; GUI viewer применяет собственный 128-byte content limit. |
+| File read | До 1 KiB | Ring 3 использует не более четырёх bounded запросов `MYOS_SYS_VFS_READ` по 256 bytes; GUI viewer применяет собственный limit 1 KiB. |
 | File browser | Четыре entries на page | FILES начинает в `/users/myos/`, повторно перечисляет выбранный logical VFS entry до смены directory или открытия и допускает traversal до `/` без raw boot media. |
 | Persistent selection | До 64 scanned directory indices | Shortcut NOTES использует `MYOS_SYS_VFS_LIST` только в notes directory. |
 | Launcher app discovery | До 64 `/apps` indices и четырёх visible tiles | Kernel и ring 3 независимо принимают только package directories с непустым regular `main.elf`. |
 | Selected path | До 111 ASCII bytes плюс NUL | FILES хранит selected absolute VFS path; direct `startgui <path>` остаётся viewer-first, а `/apps/` сохраняет executable workflow. |
-| Persistent save | До 128 bytes за editor update | `VFS_REMOVE`, `VFS_CREATE_FILE`, затем bounded `VFS_WRITE` только под existing VFS-writable roots: `/users/myos/`, `/temp/`, `/system/data/` и `/system/config/`. `/system/core/`, `/system/live/`, `/apps/` и raw boot media остаются non-mutable. |
+| Persistent save | До 1 KiB за editor update | `VFS_REMOVE`, `VFS_CREATE_FILE`, затем до четырёх bounded запросов `VFS_WRITE` по 256 bytes только под existing VFS-writable roots: `/users/myos/`, `/temp/`, `/system/data/` и `/system/config/`. `/system/core/`, `/system/live/`, `/apps/` и raw boot media остаются non-mutable. |
 | Allocation | Static storage | Нет heap allocations или background operations; selected path, cursor и viewport остаются bounded state. |
 
-Текст переносится в пределах внутренней поверхности NOTES. Символы вне printable ASCII заменяются renderer на `?`; newline начинает следующую logical line. В editor kernel рисует cyan caret по index, переданному ring-3 программой; viewport начинается на границе logical line и удерживает строку caret в окне до 20 строк. Обновление content вызывает redraw, но не запускает layout initialization, поэтому сохраняет текущие visibility, focus и z-order window manager. Draft, который достиг 128 bytes, больше не принимает новые bytes до удаления через `Backspace` или `Delete`.
+Текст переносится в пределах внутренней поверхности NOTES. Символы вне printable ASCII заменяются renderer на `?`; newline начинает следующую logical line. В editor kernel рисует cyan caret по index, переданному ring-3 программой; viewport начинается на границе logical line и удерживает строку caret в окне до 20 строк. Обновление content вызывает redraw, но не запускает layout initialization, поэтому сохраняет текущие visibility, focus и z-order window manager. Draft, который достиг 1 KiB (1 024 bytes), больше не принимает новые bytes до удаления через `Backspace` или `Delete`.
 
 ## Границы архитектуры
 

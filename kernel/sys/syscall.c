@@ -51,6 +51,19 @@ static int copy_from_user(void *destination, uint64_t source_address, uint64_t l
     return 1;
 }
 
+static int copy_gui_content_from_user(struct myos_gui_content_request *destination, uint64_t source_address) {
+    const uint8_t *source = (const uint8_t *)(uintptr_t)source_address;
+
+    if (destination == (struct myos_gui_content_request *)0
+        || paging_user_range_is_mapped(source_address, sizeof(*destination), 0) == 0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < sizeof(*destination); index++) {
+        ((uint8_t *)destination)[index] = source[index];
+    }
+    return 1;
+}
+
 static int copy_to_user(uint64_t destination_address, const void *source, uint64_t length) {
     uint8_t *destination_bytes = (uint8_t *)(uintptr_t)destination_address;
     const uint8_t *source_bytes = (const uint8_t *)source;
@@ -166,7 +179,7 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         if (descriptor == MYOS_GUI_SET_CONTENT) {
             struct myos_gui_content_request request;
 
-            if (buffer == 0U || length != sizeof(request) || copy_from_user(&request, buffer, sizeof(request)) == 0
+            if (buffer == 0U || length != sizeof(request) || copy_gui_content_from_user(&request, buffer) == 0
                 || request.length > MYOS_GUI_CONTENT_MAX
                 || (request.flags & ~(MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER
                                       | MYOS_GUI_CONTENT_FLAG_BROWSER)) != 0U

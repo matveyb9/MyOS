@@ -258,22 +258,37 @@ static int launch_launcher_app(uint8_t action) {
 
 static uint64_t read_viewer_file(const char *path, uint8_t *data, uint64_t capacity) {
     struct myos_vfs_read_request request = { 0U, { 0 }, { 0 } };
-    uint64_t count;
+    uint64_t total = 0U;
 
-    if (make_path(request.path, path) == 0 || data == (uint8_t *)0 || capacity > MYOS_VFS_READ_CHUNK) {
+    if (make_path(request.path, path) == 0 || data == (uint8_t *)0 || capacity == 0U) {
         return UINT64_MAX;
     }
-    count = system_call(MYOS_SYS_VFS_READ, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
-    if (count == UINT64_MAX) {
-        return UINT64_MAX;
+    while (total < capacity) {
+        const uint64_t count = system_call(MYOS_SYS_VFS_READ, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
+
+        if (count == UINT64_MAX || count > MYOS_VFS_READ_CHUNK) {
+            return UINT64_MAX;
+        }
+        if (count > capacity - total) {
+            return GUI_BROWSER_READ_TOO_LARGE;
+        }
+        for (uint64_t index = 0U; index < count; index++) {
+            data[total + index] = request.data[index];
+        }
+        total += count;
+        if (count < MYOS_VFS_READ_CHUNK) {
+            return total;
+        }
+        request.offset = total;
     }
-    if (count > capacity) {
-        return GUI_BROWSER_READ_TOO_LARGE;
+    {
+        const uint64_t probe = system_call(MYOS_SYS_VFS_READ, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
+
+        if (probe == UINT64_MAX) {
+            return UINT64_MAX;
+        }
+        return probe == 0U ? total : GUI_BROWSER_READ_TOO_LARGE;
     }
-    for (uint64_t index = 0U; index < count; index++) {
-        data[index] = request.data[index];
-    }
-    return count;
 }
 
 static uint64_t text_length_bounded(const char *text, uint64_t limit) {
@@ -494,17 +509,26 @@ static int save_selected_disk_file(const uint8_t *data, uint64_t length) {
     struct myos_vfs_path_request path_request = { { 0 } };
     struct myos_vfs_write_request write_request = { 0U, 0U, { 0 }, { 0 } };
 
-    if (length > MYOS_VFS_READ_CHUNK || selected_disk_path_is_writable() == 0
+    if (length > MYOS_GUI_CONTENT_MAX || selected_disk_path_is_writable() == 0
         || make_path(path_request.path, selected_disk_path) == 0
         || make_path(write_request.path, selected_disk_path) == 0) {
         return 0;
     }
-    for (uint64_t index = 0U; index < length; index++) { write_request.data[index] = data[index]; }
-    write_request.length = length;
     (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request));
-    if (system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request)) == UINT64_MAX
-        || system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request)) == UINT64_MAX) {
+    if (system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request)) == UINT64_MAX) {
         return 0;
+    }
+    for (uint64_t offset = 0U; offset < length; offset += MYOS_VFS_READ_CHUNK) {
+        const uint64_t chunk = length - offset > MYOS_VFS_READ_CHUNK ? MYOS_VFS_READ_CHUNK : length - offset;
+
+        write_request.offset = offset;
+        write_request.length = chunk;
+        for (uint64_t index = 0U; index < chunk; index++) {
+            write_request.data[index] = data[offset + index];
+        }
+        if (system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request)) == UINT64_MAX) {
+            return 0;
+        }
     }
     return 1;
 }
