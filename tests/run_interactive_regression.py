@@ -713,12 +713,13 @@ def run_bios(image_path, work_dir):
         if b"size: 124 bytes" not in stat_output:
             raise RegressionFailure(f"BIOS: direct stat output lacks MOTD size\n{guest._tail()}")
         guest.command("run stat /system/core/resources/motd.txt", "type: regular")
+        guest.command("help tail", "run tail remains a compatibility form.")
         tail_start = len(guest.output)
+        guest.command("tail /system/core/resources/motd.txt 2", "The initramfs VFS is mounted read-only.")
+        tail_output = bytes(guest.output[tail_start:]).replace(b"\r", b"")
+        if b"The initramfs VFS is mounted read-only.\nUse ls to inspect bundled files and cat <file> to read text files.\n" not in tail_output:
+            raise RegressionFailure(f"BIOS: direct tail output lacks last two MOTD lines\n{guest._tail()}")
         guest.command("run tail /system/core/resources/motd.txt 2", "The initramfs VFS is mounted read-only.")
-        tail_output = bytes(guest.output[tail_start:])
-        if b"The initramfs VFS is mounted read-only.\nUse ls to inspect bundled files and cat <file> to read text files.\n" not in tail_output.replace(b"\r", b""):
-            raise RegressionFailure(f"BIOS: tail output lacks last two MOTD lines\n{guest._tail()}")
-        guest.command("help tail", "retains only the final 4096 bytes")
         guest.command("help sort", "run sort remains a compatibility form.")
         sort_start = len(guest.output)
         guest.command("sort /system/core/resources/motd.txt", "The initramfs VFS is mounted read-only.")
@@ -983,10 +984,10 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if b"size: 124 bytes" not in stat_output:
             raise RegressionFailure(f"UEFI: direct stat output lacks MOTD size\n{guest._tail()}")
         tail_start = len(guest.output)
-        guest.command("run tail /system/core/resources/motd.txt 2", "The initramfs VFS is mounted read-only.")
+        guest.command("tail /system/core/resources/motd.txt 2", "The initramfs VFS is mounted read-only.")
         tail_output = bytes(guest.output[tail_start:])
         if b"The initramfs VFS is mounted read-only.\nUse ls to inspect bundled files and cat <file> to read text files.\n" not in tail_output.replace(b"\r", b""):
-            raise RegressionFailure(f"UEFI: tail output lacks last two MOTD lines\n{guest._tail()}")
+            raise RegressionFailure(f"UEFI: direct tail output lacks last two MOTD lines\n{guest._tail()}")
         sort_start = len(guest.output)
         guest.command("sort /system/core/resources/motd.txt", "The initramfs VFS is mounted read-only.")
         sort_output = bytes(guest.output[sort_start:]).replace(b"\r", b"")
