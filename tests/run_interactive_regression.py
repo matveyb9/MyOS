@@ -718,12 +718,13 @@ def run_bios(image_path, work_dir):
         if b"The initramfs VFS is mounted read-only.\nUse ls to inspect bundled files and cat <file> to read text files.\n" not in tail_output.replace(b"\r", b""):
             raise RegressionFailure(f"BIOS: tail output lacks last two MOTD lines\n{guest._tail()}")
         guest.command("help tail", "retains only the final 4096 bytes")
+        guest.command("help sort", "run sort remains a compatibility form.")
         sort_start = len(guest.output)
-        guest.command("run sort /system/core/resources/motd.txt", "The initramfs VFS is mounted read-only.")
+        guest.command("sort /system/core/resources/motd.txt", "The initramfs VFS is mounted read-only.")
         sort_output = bytes(guest.output[sort_start:]).replace(b"\r", b"")
         if b"The initramfs VFS is mounted read-only.\nUse ls to inspect bundled files and cat <file> to read text files.\nWelcome to MyOS.\n" not in sort_output:
-            raise RegressionFailure(f"BIOS: sort output is not ASCII ordered\n{guest._tail()}")
-        guest.command("help sort", "bytewise ASCII ascending order")
+            raise RegressionFailure(f"BIOS: direct sort output is not ASCII ordered\n{guest._tail()}")
+        guest.command("run sort /system/core/resources/motd.txt", "The initramfs VFS is mounted read-only.")
         stack_start = len(guest.output)
         guest.command("run stackprobe", "stackprobe:")
         stack_output = bytes(guest.output[stack_start:])
@@ -986,10 +987,10 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if b"The initramfs VFS is mounted read-only.\nUse ls to inspect bundled files and cat <file> to read text files.\n" not in tail_output.replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: tail output lacks last two MOTD lines\n{guest._tail()}")
         sort_start = len(guest.output)
-        guest.command("run sort /system/core/resources/motd.txt", "The initramfs VFS is mounted read-only.")
+        guest.command("sort /system/core/resources/motd.txt", "The initramfs VFS is mounted read-only.")
         sort_output = bytes(guest.output[sort_start:]).replace(b"\r", b"")
         if b"The initramfs VFS is mounted read-only.\nUse ls to inspect bundled files and cat <file> to read text files.\nWelcome to MyOS.\n" not in sort_output:
-            raise RegressionFailure(f"UEFI: sort output is not ASCII ordered\n{guest._tail()}")
+            raise RegressionFailure(f"UEFI: direct sort output is not ASCII ordered\n{guest._tail()}")
         stack_start = len(guest.output)
         guest.command("run stackprobe", "stackprobe:")
         stack_output = bytes(guest.output[stack_start:])

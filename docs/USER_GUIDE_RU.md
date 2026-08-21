@@ -94,7 +94,7 @@ run find tree /system/core
 run head /system/core/resources/motd.txt 2
 stat /system/core/resources/motd.txt
 run tail /system/core/resources/motd.txt 2
-run sort /system/core/resources/motd.txt
+sort /system/core/resources/motd.txt
 run stackprobe
 cat /system/core/resources/motd.txt
 ```
@@ -163,7 +163,7 @@ rm /temp/session.txt
 
 ### Native sort
 
-`run sort <absolute-file>` читает один text file и выводит его retained lines в **bytewise ASCII ascending order**. Например, `run sort /system/core/resources/motd.txt` выводит строки `The…`, `Use…`, затем `Welcome…`. Operation read-only и использует обычные VFS read chunks по 256 bytes. Для bounded работы сохраняется не более **64 lines**, каждая до **127 bytes**; CR bytes игнорируются, а line или entry за этими limits пропускается с `sort: line or entry limit reached`. Duplicate lines сохраняют original relative order.
+`sort <absolute-file>` читает один text file и выводит его retained lines в **bytewise ASCII ascending order**. Например, `sort /system/core/resources/motd.txt` выводит строки `The…`, `Use…`, затем `Welcome…`. `run sort` остаётся compatibility form. Operation read-only и использует обычные VFS read chunks по 256 bytes. Для bounded работы сохраняется не более **64 lines**, каждая до **127 bytes**; CR bytes игнорируются, а line или entry за этими limits пропускается с `sort: line or entry limit reached`. Duplicate lines сохраняют original relative order.
 
 ### Native stack probe
 
@@ -208,7 +208,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `run head` | `run head /system/core/resources/motd.txt 2` | Вывести первые 10 строк по умолчанию или 1–64 запрошенные строки одного absolute readable file; VFS I/O использует chunks 256 bytes, а output ограничен 4 KiB. |
 | `stat` | `stat /system/core/resources/motd.txt` | Вывести type и byte size одного absolute logical-VFS entry через bounded scan не более 128 entries его parent; storage не меняется. `run stat` остаётся compatible. |
 | `run tail` | `run tail /system/core/resources/motd.txt 2` | Вывести последние 10 строк по умолчанию или 1–64 запрошенные trailing lines одного absolute readable file; stream-читает VFS chunks 256 bytes, сохраняя только последние 4 KiB. |
-| `run sort` | `run sort /system/core/resources/motd.txt` | Отсортировать до 64 retained text lines в bytewise ASCII ascending order; каждая line ограничена 127 bytes, storage не меняется. |
+| `sort` | `sort /system/core/resources/motd.txt` | Отсортировать до 64 retained text lines в bytewise ASCII ascending order; каждая line ограничена 127 bytes, storage не меняется. `run sort` остаётся compatible. |
 | `touch` | `touch /users/myos/files/note.txt` | Создать пустой persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Создать каталог. |
 | `write` | `write /users/myos/files/note.txt Hello` | Перезаписать file одной строкой. |
