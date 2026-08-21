@@ -91,6 +91,7 @@ ls /system/live
 ls /system/live/processes
 run tree /system
 run find tree /system/core
+run head /system/core/resources/motd.txt 2
 run stackprobe
 cat /system/core/resources/motd.txt
 ```
@@ -145,6 +146,10 @@ After closing QEMU, reboot using the same `myos.img` and read the persistent fil
 
 `run find <name-fragment> [absolute-directory]` searches entry names case-insensitively across the logical VFS and prints matching absolute paths with `[D]`, `[F]` or `[V]` type markers. The optional start directory must be absolute; a relative path, an empty fragment or extra arguments are rejected. `run find TrEe /system/core` therefore finds `/system/core/apps/tree.elf`. Like `tree`, `find` is read-only and bounded to **eight directory levels**, **64 entries per directory** and **256 scanned entries**, so it cannot turn a recursive search into unbounded memory or output consumption.
 
+### Native head view
+
+`run head <absolute-file> [1..64 lines]` prints the beginning of one readable VFS file. Without the optional count it prints the first **10 lines**; for example, `run head /system/core/resources/motd.txt 2` displays the first two MOTD lines. The utility accepts only one absolute file path and an optional decimal count from 1 through 64. It reads through the normal 256-byte VFS ABI chunks and stops after **4 KiB** of output even if the requested line boundary has not yet appeared, so a malformed or unusually long line cannot create unbounded output. It never modifies storage.
+
 ### Native stack probe
 
 `run stackprobe` is a read-only diagnostic utility for the user-program platform. It fills a 12 KiB automatic buffer and prints `stackprobe: 12288 bytes checksum 1566720`. That exact result confirms the current program can use all four mapped 4 KiB ring-3 stack pages; a guard page remains immediately below them to catch downward stack overflow.
@@ -183,6 +188,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `run tree` | `run tree /system` | Recursively show VFS entries without mutation; requires zero or one absolute directory and is limited to 8 levels, 64 entries per directory and 256 printed entries. |
 | `run find` | `run find tree /system/core` | Case-insensitively search entry names without mutation; accepts one fragment and an optional absolute directory, with limits of 8 levels, 64 entries per directory and 256 scanned entries. |
 | `run stackprobe` | `run stackprobe` | Run the 12 KiB automatic-buffer diagnostic; expected checksum is `1566720`, confirming all four mapped ring-3 stack pages. |
+| `run head` | `run head /system/core/resources/motd.txt 2` | Print the first 10 lines by default, or 1–64 requested lines, from one absolute readable file; VFS I/O uses 256-byte chunks and output is capped at 4 KiB. |
 | `touch` | `touch /users/myos/files/note.txt` | Create an empty persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Create a directory. |
 | `write` | `write /users/myos/files/note.txt Hello` | Overwrite a file with a single line. |

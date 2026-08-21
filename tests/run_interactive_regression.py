@@ -591,6 +591,12 @@ def run_bios(image_path, work_dir):
             if expected not in find_output:
                 raise RegressionFailure(f"BIOS: find output lacks {expected!r}\\n{guest._tail()}")
         guest.command("help find", "Case-insensitive read-only name search")
+        head_start = len(guest.output)
+        guest.command("run head /system/core/resources/motd.txt 2", "Welcome to MyOS.")
+        head_output = bytes(guest.output[head_start:])
+        if b"Welcome to MyOS.\nThe initramfs VFS is mounted read-only.\n" not in head_output.replace(b"\r", b""):
+            raise RegressionFailure(f"BIOS: head output lacks first two MOTD lines\n{guest._tail()}")
+        guest.command("help head", "output is read in 256-byte chunks and capped at 4096 bytes")
         stack_start = len(guest.output)
         guest.command("run stackprobe", "stackprobe:")
         stack_output = bytes(guest.output[stack_start:])
@@ -729,7 +735,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.command("run find find /system/core/apps", "find:")
         find_output = bytes(guest.output[find_start:])
         if b"[F] /system/core/apps/find.elf" not in find_output:
-            raise RegressionFailure(f"UEFI: find output lacks packaged find.elf\\n{guest._tail()}")
+            raise RegressionFailure(f"UEFI: find output lacks packaged find.elf\n{guest._tail()}")
+        head_start = len(guest.output)
+        guest.command("run head /system/core/resources/motd.txt 2", "Welcome to MyOS.")
+        head_output = bytes(guest.output[head_start:])
+        if b"Welcome to MyOS.\nThe initramfs VFS is mounted read-only.\n" not in head_output.replace(b"\r", b""):
+            raise RegressionFailure(f"UEFI: head output lacks first two MOTD lines\n{guest._tail()}")
         stack_start = len(guest.output)
         guest.command("run stackprobe", "stackprobe:")
         stack_output = bytes(guest.output[stack_start:])

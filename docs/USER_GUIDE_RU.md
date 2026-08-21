@@ -91,6 +91,7 @@ ls /system/live
 ls /system/live/processes
 run tree /system
 run find tree /system/core
+run head /system/core/resources/motd.txt 2
 run stackprobe
 cat /system/core/resources/motd.txt
 ```
@@ -145,6 +146,10 @@ rm /temp/session.txt
 
 `run find <name-fragment> [absolute-directory]` ищет names entries case-insensitively по logical VFS и выводит matching absolute paths с type markers `[D]`, `[F]` или `[V]`. Optional start directory обязана быть absolute; relative path, empty fragment или extra arguments отклоняются. Поэтому `run find TrEe /system/core` находит `/system/core/apps/tree.elf`. Как и `tree`, `find` read-only и ограничена **восьмью directory levels**, **64 entries в directory** и **256 scanned entries**, поэтому recursive search не становится unbounded consumption user memory или output.
 
+### Native head view
+
+`run head <absolute-file> [1..64 lines]` выводит начало одного readable VFS file. Без optional count он выводит первые **10 строк**; например, `run head /system/core/resources/motd.txt 2` показывает первые две строки MOTD. Utility принимает только один absolute file path и optional decimal count от 1 до 64. Она читает через обычные VFS ABI chunks по 256 bytes и останавливается после **4 KiB** output, даже если запрошенная граница строк ещё не встретилась, поэтому malformed или необычно длинная строка не создаёт unbounded output. Storage никогда не меняется.
+
 ### Native stack probe
 
 `run stackprobe` — read-only diagnostic utility user-program platform. Она заполняет 12 KiB automatic buffer и выводит `stackprobe: 12288 bytes checksum 1566720`. Этот точный результат подтверждает, что current program использует все четыре mapped ring-3 stack pages по 4 KiB; непосредственно ниже них остаётся guard page, перехватывающая downward stack overflow.
@@ -183,6 +188,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `run tree` | `run tree /system` | Рекурсивно показать VFS entries без mutation; принимает ноль или один absolute directory и ограничена 8 levels, 64 entries на directory и 256 printed entries. |
 | `run find` | `run find tree /system/core` | Case-insensitively искать names entries без mutation; принимает fragment и optional absolute directory, с limits 8 levels, 64 entries на directory и 256 scanned entries. |
 | `run stackprobe` | `run stackprobe` | Запустить diagnostic с automatic buffer 12 KiB; ожидаемый checksum `1566720` подтверждает все четыре mapped ring-3 stack pages. |
+| `run head` | `run head /system/core/resources/motd.txt 2` | Вывести первые 10 строк по умолчанию или 1–64 запрошенные строки одного absolute readable file; VFS I/O использует chunks 256 bytes, а output ограничен 4 KiB. |
 | `touch` | `touch /users/myos/files/note.txt` | Создать пустой persistent file. |
 | `mkdir` | `mkdir /users/myos/projects/demo` | Создать каталог. |
 | `write` | `write /users/myos/files/note.txt Hello` | Перезаписать file одной строкой. |
