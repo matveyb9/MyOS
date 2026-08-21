@@ -40,6 +40,11 @@ INPUT_TIME_APP_PATH = "/apps/release-input-time/main.elf"
 ARGS_SOURCE_PATH = "/temp/release-args.mya"
 ARGS_ELF_PATH = "/users/myos/projects/release-args.elf"
 ARGS_APP_PATH = "/apps/release-args/main.elf"
+VARIABLE_SOURCE_PATH = "/temp/release-vars.mya"
+VARIABLE_ELF_PATH = "/users/myos/projects/release-vars.elf"
+VARIABLE_APP_PATH = "/apps/release-vars/main.elf"
+INVALID_VARIABLE_SOURCE_PATH = "/temp/release-vars-invalid.mya"
+INVALID_VARIABLE_ELF_PATH = "/users/myos/projects/release-vars-invalid.elf"
 COPY_SOURCE_PATH = "/users/myos/files/cp-harness-source.txt"
 COPY_TARGET_PATH = "/users/myos/files/cp-harness-target.txt"
 TIME_LINE = re.compile(rb"(?m)^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\r?$")
@@ -721,6 +726,16 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {ARGS_SOURCE_PATH} {args_source}")
         guest.command(f"build {ARGS_SOURCE_PATH} {ARGS_ELF_PATH}", "exited with status 0")
         guest.command(f"install {ARGS_ELF_PATH} {ARGS_APP_PATH}", "exited with status 0")
+        variable_source = 'set 73;store 2;set 0;load 2;jump_if 73 matched;write "bad\\n";jump done;label matched:;write "VAR\\n";label done:;exit 48'
+        guest.console_edit_and_save(VARIABLE_SOURCE_PATH, variable_source.encode("ascii"))
+        guest.command(f"build {VARIABLE_SOURCE_PATH} {VARIABLE_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {VARIABLE_ELF_PATH} {VARIABLE_APP_PATH}", "exited with status 0")
+        variable_start = len(guest.output)
+        guest.command("run release-vars", "exited with status 48")
+        variable_output = bytes(guest.output[variable_start:])
+        if (b"bad\n" in variable_output or b"bad\r\n" in variable_output
+                or (b"VAR\n" not in variable_output and b"VAR\r\n" not in variable_output)):
+            raise RegressionFailure(f"BIOS: store/load native variable did not preserve the conditional byte\n{guest._tail()}")
         args_empty_start = len(guest.output)
         guest.command("run release-args", "exited with status 47")
         args_empty_output = bytes(guest.output[args_empty_start:])
@@ -731,13 +746,15 @@ def run_bios(image_path, work_dir):
         args_output = bytes(guest.output[args_output_start:])
         require_native_line("BIOS native args", args_output, b"[alpha beta]")
         require_time_line("BIOS native args", args_output)
-        diagnostic = "asm: syntax error; input/set must precede conditional jumps, labels need ':' and jumps must target a later label"
+        diagnostic = "asm: syntax error; load/input/set must precede conditional jumps, store/load slots are 0..7, labels need ':' and jumps must target a later label"
         guest.command(f"write {BACKWARD_SOURCE_PATH} label start:;write \"x\\n\";jump start;exit 0")
         guest.command(f"build {BACKWARD_SOURCE_PATH} {BACKWARD_ELF_PATH}", diagnostic)
         guest.command(f"write {MISSING_SET_SOURCE_PATH} jump_if 65 done;label done:;exit 0")
         guest.command(f"build {MISSING_SET_SOURCE_PATH} {MISSING_SET_ELF_PATH}", diagnostic)
         guest.command(f"write {CONDITIONAL_BACKWARD_SOURCE_PATH} label start:;set 1;jump_if 1 start;exit 0")
         guest.command(f"build {CONDITIONAL_BACKWARD_SOURCE_PATH} {CONDITIONAL_BACKWARD_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_VARIABLE_SOURCE_PATH} set 1;store 8;exit 0")
+        guest.command(f"build {INVALID_VARIABLE_SOURCE_PATH} {INVALID_VARIABLE_ELF_PATH}", diagnostic)
     finally:
         guest.close()
 
@@ -824,6 +841,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
                 or (b"A\n" not in input_output and b"A\r\n" not in input_output)):
             raise RegressionFailure(f"UEFI: persisted native input program did not match A\n{guest._tail()}")
         require_time_line("UEFI", input_output)
+        variable_start = len(guest.output)
+        guest.command("run release-vars", "exited with status 48")
+        variable_output = bytes(guest.output[variable_start:])
+        if (b"bad\n" in variable_output or b"bad\r\n" in variable_output
+                or (b"VAR\n" not in variable_output and b"VAR\r\n" not in variable_output)):
+            raise RegressionFailure(f"UEFI: persisted store/load native variable did not preserve the conditional byte\n{guest._tail()}")
         args_output_start = len(guest.output)
         guest.command("run release-args ovmf args", "exited with status 47")
         args_output = bytes(guest.output[args_output_start:])

@@ -49,14 +49,16 @@ Statements are separated by `;` or line breaks. `#` starts a line comment. A pro
 | `input` | Blocks for one byte through `MYOS_SYS_READ`, discards `CR` and `LF`, and stores the resulting unsigned byte (`0..255`) as the current condition. It therefore consumes the line delimiter left by a terminal command before accepting the next meaningful byte. |
 | `time` | Reads the RTC through `MYOS_SYS_RTC_TIME` and writes one nine-byte `HH:MM:SS\n` line. It has no source-level arguments or time arithmetic. |
 | `args` | Writes the exact NUL-terminated argument string provided after `run <name>`, up to 127 visible bytes. It writes nothing when no arguments were supplied, does not append a newline, and does not change the current condition value. |
-| `set <0..255>` | Stores one explicit unsigned condition value for subsequent conditional jumps. It does not provide arithmetic or variables. |
+| `set <0..255>` | Stores one explicit unsigned condition value for subsequent conditional jumps. It does not provide arithmetic. |
+| `store <0..7>` | Copies the current unsigned condition byte into one of eight private program-variable slots. It does not change the current condition. |
+| `load <0..7>` | Restores one private program-variable byte as the current condition for subsequent conditional jumps. |
 | `jump name` | Unconditionally jumps to a strictly later label. |
 | `jump_if_zero name` | Jumps to a strictly later label only when the current condition value is zero. |
 | `jump_if_nonzero name` | Jumps to a strictly later label only when the current condition value is non-zero. |
 | `jump_if <0..255> name` | Jumps to a strictly later label only when the current condition value exactly matches the selected unsigned byte. |
 | `exit <0..255>` | Calls `MYOS_SYS_EXIT` with the selected status; mandatory final executable statement. |
 
-A conditional jump requires an earlier `input` or `set` statement. Both replace the same single condition value; writes, time output and labels do not clear it. Targets must exist and appear later in the source. This keeps source-level paths finite: loops, backward/current targets and indirect jumps are rejected. `input` may wait for human or serial input, but it does not add a source-language loop.
+A conditional jump requires an earlier `input`, `set` or `load` statement. Each replaces the same single condition value; `store` copies it without changing it, while writes, time output and labels do not clear it. Targets must exist and appear later in the source. This keeps source-level paths finite: loops, backward/current targets and indirect jumps are rejected. `input` may wait for human or serial input, but it does not add a source-language loop.
 
 ```text
 # Exact match: only uppercase A selects the first path.
@@ -73,7 +75,7 @@ exit 0
 
 ## Generated code and bounds
 
-The emitted entry prologue saves the loader-provided argument pointer in the fixed private data segment. `args` reloads that pointer, scans no more than 127 bytes for its NUL terminator, and issues one write syscall only when the supplied string is non-empty. `set` emits `mov ebx, imm32`. `input` writes a single byte to data offset `8` with `MYOS_SYS_READ`, reloads the scratch pointer after the syscall boundary, filters `CR` and `LF`, then places the accepted byte in `EBX`. `time` reads the fixed `myos_rtc_time` layout at offset `8` of the same private 32-byte area and formats hours, minutes and seconds as two decimal digits each before one write syscall.
+The emitted entry prologue saves the loader-provided argument pointer in the fixed private data segment. `args` reloads that pointer, scans no more than 127 bytes for its NUL terminator, and issues one write syscall only when the supplied string is non-empty. `set` emits `mov ebx, imm32`. `input` writes a single byte to data offset `8` with `MYOS_SYS_READ`, reloads the scratch pointer after the syscall boundary, filters `CR` and `LF`, then places the accepted byte in `EBX`. `time` reads the fixed `myos_rtc_time` layout at offset `8` of the same private 32-byte area and formats hours, minutes and seconds as two decimal digits each before one write syscall. `store` emits one absolute byte store from `BL` into offset `24..31`; `load` emits one zero-extending absolute byte load into `EBX` from the same selected slot.
 
 Each zero/non-zero branch emits `test ebx, ebx` immediately followed by a fixed-size `JZ rel32` or `JNZ rel32`. `jump_if` emits `cmp ebx, imm32` followed by `JZ rel32`. The generated branches therefore do not depend on flags left by a syscall or another instruction. `jump` remains `E9 rel32`, and the assembler resolves all labels before forming the ELF.
 
@@ -81,18 +83,18 @@ Each zero/non-zero branch emits `test ebx, ebx` immediately followed by a fixed-
 |---|---|
 | Source file | At most 2,047 bytes, read in bounded 256-byte VFS requests. |
 | Text literals | At most 2,048 bytes total. |
-| Executable statements | At most 64 total `write`, `args`, `input`, `time`, `set`, jump and `exit` instructions. |
+| Executable statements | At most 64 total `write`, `args`, `input`, `time`, `set`, `store`, `load`, jump and `exit` instructions. |
 | Arguments | Existing loader ABI string from `run <name> [arguments]`, at most 127 visible bytes; `args` only reads and writes it. |
 | Labels | At most 16 unique labels; identifiers are 1–31 ASCII characters. |
 | Control flow | Forward-only `jump`, `jump_if_zero`, `jump_if_nonzero` and `jump_if`; no source-level loops or indirect targets. |
-| Condition | One `0..255` value in generated `EBX`, set only by `input` or `set`; no arithmetic, variables or user-addressable mutable memory. |
+| Condition | One `0..255` value in generated `EBX`, set by `input`, `set` or `load`; no arithmetic or user-addressable mutable memory. |
 | Generated ELF | At most 8,192 bytes, written in bounded 256-byte VFS requests. |
-| ELF layout | One RX `PT_LOAD` at `0x400000` plus a fixed 32-byte RW `PT_LOAD` at `0x401000`: bytes `0..7` retain the entry argument pointer, and bytes `8..31` are private input/time scratch data. No relocations, libc or dynamic linker are present. |
+| ELF layout | One RX `PT_LOAD` at `0x400000` plus a fixed 32-byte RW `PT_LOAD` at `0x401000`: bytes `0..7` retain the entry argument pointer, bytes `8..23` are private input/time scratch data, and bytes `24..31` are eight zero-initialized `store`/`load` slots. No relocations, libc or dynamic linker are present. |
 
-These bounds keep parsing, target resolution, code generation and storage static and auditable. Invalid syntax, duplicate labels, missing or non-forward targets, a conditional jump without `input` or `set`, malformed paths or output-write failures leave the shell usable and return a non-zero status.
+These bounds keep parsing, target resolution, code generation and storage static and auditable. Invalid syntax, duplicate labels, a slot outside `0..7`, missing or non-forward targets, a conditional jump without `input`, `set` or `load`, malformed paths or output-write failures leave the shell usable and return a non-zero status.
 
 ```text
-asm: syntax error; input/set must precede conditional jumps, labels need ':' and jumps must target a later label
+asm: syntax error; load/input/set must precede conditional jumps, store/load slots are 0..7, labels need ':' and jumps must target a later label
 ```
 
 ## Completed validation
@@ -104,8 +106,9 @@ asm: syntax error; input/set must precede conditional jumps, labels need ':' and
 | BIOS native input | One installed program accepts `A` and `B` on separate runs, selects the corresponding exact-match and fallback paths, and exits with status `46`. |
 | BIOS native arguments | One installed package renders both `[]` with no parameters and `[alpha beta]` for forwarded arguments, retains valid time output and exits with status `47`. |
 | BIOS RTC output | The same program emits a line matching valid `HH:MM:SS` ranges. |
+| BIOS native variables | A built program stores `73` in slot `2`, overwrites the active condition, reloads slot `2`, selects the exact-match `VAR` branch and exits with status `48`. Slot `8` is rejected. |
 | Rejection cases | A missing condition, ordinary backward target and exact-conditional backward target all return the documented syntax diagnostic and status `2`. |
-| UEFI persistence | Installed input/time and argument packages are run again after UEFI/OVMF boot; `A` selects its expected path, `[ovmf args]` is rendered from forwarded arguments, and each time line remains valid. |
+| UEFI persistence | Installed input/time, argument and variable packages are run again after UEFI/OVMF boot; `A` selects its expected path, `[ovmf args]` is rendered from forwarded arguments, the `store`/`load` package selects `VAR`, and each time line remains valid. |
 | Automated regression | `make regression` runs the disposable-image BIOS GUI/editor/native workflow, then verifies persistent files and the installed native packages on UEFI/OVMF. |
 
 ## Relationship to the SDK and next work

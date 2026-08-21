@@ -19,6 +19,8 @@
 #define USER_IMAGE_BASE UINT64_C(0x400000)
 #define USER_IMAGE_DATA_BASE (USER_IMAGE_BASE + UINT64_C(0x1000))
 #define USER_IMAGE_DATA_CAPACITY UINT64_C(32)
+#define USER_IMAGE_VARIABLE_OFFSET UINT64_C(24)
+#define USER_IMAGE_VARIABLE_COUNT UINT64_C(8)
 #define NATIVE_ENTRY_PROLOGUE_SIZE UINT64_C(8)
 
 #define NATIVE_INSTRUCTION_WRITE UINT64_C(1)
@@ -31,6 +33,8 @@
 #define NATIVE_INSTRUCTION_TIME UINT64_C(8)
 #define NATIVE_INSTRUCTION_JUMP_IF UINT64_C(9)
 #define NATIVE_INSTRUCTION_ARGS UINT64_C(10)
+#define NATIVE_INSTRUCTION_STORE UINT64_C(11)
+#define NATIVE_INSTRUCTION_LOAD UINT64_C(12)
 
 struct native_instruction {
     uint64_t kind;
@@ -347,6 +351,20 @@ static int parse_source(uint64_t source_length, uint64_t *instruction_count, uin
             }
             instruction->kind = NATIVE_INSTRUCTION_SET;
             condition_ready = 1;
+        } else if (word_is(source_buffer, start, word_length, "store") != 0
+                   || word_is(source_buffer, start, word_length, "load") != 0) {
+            struct native_instruction *instruction = &instructions[*instruction_count];
+
+            skip_inline_space(source_buffer, source_length, &position);
+            if (parse_decimal(source_buffer, source_length, &position, &instruction->condition_value) == 0
+                || instruction->condition_value >= USER_IMAGE_VARIABLE_COUNT) {
+                return 0;
+            }
+            instruction->kind = word_is(source_buffer, start, word_length, "store") != 0
+                ? NATIVE_INSTRUCTION_STORE : NATIVE_INSTRUCTION_LOAD;
+            if (instruction->kind == NATIVE_INSTRUCTION_LOAD) {
+                condition_ready = 1;
+            }
         } else if (word_is(source_buffer, start, word_length, "input") != 0) {
             instructions[*instruction_count].kind = NATIVE_INSTRUCTION_INPUT;
             condition_ready = 1;
@@ -415,6 +433,8 @@ static uint64_t instruction_size(uint64_t kind) {
     if (kind == NATIVE_INSTRUCTION_TIME) { return UINT64_C(142); }
     if (kind == NATIVE_INSTRUCTION_JUMP_IF) { return UINT64_C(12); }
     if (kind == NATIVE_INSTRUCTION_ARGS) { return UINT64_C(42); }
+    if (kind == NATIVE_INSTRUCTION_STORE) { return UINT64_C(7); }
+    if (kind == NATIVE_INSTRUCTION_LOAD) { return UINT64_C(8); }
     if (kind == NATIVE_INSTRUCTION_EXIT) { return UINT64_C(20); }
     return 0U;
 }
@@ -544,6 +564,17 @@ static int build_elf(uint64_t instruction_count, uint64_t literal_length, uint64
             elf_buffer[code++] = 0xB8U; put_u32(elf_buffer, code, 1U); code += 4U;
             elf_buffer[code++] = 0xBFU; put_u32(elf_buffer, code, 1U); code += 4U;
             elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0x05U;
+        } else if (instructions[index].kind == NATIVE_INSTRUCTION_STORE) {
+            elf_buffer[code++] = 0x88U; elf_buffer[code++] = 0x1CU; elf_buffer[code++] = 0x25U;
+            put_u32(elf_buffer, code, (uint32_t)(USER_IMAGE_DATA_BASE + USER_IMAGE_VARIABLE_OFFSET
+                                                  + instructions[index].condition_value));
+            code += 4U;
+        } else if (instructions[index].kind == NATIVE_INSTRUCTION_LOAD) {
+            elf_buffer[code++] = 0x0FU; elf_buffer[code++] = 0xB6U;
+            elf_buffer[code++] = 0x1CU; elf_buffer[code++] = 0x25U;
+            put_u32(elf_buffer, code, (uint32_t)(USER_IMAGE_DATA_BASE + USER_IMAGE_VARIABLE_OFFSET
+                                                  + instructions[index].condition_value));
+            code += 4U;
         } else if (instructions[index].kind == NATIVE_INSTRUCTION_INPUT) {
             const uint64_t input_start = ELF_PAYLOAD_OFFSET + instruction_offsets[index];
             int64_t relative;
@@ -661,7 +692,7 @@ void _start(uint64_t argc, const char *arguments) {
 
     if (argc != 1U || copy_path(source_path, sizeof(source_path), arguments, &argument_position) == 0) {
         write_text("Usage: run asm <source.mya> <output.elf>\n");
-        write_text("Source: set <0..255>; input; time; args; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
+        write_text("Source: set <0..255>; store/load <0..7>; input; time; args; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
         (void)system_call(MYOS_SYS_EXIT, 2U, 0U, 0U);
     }
     while (arguments[argument_position] == ' ') { argument_position++; }
@@ -672,7 +703,7 @@ void _start(uint64_t argc, const char *arguments) {
     }
     if (parse_source(source_length, &instruction_count, &label_count, &literal_length) == 0
         || resolve_jumps(instruction_count, label_count) == 0) {
-        write_text("asm: syntax error; input/set must precede conditional jumps, labels need ':' and jumps must target a later label\n");
+        write_text("asm: syntax error; load/input/set must precede conditional jumps, store/load slots are 0..7, labels need ':' and jumps must target a later label\n");
         (void)system_call(MYOS_SYS_EXIT, 2U, 0U, 0U);
     }
     if (build_elf(instruction_count, literal_length, &image_length) == 0
