@@ -89,7 +89,7 @@ uptime
 ls /
 ls /system/live
 ls /system/live/processes
-run tree /system
+tree /system
 find tree /system/core
 head /system/core/resources/motd.txt 2
 stat /system/core/resources/motd.txt
@@ -143,7 +143,7 @@ After closing QEMU, reboot using the same `myos.img` and read the persistent fil
 
 ### Native tree view
 
-`run tree` prints a type-aware recursive view of the logical VFS from `/`. Pass one absolute directory to start elsewhere, for example `run tree /system` or `run tree /users/myos`. Directory rows use `[D]`, regular files use `[F]` with their size, and virtual records use `[V]`. The built-in utility never mutates storage, accepts no relative path, follows only the existing logical VFS enumeration and stops at **eight directory levels**, **64 entries per directory**, or **256 printed entries**. These limits prevent an exploratory command from consuming unbounded user memory or output.
+`tree [absolute-directory]` prints a type-aware recursive view of the logical VFS from `/`. Pass one absolute directory to start elsewhere, for example `tree /system` or `tree /users/myos`. `run tree` remains a compatibility form. Directory rows use `[D]`, regular files use `[F]` with their size, and virtual records use `[V]`. The built-in utility never mutates storage, accepts no relative path, follows only the existing logical VFS enumeration and stops at **eight directory levels**, **64 entries per directory**, or **256 printed entries**. These limits prevent an exploratory command from consuming unbounded user memory or output.
 
 ### Native find search
 
@@ -202,7 +202,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `cp` | `cp /users/myos/files/a.txt /users/myos/files/b.txt` | Copy a file through the bounded native copy tool. The target must be a new absolute path and its parent must already exist; it is never overwritten. `run cp` remains a compatibility form. |
 | `wc` | `wc /users/myos/files/a.txt` | Stream one absolute readable file in 256-byte VFS chunks and print newline-terminated lines, space/tab/CR/LF-delimited words and bytes. `run wc` remains a compatibility form. |
 | `grep` | `grep MyOS /system/core/resources/motd.txt` | Print newline-terminated lines of at most 127 bytes that contain one unspaced text fragment while reading one absolute file in 256-byte VFS chunks. Longer lines are skipped. `run grep` remains a compatibility form. |
-| `run tree` | `run tree /system` | Recursively show VFS entries without mutation; requires zero or one absolute directory and is limited to 8 levels, 64 entries per directory and 256 printed entries. |
+| `tree` | `tree /system` | Recursively show VFS entries without mutation; requires zero or one absolute directory and is limited to 8 levels, 64 entries per directory and 256 printed entries. `run tree` remains compatible. |
 | `find` | `find tree /system/core` | Case-insensitively search entry names without mutation; accepts one fragment and an optional absolute directory, with limits of 8 levels, 64 entries per directory and 256 scanned entries. `run find` remains compatible. |
 | `run stackprobe` | `run stackprobe` | Run the 12 KiB automatic-buffer diagnostic; expected checksum is `1566720`, confirming all four mapped ring-3 stack pages. |
 | `head` | `head /system/core/resources/motd.txt 2` | Print the first 10 lines by default, or 1–64 requested lines, from one absolute readable file; VFS I/O uses 256-byte chunks and output is capped at 4 KiB. `run head` remains compatible. |

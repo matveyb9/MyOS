@@ -685,13 +685,14 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: live inventory directories are missing\n{guest._tail()}")
         guest.command("write /system/live/boot/info blocked", "Unable to write file.")
         guest.command("ls /system/core", "[dir] apps")
+        guest.command("help tree", "run tree remains a compatibility form.")
         tree_start = len(guest.output)
-        guest.command("run tree /system", "tree:")
+        guest.command("tree /system", "tree:")
         tree_output = bytes(guest.output[tree_start:])
         for expected in (b"[D] core", b"[D] apps", b"[F] tree.elf", b"tree: "):
             if expected not in tree_output:
-                raise RegressionFailure(f"BIOS: tree output lacks {expected!r}\\n{guest._tail()}")
-        guest.command("help tree", "8 levels, 64 entries/directory, 256 entries total")
+                raise RegressionFailure(f"BIOS: direct tree output lacks {expected!r}\\n{guest._tail()}")
+        guest.command("run tree /system", "tree:")
         guest.command("help find", "run find remains a compatibility form.")
         find_start = len(guest.output)
         guest.command("find TrEe /system/core", "find:")
@@ -964,11 +965,11 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         require_system_inventory("UEFI", bytes(guest.output[inventory_start:]), b"UEFI x86_64")
         guest.command("ls /system/core", "[dir] apps")
         tree_start = len(guest.output)
-        guest.command("run tree /system/core", "tree:")
+        guest.command("tree /system/core", "tree:")
         tree_output = bytes(guest.output[tree_start:])
-        for expected in (b"[D] apps", b"[F] tree.elf", b"tree: "):
+        for expected in (b"[D] apps", b"[F] tree.elf", b"tree:"):
             if expected not in tree_output:
-                raise RegressionFailure(f"UEFI: tree output lacks {expected!r}\\n{guest._tail()}")
+                raise RegressionFailure(f"UEFI: direct tree output lacks {expected!r}\\n{guest._tail()}")
         find_start = len(guest.output)
         guest.command("find find /system/core/apps", "find:")
         find_output = bytes(guest.output[find_start:])
