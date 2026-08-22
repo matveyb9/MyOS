@@ -684,6 +684,42 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_files_copy_existing_target_rejected_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        # Reuse the same source and existing target used by the successful
+        # multi-chunk copy. The second action must show a failure rather than
+        # replacing the persisted target.
+        self.qmp_move(delta_x=229)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        browser = self.qmp_screendump("files-copy-reject-browser")
+        self.qmp_move(delta_x=-370, delta_y=14)
+        time.sleep(0.10)
+        copy_ready = self.qmp_screendump("files-copy-reject-ready")
+        self.qmp_left_click()
+        time.sleep(0.25)
+        source_prompt = self.qmp_screendump("files-copy-reject-source-prompt")
+        self.require_small_framebuffer_transition(browser, source_prompt, "FILES COPY rejection source prompt")
+        self.require_region_transition(copy_ready, source_prompt, 330, 245, 200, 36, "FILES COPY rejection action")
+        for key in ("g", "u", "i", "c", "o", "p", "y", "s", "o", "u", "r", "c", "e"):
+            self.qmp_press(key)
+        self.qmp_press("ret")
+        time.sleep(0.25)
+        target_prompt = self.qmp_screendump("files-copy-reject-target-prompt")
+        self.require_region_transition(source_prompt, target_prompt, 330, 210, 200, 60, "FILES COPY rejection target prompt")
+        for key in ("g", "u", "i", "c", "o", "p", "y", "t", "a", "r", "g", "e", "t"):
+            self.qmp_press(key)
+        self.qmp_press("ret")
+        time.sleep(0.25)
+        rejected = self.qmp_screendump("files-copy-reject-status")
+        self.require_region_transition(target_prompt, rejected, 330, 210, 200, 72, "FILES copy no-overwrite rejection")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_files_delete_empty_and_exit(self):
         start = len(self.output)
         self.send("startgui\n")
@@ -901,6 +937,9 @@ def run_bios(image_path, work_dir):
         guest.command(f"stat {GUI_NEW_FOLDER_PATH}", "type: directory")
         guest.command(f"cp {GUI_EDITOR_FIXTURE_PATH} {GUI_COPY_SOURCE_PATH}", "Copied 16384 byte(s)")
         guest.gui_files_copy_multichunk_and_exit()
+        guest.command(f"stat {GUI_COPY_SOURCE_PATH}", "16384 bytes")
+        guest.command(f"stat {GUI_COPY_FILE_PATH}", "16384 bytes")
+        guest.gui_files_copy_existing_target_rejected_and_exit()
         guest.command(f"stat {GUI_COPY_FILE_PATH}", "16384 bytes")
         guest.gui_files_delete_empty_and_exit()
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "stat: path not found")
@@ -1473,6 +1512,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "stat: path not found")
+        guest.command(f"stat {GUI_COPY_SOURCE_PATH}", "16384 bytes")
         guest.command(f"stat {GUI_COPY_FILE_PATH}", "16384 bytes")
         guest.command(f"stat {GUI_NEW_FOLDER_PATH}", "type: directory")
         guest.gui_mouse_window_chrome_and_exit()
