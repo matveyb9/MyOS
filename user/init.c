@@ -492,8 +492,8 @@ static void command_help(const char *topic) {
     }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
-        write_text("Source: input; time; args; set <0..255>; not; add/sub/mul/and/or/xor <0..255>; shl/shr <1..7>; div <1..255>; store/load/cmp <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
-        write_text("input reads one non-CR/LF byte; time prints RTC HH:MM:SS; args writes run arguments; not/and/or/xor update one initialized byte, shl/shr shift it logically by 1..7 positions, add/sub/mul wrap one byte, div returns an unsigned quotient and rejects zero; cmp compares the accumulator with one private slot and yields zero when equal. Bitwise operations, shifts, arithmetic and cmp require input/set/load. Conditional jumps use that result and target a later label.\n");
+        write_text("Source: input; time; args; set <0..255>; not; add/sub/mul/and/or/xor <0..255>; shl/shr/rol/ror <1..7>; div <1..255>; store/load/cmp <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
+        write_text("input reads one non-CR/LF byte; time prints RTC HH:MM:SS; args writes run arguments; not/and/or/xor update one initialized byte, shl/shr shift it logically and rol/ror rotate it circularly by 1..7 positions, add/sub/mul wrap one byte, div returns an unsigned quotient and rejects zero; cmp compares the accumulator with one private slot and yields zero when equal. Bitwise operations, shifts, arithmetic and cmp require input/set/load. Conditional jumps use that result and target a later label.\n");
         write_text("Escape \\n, \\r, \\t, \\\\ and \\\" inside text.\n");
         return;
     }

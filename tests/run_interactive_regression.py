@@ -70,6 +70,11 @@ SHIFT_ELF_PATH = "/users/myos/projects/release-shift.elf"
 SHIFT_APP_PATH = "/apps/release-shift/main.elf"
 INVALID_SHIFT_SOURCE_PATH = "/temp/release-shift-invalid.mya"
 INVALID_SHIFT_ELF_PATH = "/users/myos/projects/release-shift-invalid.elf"
+ROTATE_SOURCE_PATH = "/temp/release-rotate.mya"
+ROTATE_ELF_PATH = "/users/myos/projects/release-rotate.elf"
+ROTATE_APP_PATH = "/apps/release-rotate/main.elf"
+INVALID_ROTATE_SOURCE_PATH = "/temp/release-rotate-invalid.mya"
+INVALID_ROTATE_ELF_PATH = "/users/myos/projects/release-rotate-invalid.elf"
 INVALID_DIVISION_SOURCE_PATH = "/temp/release-division-invalid.mya"
 INVALID_DIVISION_ELF_PATH = "/users/myos/projects/release-division-invalid.elf"
 CMP_SOURCE_PATH = "/temp/release-cmp.mya"
@@ -933,6 +938,16 @@ def run_bios(image_path, work_dir):
         if (b"bad\n" in shift_output or b"bad\r\n" in shift_output
                 or (b"SHIFT\n" not in shift_output and b"SHIFT\r\n" not in shift_output)):
             raise RegressionFailure(f"BIOS: bounded native shl/shr did not preserve the expected byte branch\n{guest._tail()}")
+        rotate_source = 'set 129;rol 1;ror 2;store 2;set 0;load 2;jump_if 192 matched;write "bad\\n";jump done;label matched:;write "ROTATE\\n";label done:;exit 55'
+        guest.console_edit_and_save(ROTATE_SOURCE_PATH, rotate_source.encode("ascii"))
+        guest.command(f"build {ROTATE_SOURCE_PATH} {ROTATE_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {ROTATE_ELF_PATH} {ROTATE_APP_PATH}", "exited with status 0")
+        rotate_start = len(guest.output)
+        guest.command("run release-rotate", "exited with status 55")
+        rotate_output = bytes(guest.output[rotate_start:])
+        if (b"bad\n" in rotate_output or b"bad\r\n" in rotate_output
+                or (b"ROTATE\n" not in rotate_output and b"ROTATE\r\n" not in rotate_output)):
+            raise RegressionFailure(f"BIOS: bounded native rol/ror did not preserve the expected byte branch\n{guest._tail()}")
         cmp_source = 'set 73;store 5;set 73;cmp 5;jump_if_zero equal;write "bad\\n";jump after_equal;label equal:;write "EQ\\n";label after_equal:;set 72;cmp 5;jump_if_nonzero different;write "bad\\n";jump done;label different:;write "NE\\n";label done:;exit 51'
         guest.console_edit_and_save(CMP_SOURCE_PATH, cmp_source.encode("ascii"))
         guest.command(f"build {CMP_SOURCE_PATH} {CMP_ELF_PATH}", "exited with status 0")
@@ -977,6 +992,12 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {INVALID_SHIFT_SOURCE_PATH} {INVALID_SHIFT_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_SHIFT_SOURCE_PATH} set 1;shr 8;exit 0")
         guest.command(f"build {INVALID_SHIFT_SOURCE_PATH} {INVALID_SHIFT_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_ROTATE_SOURCE_PATH} rol 1;exit 0")
+        guest.command(f"build {INVALID_ROTATE_SOURCE_PATH} {INVALID_ROTATE_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_ROTATE_SOURCE_PATH} set 1;rol 0;exit 0")
+        guest.command(f"build {INVALID_ROTATE_SOURCE_PATH} {INVALID_ROTATE_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_ROTATE_SOURCE_PATH} set 1;ror 8;exit 0")
+        guest.command(f"build {INVALID_ROTATE_SOURCE_PATH} {INVALID_ROTATE_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_DIVISION_SOURCE_PATH} set 1;div 0;exit 0")
         guest.command(f"build {INVALID_DIVISION_SOURCE_PATH} {INVALID_DIVISION_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_CMP_SOURCE_PATH} cmp 0;exit 0")
@@ -1144,6 +1165,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if (b"bad\n" in shift_output or b"bad\r\n" in shift_output
                 or (b"SHIFT\n" not in shift_output and b"SHIFT\r\n" not in shift_output)):
             raise RegressionFailure(f"UEFI: persisted bounded native shl/shr did not preserve the expected byte branch\n{guest._tail()}")
+        rotate_start = len(guest.output)
+        guest.command("run release-rotate", "exited with status 55")
+        rotate_output = bytes(guest.output[rotate_start:])
+        if (b"bad\n" in rotate_output or b"bad\r\n" in rotate_output
+                or (b"ROTATE\n" not in rotate_output and b"ROTATE\r\n" not in rotate_output)):
+            raise RegressionFailure(f"UEFI: persisted bounded native rol/ror did not preserve the expected byte branch\n{guest._tail()}")
         cmp_start = len(guest.output)
         guest.command("run release-cmp", "exited with status 51")
         cmp_output = bytes(guest.output[cmp_start:])
