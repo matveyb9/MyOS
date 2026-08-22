@@ -50,6 +50,7 @@
 #define NATIVE_INSTRUCTION_ROR UINT64_C(25)
 #define NATIVE_INSTRUCTION_MOD UINT64_C(26)
 #define NATIVE_INSTRUCTION_NEG UINT64_C(27)
+#define NATIVE_INSTRUCTION_INC UINT64_C(28)
 
 struct native_instruction {
     uint64_t kind;
@@ -420,10 +421,13 @@ static int parse_source(uint64_t source_length, uint64_t *instruction_count, uin
                 instruction->kind = NATIVE_INSTRUCTION_ROR;
             }
         } else if (word_is(source_buffer, start, word_length, "not") != 0
-                   || word_is(source_buffer, start, word_length, "neg") != 0) {
+                   || word_is(source_buffer, start, word_length, "neg") != 0
+                   || word_is(source_buffer, start, word_length, "inc") != 0) {
             if (condition_ready == 0) { return 0; }
             instructions[*instruction_count].kind = word_is(source_buffer, start, word_length, "not") != 0
-                                                 ? NATIVE_INSTRUCTION_NOT : NATIVE_INSTRUCTION_NEG;
+                                                 ? NATIVE_INSTRUCTION_NOT
+                                                 : (word_is(source_buffer, start, word_length, "neg") != 0
+                                                    ? NATIVE_INSTRUCTION_NEG : NATIVE_INSTRUCTION_INC);
         } else if (word_is(source_buffer, start, word_length, "store") != 0
                    || word_is(source_buffer, start, word_length, "load") != 0
                    || word_is(source_buffer, start, word_length, "cmp") != 0) {
@@ -517,7 +521,8 @@ static uint64_t instruction_size(uint64_t kind) {
     if (kind == NATIVE_INSTRUCTION_MUL) { return UINT64_C(11); }
     if (kind == NATIVE_INSTRUCTION_DIV || kind == NATIVE_INSTRUCTION_MOD) { return UINT64_C(14); }
     if (kind == NATIVE_INSTRUCTION_CMP) { return UINT64_C(13); }
-    if (kind == NATIVE_INSTRUCTION_NOT || kind == NATIVE_INSTRUCTION_NEG) { return UINT64_C(2); }
+    if (kind == NATIVE_INSTRUCTION_NOT || kind == NATIVE_INSTRUCTION_NEG
+        || kind == NATIVE_INSTRUCTION_INC) { return UINT64_C(2); }
     if (kind == NATIVE_INSTRUCTION_AND || kind == NATIVE_INSTRUCTION_OR || kind == NATIVE_INSTRUCTION_XOR
         || kind == NATIVE_INSTRUCTION_SHL || kind == NATIVE_INSTRUCTION_SHR
         || kind == NATIVE_INSTRUCTION_ROL || kind == NATIVE_INSTRUCTION_ROR) { return UINT64_C(3); }
@@ -620,10 +625,13 @@ static int build_elf(uint64_t instruction_count, uint64_t literal_length, uint64
             elf_buffer[code++] = 0x80U;
             elf_buffer[code++] = instructions[index].kind == NATIVE_INSTRUCTION_ADD ? 0xC3U : 0xEBU;
             elf_buffer[code++] = (uint8_t)instructions[index].condition_value;
-        } else if (instructions[index].kind == NATIVE_INSTRUCTION_NOT
-                   || instructions[index].kind == NATIVE_INSTRUCTION_NEG) {
+} else if (instructions[index].kind == NATIVE_INSTRUCTION_NOT
+                    || instructions[index].kind == NATIVE_INSTRUCTION_NEG) {
             elf_buffer[code++] = 0xF6U;
             elf_buffer[code++] = instructions[index].kind == NATIVE_INSTRUCTION_NOT ? 0xD3U : 0xDBU;
+        } else if (instructions[index].kind == NATIVE_INSTRUCTION_INC) {
+            elf_buffer[code++] = 0xFEU;
+            elf_buffer[code++] = 0xC3U;
         } else if (instructions[index].kind == NATIVE_INSTRUCTION_AND
                    || instructions[index].kind == NATIVE_INSTRUCTION_OR
                    || instructions[index].kind == NATIVE_INSTRUCTION_XOR) {
@@ -834,7 +842,7 @@ void _start(uint64_t argc, const char *arguments) {
 
     if (argc != 1U || copy_path(source_path, sizeof(source_path), arguments, &argument_position) == 0) {
         write_text("Usage: run asm <source.mya> <output.elf>\n");
-        write_text("Source: set <0..255>; not; neg; add/sub/mul/and/or/xor <0..255>; shl/shr/rol/ror <1..7>; div/mod <1..255>; store/load/cmp <0..7>; input; time; args; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
+        write_text("Source: set <0..255>; not; neg; inc; add/sub/mul/and/or/xor <0..255>; shl/shr/rol/ror <1..7>; div/mod <1..255>; store/load/cmp <0..7>; input; time; args; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
         (void)system_call(MYOS_SYS_EXIT, 2U, 0U, 0U);
     }
     while (arguments[argument_position] == ' ') { argument_position++; }
@@ -845,7 +853,7 @@ void _start(uint64_t argc, const char *arguments) {
     }
     if (parse_source(source_length, &instruction_count, &label_count, &literal_length) == 0
         || resolve_jumps(instruction_count, label_count) == 0) {
-        write_text("asm: syntax error; set/load/input must precede not/neg/add/sub/mul/div/mod/and/or/xor/shl/shr/rol/ror/cmp and conditional jumps, add/sub/mul/and/or/xor are byte values 0..255, shl/shr/rol/ror are 1..7, div/mod are 1..255, store/load/cmp slots are 0..7, labels need ':' and jumps must target a later label\n");
+        write_text("asm: syntax error; set/load/input must precede not/neg/inc/add/sub/mul/div/mod/and/or/xor/shl/shr/rol/ror/cmp and conditional jumps, add/sub/mul/and/or/xor are byte values 0..255, shl/shr/rol/ror are 1..7, div/mod are 1..255, store/load/cmp slots are 0..7, labels need ':' and jumps must target a later label\n");
         (void)system_call(MYOS_SYS_EXIT, 2U, 0U, 0U);
     }
     if (build_elf(instruction_count, literal_length, &image_length) == 0
