@@ -22,6 +22,7 @@ static char browser_new_file_name[MYOS_VFS_NAME_MAX];
 static uint64_t browser_new_file_length;
 static int browser_new_entry_is_directory;
 static int browser_prompt_is_remove;
+static int browser_remove_confirmation;
 static uint8_t gui_scratch_data[MYOS_GUI_CONTENT_MAX];
 static uint8_t gui_editor_data[MYOS_GUI_CONTENT_MAX];
 static struct myos_gui_content_request gui_content_request;
@@ -460,7 +461,13 @@ static int browser_directory_is_writable(void) {
 static void show_browser_new_file_prompt(void) {
     uint64_t length = 0U;
 
-    if (browser_prompt_is_remove != 0) {
+    if (browser_prompt_is_remove != 0 && browser_remove_confirmation != 0) {
+        content_append_text(gui_scratch_data, &length, "DELETE ", 7U);
+        for (uint64_t index = 0U; index < browser_new_file_length; index++) {
+            content_append_char(gui_scratch_data, &length, browser_new_file_name[index]);
+        }
+        content_append_text(gui_scratch_data, &length, "\nENTER TO CONFIRM", 17U);
+    } else if (browser_prompt_is_remove != 0) {
         content_append_text(gui_scratch_data, &length, "DELETE\nNAME: ", 13U);
     } else if (browser_new_entry_is_directory != 0) {
         content_append_text(gui_scratch_data, &length, "NEW FOLDER\nNAME: ", 17U);
@@ -848,7 +855,18 @@ void _start(uint64_t argc, const char *arguments) {
                     const int remove_entry = browser_prompt_is_remove;
                     int editor_result;
 
+                    if (remove_entry != 0 && browser_remove_confirmation == 0) {
+                        if (browser_new_file_length == 0U || browser_directory_is_writable() == 0) {
+                            browser_new_file_mode = 0;
+                            set_viewer_status("UNABLE TO DELETE");
+                            continue;
+                        }
+                        browser_remove_confirmation = 1;
+                        show_browser_new_file_prompt();
+                        continue;
+                    }
                     browser_new_file_mode = 0;
+                    browser_remove_confirmation = 0;
                     if ((remove_entry != 0 ? browser_remove_named_entry() : browser_create_empty_entry()) == 0) {
                         set_viewer_status(remove_entry != 0 ? "UNABLE TO DELETE" : (create_directory != 0 ? "UNABLE TO CREATE DIRECTORY" : "UNABLE TO CREATE FILE"));
                         continue;
@@ -869,13 +887,15 @@ void _start(uint64_t argc, const char *arguments) {
                     } else {
                         home_mode = 0;
                     }
-                } else if (character == '\b' || (uint8_t)character == UINT8_C(0x7F)) {
+                } else if (browser_remove_confirmation == 0
+                           && (character == '\b' || (uint8_t)character == UINT8_C(0x7F))) {
                     if (browser_new_file_length != 0U) {
                         browser_new_file_length--;
                         browser_new_file_name[browser_new_file_length] = '\0';
                     }
                     show_browser_new_file_prompt();
-                } else if ((uint8_t)character >= 32U && (uint8_t)character <= 126U && character != '/'
+                } else if (browser_remove_confirmation == 0 && (uint8_t)character >= 32U
+                           && (uint8_t)character <= 126U && character != '/'
                            && browser_new_file_length + 1U < sizeof(browser_new_file_name)) {
                     browser_new_file_name[browser_new_file_length++] = character;
                     browser_new_file_name[browser_new_file_length] = '\0';
@@ -984,6 +1004,7 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_file_name[0] = '\0';
                     browser_new_entry_is_directory = (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE_DIRECTORY;
                     browser_prompt_is_remove = 0;
+                    browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
                     show_browser_new_file_prompt();
                 } else if (browser_mode != 0) {
@@ -995,6 +1016,7 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_file_name[0] = '\0';
                     browser_new_entry_is_directory = 0;
                     browser_prompt_is_remove = 1;
+                    browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
                     show_browser_new_file_prompt();
                 } else if (browser_mode != 0) {

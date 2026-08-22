@@ -653,7 +653,8 @@ class Guest:
         self.expect("Started process ", start)
         time.sleep(0.25)
         # DELETE is directly below NEW FOLDER. It removes the zero-byte
-        # guinew fixture created by the earlier File Workspace workflow.
+        # guinew fixture created by the earlier File Workspace workflow only
+        # after its named confirmation prompt receives a second Enter.
         self.qmp_move(delta_x=229)
         self.qmp_left_click()
         time.sleep(0.25)
@@ -670,8 +671,12 @@ class Guest:
             self.qmp_press(key)
         self.qmp_press("ret")
         time.sleep(0.25)
+        confirmation = self.qmp_screendump("files-delete-confirmation")
+        self.require_region_transition(prompt, confirmation, 330, 210, 200, 72, "FILES DELETE confirmation")
+        self.qmp_press("ret")
+        time.sleep(0.25)
         deleted = self.qmp_screendump("files-delete-refresh")
-        self.require_region_transition(prompt, deleted, 330, 210, 200, 72, "FILES delete refresh")
+        self.require_region_transition(confirmation, deleted, 330, 210, 200, 72, "FILES delete refresh")
         self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
