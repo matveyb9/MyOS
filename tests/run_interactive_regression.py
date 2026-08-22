@@ -134,7 +134,8 @@ COPY_TARGET_PATH = "/users/myos/files/cp-harness-target.txt"
 WC_WORD_PATH = "/users/myos/files/wc-harness.txt"
 GREP_MATCH_PATH = "/users/myos/files/grep-harness.txt"
 GUI_NEW_FILE_PATH = "/users/myos/guinew"
-GUI_COPY_FILE_PATH = "/users/myos/guicopy"
+GUI_COPY_SOURCE_PATH = "/users/myos/guicopysource"
+GUI_COPY_FILE_PATH = "/users/myos/guicopytarget"
 GUI_NEW_FOLDER_PATH = "/users/myos/guidir"
 GUI_EDITOR_FIXTURE_PATH = "/system/core/resources/gui-16k.txt"
 GUI_EDITOR_FIXTURE_PAYLOAD = b"0123456789abcdef" * 1024
@@ -648,7 +649,7 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
-    def gui_files_copy_empty_and_exit(self):
+    def gui_files_copy_multichunk_and_exit(self):
         start = len(self.output)
         self.send("startgui\n")
         self.expect("Started process ", start)
@@ -667,13 +668,13 @@ class Guest:
         source_prompt = self.qmp_screendump("files-copy-source-prompt")
         self.require_small_framebuffer_transition(browser, source_prompt, "FILES COPY source prompt")
         self.require_region_transition(copy_ready, source_prompt, 330, 245, 200, 36, "FILES COPY action")
-        for key in ("g", "u", "i", "n", "e", "w"):
+        for key in ("g", "u", "i", "c", "o", "p", "y", "s", "o", "u", "r", "c", "e"):
             self.qmp_press(key)
         self.qmp_press("ret")
         time.sleep(0.25)
         target_prompt = self.qmp_screendump("files-copy-target-prompt")
         self.require_region_transition(source_prompt, target_prompt, 330, 210, 200, 60, "FILES COPY target prompt")
-        for key in ("g", "u", "i", "c", "o", "p", "y"):
+        for key in ("g", "u", "i", "c", "o", "p", "y", "t", "a", "r", "g", "e", "t"):
             self.qmp_press(key)
         self.qmp_press("ret")
         time.sleep(0.25)
@@ -898,8 +899,9 @@ def run_bios(image_path, work_dir):
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "0 bytes")
         guest.gui_files_create_folder_and_exit()
         guest.command(f"stat {GUI_NEW_FOLDER_PATH}", "type: directory")
-        guest.gui_files_copy_empty_and_exit()
-        guest.command(f"stat {GUI_COPY_FILE_PATH}", "0 bytes")
+        guest.command(f"cp {GUI_EDITOR_FIXTURE_PATH} {GUI_COPY_SOURCE_PATH}", "Copied 16384 byte(s)")
+        guest.gui_files_copy_multichunk_and_exit()
+        guest.command(f"stat {GUI_COPY_FILE_PATH}", "16384 bytes")
         guest.gui_files_delete_empty_and_exit()
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "stat: path not found")
         guest.gui_mouse_window_chrome_and_exit()
@@ -1471,7 +1473,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "stat: path not found")
-        guest.command(f"stat {GUI_COPY_FILE_PATH}", "0 bytes")
+        guest.command(f"stat {GUI_COPY_FILE_PATH}", "16384 bytes")
         guest.command(f"stat {GUI_NEW_FOLDER_PATH}", "type: directory")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
