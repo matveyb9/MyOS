@@ -175,7 +175,7 @@ Run `startgui` and click **FILES**. The browser begins at `/users/myos/` and sho
 
 A regular file is editable in GUI only when its current VFS path is writable: `/users/myos/`, `/temp/`, `/system/data/` or `/system/config/`. `Ctrl-S` saves; `Esc`, `Alt+F4` or the NOTES-window `X` discard the unsaved draft. `/system/core/`, `/system/live/` and `/apps/` remain readable but never enter GUI editor mode. The GUI document capacity is **16 KiB (16,384 bytes)**. GUI loading and saving use at most sixty-four bounded 256-byte VFS transfers. The separate console `edit <path>` command remains capped at 4 KiB; use bounded program or SDK I/O for larger MYPFS004 files.
 
-> File Workspace v1 intentionally does not provide graphical create, rename, delete, copy/move, package installation or raw-device operations. Use `touch`, `mkdir`, `rm`, `cp` and `install` in the shell for those actions.
+In each established writable root, `[NEW FILE]` and `[NEW FOLDER]` accept one non-empty printable slash-free ASCII name of at most 63 bytes. The file action creates one new empty regular file and opens its GUI editor; the folder action creates one new empty directory and refreshes the browser in place. Existing paths, read-only roots and malformed names are rejected without mutation. Rename, delete, copy/move, package installation and raw-device operations remain shell-only; use `touch`, `mkdir`, `rm`, `cp` and `install` for those workflows.
 
 ### MYPFS004 practical limits
 
@@ -220,7 +220,7 @@ MYPFS004 allocates storage lazily and grows a file as it is written. Large progr
 | `spawn` | `spawn sleeper 3` | Run a program in the background. |
 | `wait` / `kill` | `wait 4`, `kill 4` | Wait for or stop a child process. |
 | `set` / `get` / `env` | `set NAME MyOS` | Work with environment variables. |
-| `startgui` | `startgui` | Start the experimental framebuffer GUI. Click `FILES` to browse the logical VFS from `/users/myos/`; its `[NEW FILE]` row accepts a slash-free name up to 63 printable ASCII bytes only in `/users/myos`, `/temp`, `/system/data` or `/system/config`, creates a new empty file and opens it in the GUI editor. Existing writable text files up to 16 KiB also open there. |
+| `startgui` | `startgui` | Start the experimental framebuffer GUI. Click `FILES` to browse the logical VFS from `/users/myos/`; its `[NEW FILE]` and `[NEW FOLDER]` rows accept a slash-free name up to 63 printable ASCII bytes only in `/users/myos`, `/temp`, `/system/data` or `/system/config`. The first creates a new empty file and opens it in the GUI editor; the second creates a new directory and refreshes the browser. Existing writable text files up to 16 KiB also open there. |
 | `reboot` / `poweroff` | `reboot` | Reboot or power off the virtual machine. |
 | `clear` | `clear` | Clear the text console. |
 

@@ -20,6 +20,7 @@ static char browser_directory[MYOS_VFS_PATH_MAX] = GUI_BROWSER_START_PATH;
 static uint64_t browser_page;
 static char browser_new_file_name[MYOS_VFS_NAME_MAX];
 static uint64_t browser_new_file_length;
+static int browser_new_entry_is_directory;
 static uint8_t gui_scratch_data[MYOS_GUI_CONTENT_MAX];
 static uint8_t gui_editor_data[MYOS_GUI_CONTENT_MAX];
 static struct myos_gui_content_request gui_content_request;
@@ -444,7 +445,7 @@ static void show_file_browser(void) {
     }
     content_append_text(gui_scratch_data, &length, browser_has_next_page() != 0 ? "[NEXT]" : "-", 6U);
     content_append_char(gui_scratch_data, &length, '\n');
-    content_append_text(gui_scratch_data, &length, "[NEW FILE]", 10U);
+    content_append_text(gui_scratch_data, &length, "[NEW FILE]\n[NEW FOLDER]", 23U);
     (void)set_viewer_content(browser_directory, gui_scratch_data, length, MYOS_GUI_CONTENT_FLAG_BROWSER, 0U, 0U);
 }
 
@@ -458,22 +459,29 @@ static int browser_directory_is_writable(void) {
 static void show_browser_new_file_prompt(void) {
     uint64_t length = 0U;
 
-    content_append_text(gui_scratch_data, &length, "NEW FILE\nNAME: ", 15U);
+    if (browser_new_entry_is_directory != 0) {
+        content_append_text(gui_scratch_data, &length, "NEW FOLDER\nNAME: ", 17U);
+    } else {
+        content_append_text(gui_scratch_data, &length, "NEW FILE\nNAME: ", 15U);
+    }
     for (uint64_t index = 0U; index < browser_new_file_length; index++) {
         content_append_char(gui_scratch_data, &length, browser_new_file_name[index]);
     }
     (void)set_viewer_content(browser_directory, gui_scratch_data, length, MYOS_GUI_CONTENT_FLAG_EDITABLE, length, 0U);
 }
 
-static int browser_create_empty_file(void) {
+static int browser_create_empty_entry(void) {
     struct myos_vfs_path_request request = { { 0 } };
     char path[MYOS_VFS_PATH_MAX] = { 0 };
 
     if (browser_new_file_length == 0U || browser_directory_is_writable() == 0
-        || browser_make_child_path(path, browser_new_file_name) == 0
-        || make_path(request.path, path) == 0 || select_disk_path(path) == 0) {
+        || browser_make_child_path(path, browser_new_file_name) == 0 || make_path(request.path, path) == 0) {
         return 0;
     }
+    if (browser_new_entry_is_directory != 0) {
+        return system_call(MYOS_SYS_VFS_CREATE_DIRECTORY, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) != UINT64_MAX;
+    }
+    if (select_disk_path(path) == 0) { return 0; }
     return system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) != UINT64_MAX;
 }
 
@@ -822,11 +830,17 @@ void _start(uint64_t argc, const char *arguments) {
                         show_file_browser();
                     }
                 } else if (character == '\r' || character == '\n') {
+                    const int create_directory = browser_new_entry_is_directory;
                     int editor_result;
 
                     browser_new_file_mode = 0;
-                    if (browser_create_empty_file() == 0) {
-                        set_viewer_status("UNABLE TO CREATE FILE");
+                    if (browser_create_empty_entry() == 0) {
+                        set_viewer_status(create_directory != 0 ? "UNABLE TO CREATE DIRECTORY" : "UNABLE TO CREATE FILE");
+                        continue;
+                    }
+                    if (create_directory != 0) {
+                        home_mode = 0;
+                        show_file_browser();
                         continue;
                     }
                     editor_result = edit_selected_disk_file();
@@ -948,10 +962,12 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_page++;
                     show_file_browser();
                 }
-            } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE) {
+            } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE
+                       || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE_DIRECTORY) {
                 if (browser_mode != 0 && browser_directory_is_writable() != 0) {
                     browser_new_file_length = 0U;
                     browser_new_file_name[0] = '\0';
+                    browser_new_entry_is_directory = (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE_DIRECTORY;
                     browser_new_file_mode = 1;
                     show_browser_new_file_prompt();
                 } else if (browser_mode != 0) {

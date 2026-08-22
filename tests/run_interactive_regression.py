@@ -89,6 +89,7 @@ COPY_TARGET_PATH = "/users/myos/files/cp-harness-target.txt"
 WC_WORD_PATH = "/users/myos/files/wc-harness.txt"
 GREP_MATCH_PATH = "/users/myos/files/grep-harness.txt"
 GUI_NEW_FILE_PATH = "/users/myos/guinew"
+GUI_NEW_FOLDER_PATH = "/users/myos/guidir"
 GUI_EDITOR_FIXTURE_PATH = "/system/core/resources/gui-16k.txt"
 GUI_EDITOR_FIXTURE_PAYLOAD = b"0123456789abcdef" * 1024
 GUI_EDITOR_FIXTURE_LENGTH = len(GUI_EDITOR_FIXTURE_PAYLOAD)
@@ -571,6 +572,35 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_files_create_folder_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        # NEW FOLDER is directly below the established NEW FILE row: launch
+        # FILES, then click the ninth browser action row at roughly (500, 362).
+        self.qmp_move(delta_x=229)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        browser = self.qmp_screendump("files-folder-browser")
+        self.qmp_move(delta_x=-370, delta_y=38)
+        time.sleep(0.10)
+        create_ready = self.qmp_screendump("files-folder-ready")
+        self.qmp_left_click()
+        time.sleep(0.25)
+        prompt = self.qmp_screendump("files-folder-prompt")
+        self.require_small_framebuffer_transition(browser, prompt, "FILES NEW FOLDER prompt")
+        self.require_region_transition(create_ready, prompt, 330, 245, 200, 36, "FILES NEW FOLDER action")
+        for key in ("g", "u", "i", "d", "i", "r"):
+            self.qmp_press(key)
+        self.qmp_press("ret")
+        time.sleep(0.25)
+        created = self.qmp_screendump("files-folder-created")
+        self.require_region_transition(prompt, created, 330, 210, 200, 60, "FILES new folder creation")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_mouse_window_chrome_and_exit(self):
         start = len(self.output)
         self.send(f"startgui {NOTE_PATH}\n")
@@ -750,6 +780,8 @@ def run_bios(image_path, work_dir):
         guest.gui_files_launcher_and_exit()
         guest.gui_files_create_empty_and_exit()
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "0 bytes")
+        guest.gui_files_create_folder_and_exit()
+        guest.command(f"stat {GUI_NEW_FOLDER_PATH}", "type: directory")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
         guest.gui_open_and_exit("startgui home")
@@ -1130,6 +1162,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "0 bytes")
+        guest.command(f"stat {GUI_NEW_FOLDER_PATH}", "type: directory")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
     finally:
