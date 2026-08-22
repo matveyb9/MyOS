@@ -10,6 +10,8 @@
 #define GUI_BROWSER_START_PATH "/users/myos"
 #define GUI_BROWSER_PAGE_SIZE MYOS_GUI_BROWSER_ENTRY_MAX
 #define GUI_BROWSER_READ_TOO_LARGE (UINT64_MAX - UINT64_C(1))
+#define GUI_BROWSER_COPY_ENTRY_SCAN_LIMIT UINT64_C(128)
+#define GUI_BROWSER_COPY_FILE_MAX UINT64_C(65536)
 #define GUI_EDITOR_RESULT_VIEWER 0
 #define GUI_EDITOR_RESULT_EXIT 1
 #define GUI_EDITOR_RESULT_HOME 2
@@ -23,6 +25,10 @@ static uint64_t browser_new_file_length;
 static int browser_new_entry_is_directory;
 static int browser_prompt_is_remove;
 static int browser_remove_confirmation;
+static char browser_copy_source_name[MYOS_VFS_NAME_MAX];
+static uint64_t browser_copy_source_length;
+static int browser_prompt_is_copy;
+static int browser_copy_prompt_for_target;
 static uint8_t gui_scratch_data[MYOS_GUI_CONTENT_MAX];
 static uint8_t gui_editor_data[MYOS_GUI_CONTENT_MAX];
 static struct myos_gui_content_request gui_content_request;
@@ -447,7 +453,11 @@ static void show_file_browser(void) {
     }
     content_append_text(gui_scratch_data, &length, browser_has_next_page() != 0 ? "[NEXT]" : "-", 6U);
     content_append_char(gui_scratch_data, &length, '\n');
-    content_append_text(gui_scratch_data, &length, "[NEW FILE]\n[NEW FOLDER]\n[DELETE]", 32U);
+    {
+        static const char browser_actions[] = "[NEW FILE]\n[NEW FOLDER]\n[DELETE]\n[COPY]";
+
+        content_append_text(gui_scratch_data, &length, browser_actions, sizeof(browser_actions) - 1U);
+    }
     (void)set_viewer_content(browser_directory, gui_scratch_data, length, MYOS_GUI_CONTENT_FLAG_BROWSER, 0U, 0U);
 }
 
@@ -461,7 +471,14 @@ static int browser_directory_is_writable(void) {
 static void show_browser_new_file_prompt(void) {
     uint64_t length = 0U;
 
-    if (browser_prompt_is_remove != 0 && browser_remove_confirmation != 0) {
+    if (browser_prompt_is_copy != 0) {
+        content_append_text(gui_scratch_data, &length,
+                            browser_copy_prompt_for_target != 0 ? "COPY\nTO: " : "COPY\nFROM: ",
+                            browser_copy_prompt_for_target != 0 ? 9U : 11U);
+        for (uint64_t index = 0U; index < browser_new_file_length; index++) {
+            content_append_char(gui_scratch_data, &length, browser_new_file_name[index]);
+        }
+    } else if (browser_prompt_is_remove != 0 && browser_remove_confirmation != 0) {
         content_append_text(gui_scratch_data, &length, "DELETE ", 7U);
         for (uint64_t index = 0U; index < browser_new_file_length; index++) {
             content_append_char(gui_scratch_data, &length, browser_new_file_name[index]);
@@ -504,6 +521,85 @@ static int browser_remove_named_entry(void) {
         return 0;
     }
     return system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) != UINT64_MAX;
+}
+
+static int browser_names_equal_ascii(const char *left, const char *right) {
+    uint64_t index = 0U;
+
+    while (left[index] != '\0' && right[index] != '\0') {
+        char left_character = left[index];
+        char right_character = right[index];
+
+        if (left_character >= 'a' && left_character <= 'z') { left_character = (char)(left_character - 'a' + 'A'); }
+        if (right_character >= 'a' && right_character <= 'z') { right_character = (char)(right_character - 'a' + 'A'); }
+        if (left_character != right_character) { return 0; }
+        index++;
+    }
+    return left[index] == right[index];
+}
+
+static int browser_copy_source_entry(struct myos_vfs_directory_entry *entry) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+
+    if (entry == (struct myos_vfs_directory_entry *)0 || browser_copy_source_length == 0U
+        || make_path(request.path, browser_directory) == 0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < GUI_BROWSER_COPY_ENTRY_SCAN_LIMIT; index++) {
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            return 0;
+        }
+        if (browser_names_equal_ascii(request.entry.name, browser_copy_source_name) != 0) {
+            if (request.entry.type != MYOS_VFS_OBJECT_REGULAR) { return 0; }
+            *entry = request.entry;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int browser_copy_named_file(void) {
+    struct myos_vfs_directory_entry source_entry;
+    struct myos_vfs_read_request read_request = { 0U, { 0 }, { 0 } };
+    struct myos_vfs_write_request write_request = { 0U, 0U, { 0 }, { 0 } };
+    struct myos_vfs_path_request remove_request = { { 0 } };
+    char source_path[MYOS_VFS_PATH_MAX] = { 0 };
+    char target_path[MYOS_VFS_PATH_MAX] = { 0 };
+    uint64_t copied = 0U;
+    int target_created = 0;
+
+    if (browser_directory_is_writable() == 0 || browser_copy_source_length == 0U || browser_new_file_length == 0U
+        || browser_copy_source_entry(&source_entry) == 0 || source_entry.size > GUI_BROWSER_COPY_FILE_MAX
+        || browser_make_child_path(source_path, browser_copy_source_name) == 0
+        || browser_make_child_path(target_path, browser_new_file_name) == 0
+        || make_path(read_request.path, source_path) == 0 || make_path(write_request.path, target_path) == 0
+        || make_path(remove_request.path, target_path) == 0) {
+        return 0;
+    }
+    if (system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&remove_request, sizeof(remove_request)) == UINT64_MAX) {
+        return 0;
+    }
+    target_created = 1;
+    while (copied < source_entry.size) {
+        const uint64_t wanted = source_entry.size - copied > MYOS_VFS_READ_CHUNK
+            ? MYOS_VFS_READ_CHUNK : source_entry.size - copied;
+        uint64_t count;
+
+        read_request.offset = copied;
+        count = system_call(MYOS_SYS_VFS_READ, 0U, (uint64_t)(uintptr_t)&read_request, sizeof(read_request));
+        if (count == UINT64_MAX || count != wanted) { break; }
+        write_request.offset = copied;
+        write_request.length = count;
+        for (uint64_t index = 0U; index < count; index++) { write_request.data[index] = read_request.data[index]; }
+        if (system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request)) != count) { break; }
+        copied += count;
+    }
+    if (copied == source_entry.size) { return 1; }
+    if (target_created != 0) {
+        (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&remove_request, sizeof(remove_request));
+    }
+    return 0;
 }
 
 static int browser_open_entry(uint8_t action) {
@@ -853,8 +949,26 @@ void _start(uint64_t argc, const char *arguments) {
                 } else if (character == '\r' || character == '\n') {
                     const int create_directory = browser_new_entry_is_directory;
                     const int remove_entry = browser_prompt_is_remove;
+                    const int copy_entry = browser_prompt_is_copy;
                     int editor_result;
 
+                    if (copy_entry != 0 && browser_copy_prompt_for_target == 0) {
+                        if (browser_new_file_length == 0U) {
+                            browser_new_file_mode = 0;
+                            browser_prompt_is_copy = 0;
+                            set_viewer_status("UNABLE TO COPY");
+                            continue;
+                        }
+                        for (uint64_t index = 0U; index <= browser_new_file_length; index++) {
+                            browser_copy_source_name[index] = browser_new_file_name[index];
+                        }
+                        browser_copy_source_length = browser_new_file_length;
+                        browser_new_file_length = 0U;
+                        browser_new_file_name[0] = '\0';
+                        browser_copy_prompt_for_target = 1;
+                        show_browser_new_file_prompt();
+                        continue;
+                    }
                     if (remove_entry != 0 && browser_remove_confirmation == 0) {
                         if (browser_new_file_length == 0U || browser_directory_is_writable() == 0) {
                             browser_new_file_mode = 0;
@@ -867,11 +981,15 @@ void _start(uint64_t argc, const char *arguments) {
                     }
                     browser_new_file_mode = 0;
                     browser_remove_confirmation = 0;
-                    if ((remove_entry != 0 ? browser_remove_named_entry() : browser_create_empty_entry()) == 0) {
-                        set_viewer_status(remove_entry != 0 ? "UNABLE TO DELETE" : (create_directory != 0 ? "UNABLE TO CREATE DIRECTORY" : "UNABLE TO CREATE FILE"));
+                    browser_prompt_is_copy = 0;
+                    if ((copy_entry != 0 ? browser_copy_named_file()
+                         : (remove_entry != 0 ? browser_remove_named_entry() : browser_create_empty_entry())) == 0) {
+                        set_viewer_status(copy_entry != 0 ? "UNABLE TO COPY"
+                                          : (remove_entry != 0 ? "UNABLE TO DELETE"
+                                             : (create_directory != 0 ? "UNABLE TO CREATE DIRECTORY" : "UNABLE TO CREATE FILE")));
                         continue;
                     }
-                    if (remove_entry != 0 || create_directory != 0) {
+                    if (copy_entry != 0 || remove_entry != 0 || create_directory != 0) {
                         home_mode = 0;
                         show_file_browser();
                         continue;
@@ -1004,6 +1122,7 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_file_name[0] = '\0';
                     browser_new_entry_is_directory = (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE_DIRECTORY;
                     browser_prompt_is_remove = 0;
+                    browser_prompt_is_copy = 0;
                     browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
                     show_browser_new_file_prompt();
@@ -1016,6 +1135,23 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_file_name[0] = '\0';
                     browser_new_entry_is_directory = 0;
                     browser_prompt_is_remove = 1;
+                    browser_prompt_is_copy = 0;
+                    browser_remove_confirmation = 0;
+                    browser_new_file_mode = 1;
+                    show_browser_new_file_prompt();
+                } else if (browser_mode != 0) {
+                    set_viewer_status("READ ONLY DIRECTORY");
+                }
+            } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_COPY) {
+                if (browser_mode != 0 && browser_directory_is_writable() != 0) {
+                    browser_new_file_length = 0U;
+                    browser_new_file_name[0] = '\0';
+                    browser_copy_source_length = 0U;
+                    browser_copy_source_name[0] = '\0';
+                    browser_new_entry_is_directory = 0;
+                    browser_prompt_is_remove = 0;
+                    browser_prompt_is_copy = 1;
+                    browser_copy_prompt_for_target = 0;
                     browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
                     show_browser_new_file_prompt();
