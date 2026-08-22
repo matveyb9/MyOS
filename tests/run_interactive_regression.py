@@ -80,6 +80,11 @@ MOD_ELF_PATH = "/users/myos/projects/release-mod.elf"
 MOD_APP_PATH = "/apps/release-mod/main.elf"
 INVALID_MOD_SOURCE_PATH = "/temp/release-mod-invalid.mya"
 INVALID_MOD_ELF_PATH = "/users/myos/projects/release-mod-invalid.elf"
+NEG_SOURCE_PATH = "/temp/release-neg.mya"
+NEG_ELF_PATH = "/users/myos/projects/release-neg.elf"
+NEG_APP_PATH = "/apps/release-neg/main.elf"
+INVALID_NEG_SOURCE_PATH = "/temp/release-neg-invalid.mya"
+INVALID_NEG_ELF_PATH = "/users/myos/projects/release-neg-invalid.elf"
 INVALID_DIVISION_SOURCE_PATH = "/temp/release-division-invalid.mya"
 INVALID_DIVISION_ELF_PATH = "/users/myos/projects/release-division-invalid.elf"
 CMP_SOURCE_PATH = "/temp/release-cmp.mya"
@@ -963,6 +968,16 @@ def run_bios(image_path, work_dir):
         if (b"bad\n" in mod_output or b"bad\r\n" in mod_output
                 or (b"MOD\n" not in mod_output and b"MOD\r\n" not in mod_output)):
             raise RegressionFailure(f"BIOS: bounded native mod did not preserve the expected byte remainder branch\n{guest._tail()}")
+        neg_source = 'set 7;neg;store 2;set 0;load 2;jump_if 249 matched;write "bad\\n";jump done;label matched:;write "NEG\\n";label done:;exit 57'
+        guest.console_edit_and_save(NEG_SOURCE_PATH, neg_source.encode("ascii"))
+        guest.command(f"build {NEG_SOURCE_PATH} {NEG_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {NEG_ELF_PATH} {NEG_APP_PATH}", "exited with status 0")
+        neg_start = len(guest.output)
+        guest.command("run release-neg", "exited with status 57")
+        neg_output = bytes(guest.output[neg_start:])
+        if (b"bad\n" in neg_output or b"bad\r\n" in neg_output
+                or (b"NEG\n" not in neg_output and b"NEG\r\n" not in neg_output)):
+            raise RegressionFailure(f"BIOS: bounded native neg did not preserve the expected byte branch\n{guest._tail()}")
         cmp_source = 'set 73;store 5;set 73;cmp 5;jump_if_zero equal;write "bad\\n";jump after_equal;label equal:;write "EQ\\n";label after_equal:;set 72;cmp 5;jump_if_nonzero different;write "bad\\n";jump done;label different:;write "NE\\n";label done:;exit 51'
         guest.console_edit_and_save(CMP_SOURCE_PATH, cmp_source.encode("ascii"))
         guest.command(f"build {CMP_SOURCE_PATH} {CMP_ELF_PATH}", "exited with status 0")
@@ -1019,6 +1034,8 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {INVALID_MOD_SOURCE_PATH} {INVALID_MOD_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_MOD_SOURCE_PATH} set 1;mod 0;exit 0")
         guest.command(f"build {INVALID_MOD_SOURCE_PATH} {INVALID_MOD_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_NEG_SOURCE_PATH} neg;exit 0")
+        guest.command(f"build {INVALID_NEG_SOURCE_PATH} {INVALID_NEG_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_CMP_SOURCE_PATH} cmp 0;exit 0")
         guest.command(f"build {INVALID_CMP_SOURCE_PATH} {INVALID_CMP_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_CMP_SLOT_SOURCE_PATH} set 1;cmp 8;exit 0")
@@ -1196,6 +1213,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if (b"bad\n" in mod_output or b"bad\r\n" in mod_output
                 or (b"MOD\n" not in mod_output and b"MOD\r\n" not in mod_output)):
             raise RegressionFailure(f"UEFI: persisted bounded native mod did not preserve the expected byte remainder branch\n{guest._tail()}")
+        neg_start = len(guest.output)
+        guest.command("run release-neg", "exited with status 57")
+        neg_output = bytes(guest.output[neg_start:])
+        if (b"bad\n" in neg_output or b"bad\r\n" in neg_output
+                or (b"NEG\n" not in neg_output and b"NEG\r\n" not in neg_output)):
+            raise RegressionFailure(f"UEFI: persisted bounded native neg did not preserve the expected byte branch\n{guest._tail()}")
         cmp_start = len(guest.output)
         guest.command("run release-cmp", "exited with status 51")
         cmp_output = bytes(guest.output[cmp_start:])
