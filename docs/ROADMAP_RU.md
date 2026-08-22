@@ -144,6 +144,7 @@ GUI release decision принят: immutable preview tag фиксирует пр
 | 52 | `[x]` | File Workspace multi-chunk copy regression | BIOS теперь копирует deterministic regular source 16 KiB в `guicopytarget` через шестьдесят четыре File Workspace VFS transfers по 256 bytes. UEFI подтверждает persistence target 16 KiB вместе с existing evidence directory и deletion. |
 | 53 | `[x]` | File Workspace no-overwrite copy regression | BIOS повторяет `[COPY]` с уже existing target и требует visible rejection вместо replacement. BIOS и UEFI сохраняют source и target 16 KiB вместе с prior evidence delete и directory. |
 | 54 | `[x]` | File Workspace bounded current-directory search | `[SEARCH]` принимает printable name fragment без `/`, выполняет case-insensitive matching не более 128 VFS entries current directory без mutation, выводит matching metadata и возвращает в browser по `Esc`. BIOS QMP проверяет prompt, results view и return; full UEFI persistence replay остаётся clean. |
+| 55 | `[x]` | File Workspace selectable search results | Первые четыре current-directory matches показываются как browser rows и revalidated against VFS в момент click перед open. `[RETURN]` и `Esc` закрывают result view без mutation. BIOS QMP открывает match `guidir`; UEFI persistence replay остаётся clean. |
 
 > **Приоритет пользователя:** собственные программы и первый native build workflow не откладываются до сети, SMP, USB или собственного bootloader. После GUI release decision они образуют ближайшую линию функциональной разработки.
 

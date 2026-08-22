@@ -30,6 +30,9 @@ static uint64_t browser_copy_source_length;
 static int browser_prompt_is_copy;
 static int browser_copy_prompt_for_target;
 static int browser_prompt_is_search;
+static int browser_search_results_active;
+static uint64_t browser_search_indices[MYOS_GUI_BROWSER_ENTRY_MAX];
+static uint64_t browser_search_count;
 static uint8_t gui_scratch_data[MYOS_GUI_CONTENT_MAX];
 static uint8_t gui_editor_data[MYOS_GUI_CONTENT_MAX];
 static struct myos_gui_content_request gui_content_request;
@@ -405,19 +408,19 @@ static int browser_make_child_path(char *destination, const char *name) {
     return disk_path_is_valid(destination);
 }
 
-static int browser_entry_at(uint64_t slot, struct myos_vfs_directory_entry *entry) {
+static int browser_entry_at_index(uint64_t index, struct myos_vfs_directory_entry *entry) {
     struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
 
-    if (slot > GUI_BROWSER_PAGE_SIZE || entry == (struct myos_vfs_directory_entry *)0
-        || make_path(request.path, browser_directory) == 0) {
-        return 0;
-    }
-    request.index = browser_page * GUI_BROWSER_PAGE_SIZE + slot;
-    if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
-        return 0;
-    }
+    if (entry == (struct myos_vfs_directory_entry *)0 || make_path(request.path, browser_directory) == 0) { return 0; }
+    request.index = index;
+    if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) { return 0; }
     *entry = request.entry;
     return 1;
+}
+
+static int browser_entry_at(uint64_t slot, struct myos_vfs_directory_entry *entry) {
+    if (slot > GUI_BROWSER_PAGE_SIZE) { return 0; }
+    return browser_entry_at_index(browser_page * GUI_BROWSER_PAGE_SIZE + slot, entry);
 }
 
 static int browser_has_next_page(void) {
@@ -452,32 +455,39 @@ static void show_browser_search_results(void) {
     uint64_t length = 0U;
     uint64_t matches = 0U;
 
+    browser_search_results_active = 1;
+    browser_search_count = 0U;
     content_append_text(gui_scratch_data, &length, "SEARCH ", 7U);
     content_append_text(gui_scratch_data, &length, browser_new_file_name, browser_new_file_length);
-    content_append_text(gui_scratch_data, &length, "\nIN ", 4U);
-    content_append_path_tail(gui_scratch_data, &length, browser_directory);
-    content_append_char(gui_scratch_data, &length, '\n');
+    content_append_text(gui_scratch_data, &length, "\n[RETURN]\n", 10U);
     if (make_path(request.path, browser_directory) != 0) {
         for (uint64_t index = 0U; index < GUI_BROWSER_COPY_ENTRY_SCAN_LIMIT; index++) {
             if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) { break; }
             if (browser_name_contains_ascii(request.entry.name, browser_new_file_name) != 0) {
-                const char prefix = request.entry.type == MYOS_VFS_OBJECT_DIRECTORY ? 'D'
-                    : (request.entry.type == MYOS_VFS_OBJECT_REGULAR ? 'F' : 'V');
-                content_append_char(gui_scratch_data, &length, prefix);
-                content_append_char(gui_scratch_data, &length, ' ');
-                content_append_browser_name(gui_scratch_data, &length, request.entry.name);
-                content_append_char(gui_scratch_data, &length, ' ');
-                content_append_decimal(gui_scratch_data, &length, request.entry.size);
-                content_append_char(gui_scratch_data, &length, 'B');
-                content_append_char(gui_scratch_data, &length, '\n');
+                if (browser_search_count < MYOS_GUI_BROWSER_ENTRY_MAX) {
+                    browser_search_indices[browser_search_count++] = request.index;
+                }
                 matches++;
             }
             request.index++;
         }
     }
-    if (matches == 0U) { content_append_text(gui_scratch_data, &length, "NO MATCHES\n", 11U); }
-    content_append_text(gui_scratch_data, &length, "ESC TO RETURN", 13U);
-    (void)set_viewer_content(browser_directory, gui_scratch_data, length, 0U, 0U, 0U);
+    content_append_text(gui_scratch_data, &length, matches == 0U ? "NO MATCHES\n" : "MATCHES\n", matches == 0U ? 11U : 8U);
+    for (uint64_t slot = 0U; slot < MYOS_GUI_BROWSER_ENTRY_MAX; slot++) {
+        struct myos_vfs_directory_entry entry;
+        if (slot < browser_search_count && browser_entry_at_index(browser_search_indices[slot], &entry) != 0) {
+            const char prefix = entry.type == MYOS_VFS_OBJECT_DIRECTORY ? 'D' : (entry.type == MYOS_VFS_OBJECT_REGULAR ? 'F' : 'V');
+            content_append_char(gui_scratch_data, &length, prefix);
+            content_append_char(gui_scratch_data, &length, ' ');
+            content_append_browser_name(gui_scratch_data, &length, entry.name);
+            content_append_char(gui_scratch_data, &length, ' ');
+            content_append_decimal(gui_scratch_data, &length, entry.size);
+            content_append_char(gui_scratch_data, &length, 'B');
+        } else { content_append_char(gui_scratch_data, &length, '-'); }
+        content_append_char(gui_scratch_data, &length, '\n');
+    }
+    content_append_text(gui_scratch_data, &length, "-", 1U);
+    (void)set_viewer_content(browser_directory, gui_scratch_data, length, MYOS_GUI_CONTENT_FLAG_BROWSER, 0U, 0U);
 }
 
 static void show_file_browser(void) {
@@ -665,9 +675,13 @@ static int browser_open_entry(uint8_t action) {
     const uint64_t slot = action - MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE;
 
     if (action < MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE || slot >= GUI_BROWSER_PAGE_SIZE
-        || browser_entry_at(slot, &entry) == 0 || browser_make_child_path(path, entry.name) == 0) {
+        || (browser_search_results_active != 0
+            ? (slot >= browser_search_count || browser_entry_at_index(browser_search_indices[slot], &entry) == 0)
+            : browser_entry_at(slot, &entry) == 0)
+        || browser_make_child_path(path, entry.name) == 0) {
         return 0;
     }
+    browser_search_results_active = 0;
     if (entry.type == MYOS_VFS_OBJECT_DIRECTORY) {
         if (browser_set_directory(path) == 0) { return 0; }
         show_file_browser();
@@ -1104,6 +1118,7 @@ void _start(uint64_t argc, const char *arguments) {
                 }
             } else if (character == '\x1b' && home_mode == 0) {
                 if (browser_mode != 0) {
+                    browser_search_results_active = 0;
                     show_file_browser();
                 } else {
                     home_mode = 1;
@@ -1161,7 +1176,11 @@ void _start(uint64_t argc, const char *arguments) {
                 show_file_browser();
             } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_PARENT) {
                 if (browser_mode != 0) {
-                    browser_parent_directory();
+                    if (browser_search_results_active != 0) {
+                        browser_search_results_active = 0;
+                    } else {
+                        browser_parent_directory();
+                    }
                     show_file_browser();
                 }
             } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_PREVIOUS) {

@@ -738,16 +738,18 @@ class Guest:
         prompt = self.qmp_screendump("files-search-prompt")
         self.require_small_framebuffer_transition(browser, prompt, "FILES SEARCH prompt")
         self.require_region_transition(search_ready, prompt, 330, 245, 200, 36, "FILES SEARCH action")
-        for key in ("c", "o", "p", "y"):
+        for key in ("g", "u", "i", "d", "i", "r"):
             self.qmp_press(key)
         self.qmp_press("ret")
         time.sleep(0.25)
         results = self.qmp_screendump("files-search-results")
         self.require_region_transition(prompt, results, 330, 210, 200, 96, "FILES SEARCH results")
-        self.qmp_press("esc")
+        # The first matching entry occupies the fixed browser result row (three rows above SEARCH).
+        self.qmp_move(delta_y=-60)
+        self.qmp_left_click()
         time.sleep(0.25)
-        returned = self.qmp_screendump("files-search-return")
-        self.require_region_transition(results, returned, 330, 210, 200, 96, "FILES SEARCH return")
+        opened = self.qmp_screendump("files-search-opened-directory")
+        self.require_small_framebuffer_transition(results, opened, "FILES SEARCH open result")
         self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
