@@ -29,6 +29,7 @@ static char browser_copy_source_name[MYOS_VFS_NAME_MAX];
 static uint64_t browser_copy_source_length;
 static int browser_prompt_is_copy;
 static int browser_copy_prompt_for_target;
+static int browser_prompt_is_search;
 static uint8_t gui_scratch_data[MYOS_GUI_CONTENT_MAX];
 static uint8_t gui_editor_data[MYOS_GUI_CONTENT_MAX];
 static struct myos_gui_content_request gui_content_request;
@@ -425,6 +426,60 @@ static int browser_has_next_page(void) {
     return browser_entry_at(GUI_BROWSER_PAGE_SIZE, &entry) != 0;
 }
 
+static int browser_name_contains_ascii(const char *name, const char *query) {
+    uint64_t query_length = 0U;
+
+    while (query[query_length] != '\0') { query_length++; }
+    for (uint64_t start = 0U; name[start] != '\0'; start++) {
+        uint64_t index = 0U;
+
+        while (index < query_length && name[start + index] != '\0') {
+            char left = name[start + index];
+            char right = query[index];
+
+            if (left >= 'a' && left <= 'z') { left = (char)(left - 'a' + 'A'); }
+            if (right >= 'a' && right <= 'z') { right = (char)(right - 'a' + 'A'); }
+            if (left != right) { break; }
+            index++;
+        }
+        if (index == query_length) { return 1; }
+    }
+    return 0;
+}
+
+static void show_browser_search_results(void) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+    uint64_t length = 0U;
+    uint64_t matches = 0U;
+
+    content_append_text(gui_scratch_data, &length, "SEARCH ", 7U);
+    content_append_text(gui_scratch_data, &length, browser_new_file_name, browser_new_file_length);
+    content_append_text(gui_scratch_data, &length, "\nIN ", 4U);
+    content_append_path_tail(gui_scratch_data, &length, browser_directory);
+    content_append_char(gui_scratch_data, &length, '\n');
+    if (make_path(request.path, browser_directory) != 0) {
+        for (uint64_t index = 0U; index < GUI_BROWSER_COPY_ENTRY_SCAN_LIMIT; index++) {
+            if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) { break; }
+            if (browser_name_contains_ascii(request.entry.name, browser_new_file_name) != 0) {
+                const char prefix = request.entry.type == MYOS_VFS_OBJECT_DIRECTORY ? 'D'
+                    : (request.entry.type == MYOS_VFS_OBJECT_REGULAR ? 'F' : 'V');
+                content_append_char(gui_scratch_data, &length, prefix);
+                content_append_char(gui_scratch_data, &length, ' ');
+                content_append_browser_name(gui_scratch_data, &length, request.entry.name);
+                content_append_char(gui_scratch_data, &length, ' ');
+                content_append_decimal(gui_scratch_data, &length, request.entry.size);
+                content_append_char(gui_scratch_data, &length, 'B');
+                content_append_char(gui_scratch_data, &length, '\n');
+                matches++;
+            }
+            request.index++;
+        }
+    }
+    if (matches == 0U) { content_append_text(gui_scratch_data, &length, "NO MATCHES\n", 11U); }
+    content_append_text(gui_scratch_data, &length, "ESC TO RETURN", 13U);
+    (void)set_viewer_content(browser_directory, gui_scratch_data, length, 0U, 0U, 0U);
+}
+
 static void show_file_browser(void) {
     uint64_t length = 0U;
 
@@ -454,7 +509,7 @@ static void show_file_browser(void) {
     content_append_text(gui_scratch_data, &length, browser_has_next_page() != 0 ? "[NEXT]" : "-", 6U);
     content_append_char(gui_scratch_data, &length, '\n');
     {
-        static const char browser_actions[] = "[NEW FILE]\n[NEW FOLDER]\n[DELETE]\n[COPY]";
+        static const char browser_actions[] = "[NEW FILE]\n[NEW FOLDER]\n[DELETE]\n[COPY]\n[SEARCH]";
 
         content_append_text(gui_scratch_data, &length, browser_actions, sizeof(browser_actions) - 1U);
     }
@@ -471,7 +526,9 @@ static int browser_directory_is_writable(void) {
 static void show_browser_new_file_prompt(void) {
     uint64_t length = 0U;
 
-    if (browser_prompt_is_copy != 0) {
+    if (browser_prompt_is_search != 0) {
+        content_append_text(gui_scratch_data, &length, "SEARCH\nNAME: ", 13U);
+    } else if (browser_prompt_is_copy != 0) {
         content_append_text(gui_scratch_data, &length,
                             browser_copy_prompt_for_target != 0 ? "COPY\nTO: " : "COPY\nFROM: ",
                             browser_copy_prompt_for_target != 0 ? 9U : 11U);
@@ -950,7 +1007,19 @@ void _start(uint64_t argc, const char *arguments) {
                     const int create_directory = browser_new_entry_is_directory;
                     const int remove_entry = browser_prompt_is_remove;
                     const int copy_entry = browser_prompt_is_copy;
+                    const int search_entry = browser_prompt_is_search;
                     int editor_result;
+
+                    if (search_entry != 0) {
+                        browser_new_file_mode = 0;
+                        browser_prompt_is_search = 0;
+                        if (browser_new_file_length == 0U) {
+                            set_viewer_status("UNABLE TO SEARCH");
+                        } else {
+                            show_browser_search_results();
+                        }
+                        continue;
+                    }
 
                     if (copy_entry != 0 && browser_copy_prompt_for_target == 0) {
                         if (browser_new_file_length == 0U) {
@@ -982,6 +1051,7 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_file_mode = 0;
                     browser_remove_confirmation = 0;
                     browser_prompt_is_copy = 0;
+                    browser_prompt_is_search = 0;
                     if ((copy_entry != 0 ? browser_copy_named_file()
                          : (remove_entry != 0 ? browser_remove_named_entry() : browser_create_empty_entry())) == 0) {
                         set_viewer_status(copy_entry != 0 ? "UNABLE TO COPY"
@@ -1123,6 +1193,7 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_entry_is_directory = (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE_DIRECTORY;
                     browser_prompt_is_remove = 0;
                     browser_prompt_is_copy = 0;
+                    browser_prompt_is_search = 0;
                     browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
                     show_browser_new_file_prompt();
@@ -1136,6 +1207,7 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_entry_is_directory = 0;
                     browser_prompt_is_remove = 1;
                     browser_prompt_is_copy = 0;
+                    browser_prompt_is_search = 0;
                     browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
                     show_browser_new_file_prompt();
@@ -1151,6 +1223,7 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_entry_is_directory = 0;
                     browser_prompt_is_remove = 0;
                     browser_prompt_is_copy = 1;
+                    browser_prompt_is_search = 0;
                     browser_copy_prompt_for_target = 0;
                     browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
@@ -1160,6 +1233,18 @@ void _start(uint64_t argc, const char *arguments) {
                 }
             } else if ((uint8_t)character == MYOS_INPUT_KEY_ALT_TAB && home_mode == 0) {
                 (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_INPUT, (uint64_t)(uint8_t)character, 0U);
+            } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_SEARCH) {
+                if (browser_mode != 0) {
+                    browser_new_file_length = 0U;
+                    browser_new_file_name[0] = '\0';
+                    browser_new_entry_is_directory = 0;
+                    browser_prompt_is_remove = 0;
+                    browser_prompt_is_copy = 0;
+                    browser_prompt_is_search = 1;
+                    browser_remove_confirmation = 0;
+                    browser_new_file_mode = 1;
+                    show_browser_new_file_prompt();
+                }
             }
         }
     }
