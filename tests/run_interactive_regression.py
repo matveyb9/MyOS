@@ -110,6 +110,11 @@ PARITY_ELF_PATH = "/users/myos/projects/release-parity.elf"
 PARITY_APP_PATH = "/apps/release-parity/main.elf"
 INVALID_PARITY_SOURCE_PATH = "/temp/release-parity-invalid.mya"
 INVALID_PARITY_ELF_PATH = "/users/myos/projects/release-parity-invalid.elf"
+CLZ_SOURCE_PATH = "/temp/release-clz.mya"
+CLZ_ELF_PATH = "/users/myos/projects/release-clz.elf"
+CLZ_APP_PATH = "/apps/release-clz/main.elf"
+INVALID_CLZ_SOURCE_PATH = "/temp/release-clz-invalid.mya"
+INVALID_CLZ_ELF_PATH = "/users/myos/projects/release-clz-invalid.elf"
 INVALID_DIVISION_SOURCE_PATH = "/temp/release-division-invalid.mya"
 INVALID_DIVISION_ELF_PATH = "/users/myos/projects/release-division-invalid.elf"
 CMP_SOURCE_PATH = "/temp/release-cmp.mya"
@@ -1033,6 +1038,16 @@ def run_bios(image_path, work_dir):
         if (b"bad\n" in swap_output or b"bad\r\n" in swap_output
                 or (b"SWAP\n" not in swap_output and b"SWAP\r\n" not in swap_output)):
             raise RegressionFailure(f"BIOS: bounded native swap did not preserve the expected byte exchange branch\n{guest._tail()}")
+        clz_source = 'set 32;clz;jump_if 2 nonzero;write "bad\\n";jump done;label nonzero:;set 0;clz;jump_if 8 zero;write "bad\\n";jump done;label zero:;write "CLZ\\n";label done:;exit 63'
+        guest.console_edit_and_save(CLZ_SOURCE_PATH, clz_source.encode("ascii"))
+        guest.command(f"build {CLZ_SOURCE_PATH} {CLZ_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {CLZ_ELF_PATH} {CLZ_APP_PATH}", "exited with status 0")
+        clz_start = len(guest.output)
+        guest.command("run release-clz", "exited with status 63")
+        clz_output = bytes(guest.output[clz_start:])
+        if (b"bad\n" in clz_output or b"bad\r\n" in clz_output
+                or (b"CLZ\n" not in clz_output and b"CLZ\r\n" not in clz_output)):
+            raise RegressionFailure(f"BIOS: bounded native clz did not preserve expected leading-zero branches\n{guest._tail()}")
         parity_source = 'set 3;parity;jump_if_nonzero even;write "bad\\n";jump done;label even:;set 1;parity;jump_if_zero odd;write "bad\\n";jump done;label odd:;write "PARITY\\n";label done:;exit 62'
         guest.console_edit_and_save(PARITY_SOURCE_PATH, parity_source.encode("ascii"))
         guest.command(f"build {PARITY_SOURCE_PATH} {PARITY_ELF_PATH}", "exited with status 0")
@@ -1105,6 +1120,12 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {INVALID_ROTATE_SOURCE_PATH} {INVALID_ROTATE_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_DIVISION_SOURCE_PATH} set 1;div 0;exit 0")
         guest.command(f"build {INVALID_DIVISION_SOURCE_PATH} {INVALID_DIVISION_ELF_PATH}", diagnostic)
+        for temporary_source in (BACKWARD_SOURCE_PATH, MISSING_SET_SOURCE_PATH, CONDITIONAL_BACKWARD_SOURCE_PATH,
+                                 INVALID_VARIABLE_SOURCE_PATH, INVALID_ARITHMETIC_SOURCE_PATH,
+                                 INVALID_BITWISE_SOURCE_PATH, INVALID_XOR_SOURCE_PATH,
+                                 INVALID_XOR_BOUND_SOURCE_PATH, INVALID_SHIFT_SOURCE_PATH,
+                                 INVALID_ROTATE_SOURCE_PATH, INVALID_DIVISION_SOURCE_PATH):
+            guest.command(f"rm {temporary_source}")
         guest.command(f"write {INVALID_MOD_SOURCE_PATH} mod 1;exit 0")
         guest.command(f"build {INVALID_MOD_SOURCE_PATH} {INVALID_MOD_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_MOD_SOURCE_PATH} set 1;mod 0;exit 0")
@@ -1134,6 +1155,9 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {INVALID_PARITY_SOURCE_PATH} parity;exit 0")
         guest.command(f"build {INVALID_PARITY_SOURCE_PATH} {INVALID_PARITY_ELF_PATH}", diagnostic)
         guest.command(f"rm {INVALID_PARITY_SOURCE_PATH}")
+        guest.command(f"write {INVALID_CLZ_SOURCE_PATH} clz;exit 0")
+        guest.command(f"build {INVALID_CLZ_SOURCE_PATH} {INVALID_CLZ_ELF_PATH}", diagnostic)
+        guest.command(f"rm {INVALID_CLZ_SOURCE_PATH}")
         guest.command(f"write {INVALID_CMP_SOURCE_PATH} cmp 0;exit 0")
         guest.command(f"build {INVALID_CMP_SOURCE_PATH} {INVALID_CMP_ELF_PATH}", diagnostic)
         guest.command(f"rm {INVALID_CMP_SOURCE_PATH}")
@@ -1336,6 +1360,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if (b"bad\n" in swap_output or b"bad\r\n" in swap_output
                 or (b"SWAP\n" not in swap_output and b"SWAP\r\n" not in swap_output)):
             raise RegressionFailure(f"UEFI: persisted bounded native swap did not preserve the expected byte exchange branch\n{guest._tail()}")
+        clz_start = len(guest.output)
+        guest.command("run release-clz", "exited with status 63")
+        clz_output = bytes(guest.output[clz_start:])
+        if (b"bad\n" in clz_output or b"bad\r\n" in clz_output
+                or (b"CLZ\n" not in clz_output and b"CLZ\r\n" not in clz_output)):
+            raise RegressionFailure(f"UEFI: persisted bounded native clz did not preserve expected leading-zero branches\n{guest._tail()}")
         parity_start = len(guest.output)
         guest.command("run release-parity", "exited with status 62")
         parity_output = bytes(guest.output[parity_start:])
