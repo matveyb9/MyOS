@@ -778,10 +778,26 @@ static void draw_gui_clock(uint32_t text) {
     draw_gui_text(console.width - 112U, 12U, clock_text, text);
 }
 
+static const char *gui_focus_status_label(void) {
+    static const char *const labels[GUI_WINDOW_COUNT] = { "SYSTEM", "NOTES", "MONITOR" };
+
+    if (console.gui_launcher_active != 0) { return "HOME"; }
+    if (console.gui_focus >= GUI_WINDOW_COUNT) { return "UNKNOWN"; }
+    return labels[console.gui_focus];
+}
+
 static void draw_gui_status_bar(uint32_t top_bar, uint32_t text, const char *help) {
+    char focus[16] = "FOCUS ";
     char status[32] = "TASKS ";
+    const char *focus_label = gui_focus_status_label();
+    uint64_t focus_offset = 6U;
     uint64_t offset = 6U;
 
+    while (focus_label[focus_offset - 6U] != '\0' && focus_offset + 1U < sizeof(focus)) {
+        focus[focus_offset] = focus_label[focus_offset - 6U];
+        focus_offset++;
+    }
+    focus[focus_offset] = '\0';
     offset += gui_format_decimal(status + offset, sizeof(status) - offset, console.gui_task_count);
     if (offset + 5U < sizeof(status)) {
         status[offset++] = ' ';
@@ -793,6 +809,7 @@ static void draw_gui_status_bar(uint32_t top_bar, uint32_t text, const char *hel
     }
     fill_rect(20U, console.height - 44U, console.width - 40U, 24U, top_bar);
     draw_gui_text(30U, console.height - 36U, help, text);
+    draw_gui_text(console.width - 224U, console.height - 36U, focus, text);
     draw_gui_text(console.width - 124U, console.height - 36U, status, text);
 }
 

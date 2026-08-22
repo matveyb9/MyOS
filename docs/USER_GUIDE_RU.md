@@ -220,7 +220,7 @@ MYPFS004 выделяет storage лениво и растит file по мер�
 | `spawn` | `spawn sleeper 3` | Запустить program в фоне. |
 | `wait` / `kill` | `wait 4`, `kill 4` | Ждать или остановить дочерний процесс. |
 | `set` / `get` / `env` | `set NAME MyOS` | Работать с environment variables. |
-| `startgui` | `startgui` | Запустить experimental framebuffer GUI. Нажмите `FILES`, чтобы просматривать logical VFS от `/users/myos/`; rows `[NEW FILE]` и `[NEW FOLDER]` принимают имя до 63 printable ASCII bytes без `/` только в `/users/myos`, `/temp`, `/system/data` или `/system/config`. Первый создаёт new empty file и открывает его в GUI editor; второй создаёт directory и обновляет browser. Existing writable text files до 16 KiB также открываются там. |
+| `startgui` | `startgui` | Запустить experimental framebuffer GUI. Его footer показывает bounded active surface как `FOCUS HOME`, `FOCUS SYSTEM`, `FOCUS NOTES` или `FOCUS MONITOR`. Нажмите `FILES`, чтобы просматривать logical VFS от `/users/myos/`; rows `[NEW FILE]` и `[NEW FOLDER]` принимают имя до 63 printable ASCII bytes без `/` только в `/users/myos`, `/temp`, `/system/data` или `/system/config`. Первый создаёт new empty file и открывает его в GUI editor; второй создаёт directory и обновляет browser. Existing writable text files до 16 KiB также открываются там. |
 | `reboot` / `poweroff` | `reboot` | Перезагрузить или выключить виртуальную машину. |
 | `clear` | `clear` | Очистить text console. |
 

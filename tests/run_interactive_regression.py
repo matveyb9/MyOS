@@ -420,6 +420,7 @@ class Guest:
         self.qmp_hotkey("alt", "tab")
         focused = self.qmp_screendump("hotkeys-alt-tab")
         self.require_pixel_transition(viewer, focused, 640, 96, "Alt+Tab MONITOR focus")
+        self.require_region_transition(viewer, focused, 1098, 764, 56, 7, "Alt+Tab footer focus indicator")
         self.qmp_hotkey("alt", "f4")
         monitor_closed = self.qmp_screendump("hotkeys-alt-f4-monitor-closed")
         self.require_framebuffer_transition(focused, monitor_closed, "Alt+F4 focused MONITOR close")
