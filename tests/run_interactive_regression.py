@@ -95,6 +95,11 @@ DEC_ELF_PATH = "/users/myos/projects/release-dec.elf"
 DEC_APP_PATH = "/apps/release-dec/main.elf"
 INVALID_DEC_SOURCE_PATH = "/temp/release-dec-invalid.mya"
 INVALID_DEC_ELF_PATH = "/users/myos/projects/release-dec-invalid.elf"
+SWAP_SOURCE_PATH = "/temp/release-swap.mya"
+SWAP_ELF_PATH = "/users/myos/projects/release-swap.elf"
+SWAP_APP_PATH = "/apps/release-swap/main.elf"
+INVALID_SWAP_SOURCE_PATH = "/temp/release-swap-invalid.mya"
+INVALID_SWAP_ELF_PATH = "/users/myos/projects/release-swap-invalid.elf"
 INVALID_DIVISION_SOURCE_PATH = "/temp/release-division-invalid.mya"
 INVALID_DIVISION_ELF_PATH = "/users/myos/projects/release-division-invalid.elf"
 CMP_SOURCE_PATH = "/temp/release-cmp.mya"
@@ -1008,6 +1013,16 @@ def run_bios(image_path, work_dir):
         if (b"bad\n" in dec_output or b"bad\r\n" in dec_output
                 or (b"DEC\n" not in dec_output and b"DEC\r\n" not in dec_output)):
             raise RegressionFailure(f"BIOS: bounded native dec did not preserve the expected wrapping byte branch\n{guest._tail()}")
+        swap_source = 'set 73;store 4;set 12;swap 4;jump_if 73 swapped;write "bad\\n";jump done;label swapped:;write "SWAP\\n";label done:;exit 60'
+        guest.console_edit_and_save(SWAP_SOURCE_PATH, swap_source.encode("ascii"))
+        guest.command(f"build {SWAP_SOURCE_PATH} {SWAP_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {SWAP_ELF_PATH} {SWAP_APP_PATH}", "exited with status 0")
+        swap_start = len(guest.output)
+        guest.command("run release-swap", "exited with status 60")
+        swap_output = bytes(guest.output[swap_start:])
+        if (b"bad\n" in swap_output or b"bad\r\n" in swap_output
+                or (b"SWAP\n" not in swap_output and b"SWAP\r\n" not in swap_output)):
+            raise RegressionFailure(f"BIOS: bounded native swap did not preserve the expected byte exchange branch\n{guest._tail()}")
         cmp_source = 'set 73;store 5;set 73;cmp 5;jump_if_zero equal;write "bad\\n";jump after_equal;label equal:;write "EQ\\n";label after_equal:;set 72;cmp 5;jump_if_nonzero different;write "bad\\n";jump done;label different:;write "NE\\n";label done:;exit 51'
         guest.console_edit_and_save(CMP_SOURCE_PATH, cmp_source.encode("ascii"))
         guest.command(f"build {CMP_SOURCE_PATH} {CMP_ELF_PATH}", "exited with status 0")
@@ -1066,10 +1081,15 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {INVALID_MOD_SOURCE_PATH} {INVALID_MOD_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_NEG_SOURCE_PATH} neg;exit 0")
         guest.command(f"build {INVALID_NEG_SOURCE_PATH} {INVALID_NEG_ELF_PATH}", diagnostic)
+        guest.command(f"rm {INVALID_NEG_SOURCE_PATH}")
         guest.command(f"write {INVALID_INC_SOURCE_PATH} inc;exit 0")
         guest.command(f"build {INVALID_INC_SOURCE_PATH} {INVALID_INC_ELF_PATH}", diagnostic)
+        guest.command(f"rm {INVALID_INC_SOURCE_PATH}")
         guest.command(f"write {INVALID_DEC_SOURCE_PATH} dec;exit 0")
         guest.command(f"build {INVALID_DEC_SOURCE_PATH} {INVALID_DEC_ELF_PATH}", diagnostic)
+        guest.command(f"write {INVALID_SWAP_SOURCE_PATH} swap 0;exit 0")
+        guest.command(f"build {INVALID_SWAP_SOURCE_PATH} {INVALID_SWAP_ELF_PATH}", diagnostic)
+        guest.command(f"rm {INVALID_SWAP_SOURCE_PATH}")
         guest.command(f"rm {INVALID_DEC_SOURCE_PATH}")
         guest.command(f"write {INVALID_CMP_SOURCE_PATH} cmp 0;exit 0")
         guest.command(f"build {INVALID_CMP_SOURCE_PATH} {INVALID_CMP_ELF_PATH}", diagnostic)
@@ -1267,6 +1287,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if (b"bad\n" in dec_output or b"bad\r\n" in dec_output
                 or (b"DEC\n" not in dec_output and b"DEC\r\n" not in dec_output)):
             raise RegressionFailure(f"UEFI: persisted bounded native dec did not preserve the expected wrapping byte branch\n{guest._tail()}")
+        swap_start = len(guest.output)
+        guest.command("run release-swap", "exited with status 60")
+        swap_output = bytes(guest.output[swap_start:])
+        if (b"bad\n" in swap_output or b"bad\r\n" in swap_output
+                or (b"SWAP\n" not in swap_output and b"SWAP\r\n" not in swap_output)):
+            raise RegressionFailure(f"UEFI: persisted bounded native swap did not preserve the expected byte exchange branch\n{guest._tail()}")
         cmp_start = len(guest.output)
         guest.command("run release-cmp", "exited with status 51")
         cmp_output = bytes(guest.output[cmp_start:])
