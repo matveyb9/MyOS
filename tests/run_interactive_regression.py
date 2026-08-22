@@ -105,6 +105,11 @@ TEST_ELF_PATH = "/users/myos/projects/release-test.elf"
 TEST_APP_PATH = "/apps/release-test/main.elf"
 INVALID_TEST_SOURCE_PATH = "/temp/release-test-invalid.mya"
 INVALID_TEST_ELF_PATH = "/users/myos/projects/release-test-invalid.elf"
+PARITY_SOURCE_PATH = "/temp/release-parity.mya"
+PARITY_ELF_PATH = "/users/myos/projects/release-parity.elf"
+PARITY_APP_PATH = "/apps/release-parity/main.elf"
+INVALID_PARITY_SOURCE_PATH = "/temp/release-parity-invalid.mya"
+INVALID_PARITY_ELF_PATH = "/users/myos/projects/release-parity-invalid.elf"
 INVALID_DIVISION_SOURCE_PATH = "/temp/release-division-invalid.mya"
 INVALID_DIVISION_ELF_PATH = "/users/myos/projects/release-division-invalid.elf"
 CMP_SOURCE_PATH = "/temp/release-cmp.mya"
@@ -1028,6 +1033,16 @@ def run_bios(image_path, work_dir):
         if (b"bad\n" in swap_output or b"bad\r\n" in swap_output
                 or (b"SWAP\n" not in swap_output and b"SWAP\r\n" not in swap_output)):
             raise RegressionFailure(f"BIOS: bounded native swap did not preserve the expected byte exchange branch\n{guest._tail()}")
+        parity_source = 'set 3;parity;jump_if_nonzero even;write "bad\\n";jump done;label even:;set 1;parity;jump_if_zero odd;write "bad\\n";jump done;label odd:;write "PARITY\\n";label done:;exit 62'
+        guest.console_edit_and_save(PARITY_SOURCE_PATH, parity_source.encode("ascii"))
+        guest.command(f"build {PARITY_SOURCE_PATH} {PARITY_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {PARITY_ELF_PATH} {PARITY_APP_PATH}", "exited with status 0")
+        parity_start = len(guest.output)
+        guest.command("run release-parity", "exited with status 62")
+        parity_output = bytes(guest.output[parity_start:])
+        if (b"bad\n" in parity_output or b"bad\r\n" in parity_output
+                or (b"PARITY\n" not in parity_output and b"PARITY\r\n" not in parity_output)):
+            raise RegressionFailure(f"BIOS: bounded native parity did not preserve expected even and odd byte branches\n{guest._tail()}")
         test_source = 'set 160;test 128;jump_if_nonzero matched;write "bad\\n";jump done;label matched:;set 160;test 15;jump_if_zero clear;write "bad\\n";jump done;label clear:;write "TEST\\n";label done:;exit 61'
         guest.console_edit_and_save(TEST_SOURCE_PATH, test_source.encode("ascii"))
         guest.command(f"build {TEST_SOURCE_PATH} {TEST_ELF_PATH}", "exited with status 0")
@@ -1094,6 +1109,13 @@ def run_bios(image_path, work_dir):
         guest.command(f"build {INVALID_MOD_SOURCE_PATH} {INVALID_MOD_ELF_PATH}", diagnostic)
         guest.command(f"write {INVALID_MOD_SOURCE_PATH} set 1;mod 0;exit 0")
         guest.command(f"build {INVALID_MOD_SOURCE_PATH} {INVALID_MOD_ELF_PATH}", diagnostic)
+        for temporary_source in (BACKWARD_SOURCE_PATH, MISSING_SET_SOURCE_PATH, CONDITIONAL_BACKWARD_SOURCE_PATH,
+                                 INVALID_VARIABLE_SOURCE_PATH, INVALID_ARITHMETIC_SOURCE_PATH,
+                                 INVALID_BITWISE_SOURCE_PATH, INVALID_XOR_SOURCE_PATH,
+                                 INVALID_XOR_BOUND_SOURCE_PATH, INVALID_SHIFT_SOURCE_PATH,
+                                 INVALID_ROTATE_SOURCE_PATH, INVALID_DIVISION_SOURCE_PATH,
+                                 INVALID_MOD_SOURCE_PATH):
+            guest.command(f"rm {temporary_source}")
         guest.command(f"write {INVALID_NEG_SOURCE_PATH} neg;exit 0")
         guest.command(f"build {INVALID_NEG_SOURCE_PATH} {INVALID_NEG_ELF_PATH}", diagnostic)
         guest.command(f"rm {INVALID_NEG_SOURCE_PATH}")
@@ -1109,6 +1131,9 @@ def run_bios(image_path, work_dir):
         guest.command(f"write {INVALID_TEST_SOURCE_PATH} test 1;exit 0")
         guest.command(f"build {INVALID_TEST_SOURCE_PATH} {INVALID_TEST_ELF_PATH}", diagnostic)
         guest.command(f"rm {INVALID_TEST_SOURCE_PATH}")
+        guest.command(f"write {INVALID_PARITY_SOURCE_PATH} parity;exit 0")
+        guest.command(f"build {INVALID_PARITY_SOURCE_PATH} {INVALID_PARITY_ELF_PATH}", diagnostic)
+        guest.command(f"rm {INVALID_PARITY_SOURCE_PATH}")
         guest.command(f"write {INVALID_CMP_SOURCE_PATH} cmp 0;exit 0")
         guest.command(f"build {INVALID_CMP_SOURCE_PATH} {INVALID_CMP_ELF_PATH}", diagnostic)
         guest.command(f"rm {INVALID_CMP_SOURCE_PATH}")
@@ -1311,6 +1336,12 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if (b"bad\n" in swap_output or b"bad\r\n" in swap_output
                 or (b"SWAP\n" not in swap_output and b"SWAP\r\n" not in swap_output)):
             raise RegressionFailure(f"UEFI: persisted bounded native swap did not preserve the expected byte exchange branch\n{guest._tail()}")
+        parity_start = len(guest.output)
+        guest.command("run release-parity", "exited with status 62")
+        parity_output = bytes(guest.output[parity_start:])
+        if (b"bad\n" in parity_output or b"bad\r\n" in parity_output
+                or (b"PARITY\n" not in parity_output and b"PARITY\r\n" not in parity_output)):
+            raise RegressionFailure(f"UEFI: persisted bounded native parity did not preserve expected even and odd byte branches\n{guest._tail()}")
         test_start = len(guest.output)
         guest.command("run release-test", "exited with status 61")
         test_output = bytes(guest.output[test_start:])
