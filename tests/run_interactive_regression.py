@@ -647,6 +647,35 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_files_delete_empty_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        # DELETE is directly below NEW FOLDER. It removes the zero-byte
+        # guinew fixture created by the earlier File Workspace workflow.
+        self.qmp_move(delta_x=229)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        browser = self.qmp_screendump("files-delete-browser")
+        self.qmp_move(delta_x=-370, delta_y=26)
+        time.sleep(0.10)
+        delete_ready = self.qmp_screendump("files-delete-ready")
+        self.qmp_left_click()
+        time.sleep(0.25)
+        prompt = self.qmp_screendump("files-delete-prompt")
+        self.require_small_framebuffer_transition(browser, prompt, "FILES DELETE prompt")
+        self.require_region_transition(delete_ready, prompt, 330, 245, 200, 36, "FILES DELETE action")
+        for key in ("g", "u", "i", "n", "e", "w"):
+            self.qmp_press(key)
+        self.qmp_press("ret")
+        time.sleep(0.25)
+        deleted = self.qmp_screendump("files-delete-refresh")
+        self.require_region_transition(prompt, deleted, 330, 210, 200, 72, "FILES delete refresh")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_mouse_window_chrome_and_exit(self):
         start = len(self.output)
         self.send(f"startgui {NOTE_PATH}\n")
@@ -828,6 +857,8 @@ def run_bios(image_path, work_dir):
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "0 bytes")
         guest.gui_files_create_folder_and_exit()
         guest.command(f"stat {GUI_NEW_FOLDER_PATH}", "type: directory")
+        guest.gui_files_delete_empty_and_exit()
+        guest.command(f"stat {GUI_NEW_FILE_PATH}", "stat: path not found")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
         guest.gui_open_and_exit("startgui home")
@@ -1396,7 +1427,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_live_clock_and_exit()
         guest.gui_mouse_notes_and_exit()
         guest.gui_files_launcher_and_exit()
-        guest.command(f"stat {GUI_NEW_FILE_PATH}", "0 bytes")
+        guest.command(f"stat {GUI_NEW_FILE_PATH}", "stat: path not found")
         guest.command(f"stat {GUI_NEW_FOLDER_PATH}", "type: directory")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
