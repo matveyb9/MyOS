@@ -36,6 +36,7 @@
 #define MYOS_SYS_VFS_CREATE_DIRECTORY UINT64_C(31)
 #define MYOS_SYS_VFS_WRITE UINT64_C(32)
 #define MYOS_SYS_VFS_REMOVE UINT64_C(33)
+#define MYOS_SYS_VFS_RENAME UINT64_C(34)
 
 #define MYOS_GUI_BEGIN UINT64_C(0)
 #define MYOS_GUI_INPUT UINT64_C(1)
@@ -74,6 +75,7 @@
 #define MYOS_INPUT_GUI_ACTION_BROWSER_REMOVE UINT8_C(0x9c)
 #define MYOS_INPUT_GUI_ACTION_BROWSER_COPY UINT8_C(0x9d)
 #define MYOS_INPUT_GUI_ACTION_BROWSER_SEARCH UINT8_C(0x9e)
+#define MYOS_INPUT_GUI_ACTION_BROWSER_RENAME UINT8_C(0x9f)
 
 #define MYOS_EXIT_STATUS_KILLED UINT64_C(137)
 
@@ -164,6 +166,11 @@ struct myos_vfs_write_request {
     uint64_t length;
     char path[MYOS_VFS_PATH_MAX];
     uint8_t data[MYOS_VFS_READ_CHUNK];
+};
+
+struct myos_vfs_rename_request {
+    char source[MYOS_VFS_PATH_MAX];
+    char target[MYOS_VFS_PATH_MAX];
 };
 
 struct myos_gui_content_request {

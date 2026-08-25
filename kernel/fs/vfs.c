@@ -1585,7 +1585,6 @@ static int tmp_has_child(uint16_t parent) {
 int vfs_remove_object(const char *path) {
     struct path_parts parts;
     struct vfs_target target;
-
     if (parse_path(path, &parts) == 0 || resolve_mutable(&parts, &target) == 0) { return 0; }
     if (target.kind == TARGET_PERSIST && target.index >= 12U) {
         if (persistent_nodes[target.index].type == VFS_OBJECT_DIRECTORY && persistent_has_child(target.index) != 0) { return 0; }
@@ -1600,6 +1599,50 @@ int vfs_remove_object(const char *path) {
     }
     return 0;
 }
+int vfs_rename_object(const char *source, const char *target) {
+    struct path_parts source_parts;
+    struct path_parts target_parts;
+    struct vfs_target source_object;
+    struct vfs_target source_parent;
+    struct vfs_target target_parent;
+    const char *source_name;
+    const char *target_name;
+    uint64_t target_length;
+    int existing;
+
+    if (parse_path(source, &source_parts) == 0 || parse_path(target, &target_parts) == 0
+        || resolve_mutable(&source_parts, &source_object) == 0
+        || resolve_parent(&source_parts, &source_parent, &source_name) == 0
+        || resolve_parent(&target_parts, &target_parent, &target_name) == 0
+        || source_parent.kind != target_parent.kind || source_parent.index != target_parent.index) {
+        return 0;
+    }
+    target_length = text_length(target_name, VFS_NAME_MAX);
+    if (source_object.kind == TARGET_PERSIST && source_object.index >= 12U
+        && source_parent.kind == TARGET_PERSIST) {
+        existing = persistent_find_child(source_parent.index, target_name);
+        if (existing >= 0 && (uint16_t)existing != source_object.index) { return 0; }
+        text_copy(persistent_nodes[source_object.index].name, VFS_NAME_MAX, target_name);
+        persistent_nodes[source_object.index].name_length = (uint8_t)target_length;
+        return persistent_store_node(source_object.index);
+    }
+    if (source_object.kind == TARGET_TEMP && source_parent.kind == TARGET_TEMP) {
+        existing = tmp_find_child(source_parent.index, target_name);
+        if (existing >= 0 && (uint16_t)existing != source_object.index) { return 0; }
+        text_copy(tmp_nodes[source_object.index].name, VFS_NAME_MAX, target_name);
+        tmp_nodes[source_object.index].name_length = (uint8_t)target_length;
+        return 1;
+    }
+    if (source_object.kind == TARGET_TEMP && source_parent.kind == TARGET_TEMP_ROOT) {
+        existing = tmp_find_child(TMP_PARENT_ROOT, target_name);
+        if (existing >= 0 && (uint16_t)existing != source_object.index) { return 0; }
+        text_copy(tmp_nodes[source_object.index].name, VFS_NAME_MAX, target_name);
+        tmp_nodes[source_object.index].name_length = (uint8_t)target_length;
+        return 1;
+    }
+    return 0;
+}
+
 
 int vfs_get_entry(uint64_t index, char *name, uint64_t name_capacity, uint64_t *size) {
     struct vfs_directory_entry entry;

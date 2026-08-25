@@ -29,6 +29,10 @@ static char browser_copy_source_name[MYOS_VFS_NAME_MAX];
 static uint64_t browser_copy_source_length;
 static int browser_prompt_is_copy;
 static int browser_copy_prompt_for_target;
+static char browser_rename_source_name[MYOS_VFS_NAME_MAX];
+static uint64_t browser_rename_source_length;
+static int browser_prompt_is_rename;
+static int browser_rename_prompt_for_target;
 static int browser_prompt_is_search;
 static int browser_search_results_active;
 static uint64_t browser_search_indices[MYOS_GUI_BROWSER_ENTRY_MAX];
@@ -519,7 +523,7 @@ static void show_file_browser(void) {
     content_append_text(gui_scratch_data, &length, browser_has_next_page() != 0 ? "[NEXT]" : "-", 6U);
     content_append_char(gui_scratch_data, &length, '\n');
     {
-        static const char browser_actions[] = "[NEW FILE]\n[NEW FOLDER]\n[DELETE]\n[COPY]\n[SEARCH]";
+        static const char browser_actions[] = "[NEW FILE]\n[NEW FOLDER]\n[DELETE]\n[COPY]\n[RENAME]\n[SEARCH]";
 
         content_append_text(gui_scratch_data, &length, browser_actions, sizeof(browser_actions) - 1U);
     }
@@ -542,9 +546,10 @@ static void show_browser_new_file_prompt(void) {
         content_append_text(gui_scratch_data, &length,
                             browser_copy_prompt_for_target != 0 ? "COPY\nTO: " : "COPY\nFROM: ",
                             browser_copy_prompt_for_target != 0 ? 9U : 11U);
-        for (uint64_t index = 0U; index < browser_new_file_length; index++) {
-            content_append_char(gui_scratch_data, &length, browser_new_file_name[index]);
-        }
+    } else if (browser_prompt_is_rename != 0) {
+        content_append_text(gui_scratch_data, &length,
+                            browser_rename_prompt_for_target != 0 ? "RENAME\nTO: " : "RENAME\nFROM: ",
+                            browser_rename_prompt_for_target != 0 ? 11U : 13U);
     } else if (browser_prompt_is_remove != 0 && browser_remove_confirmation != 0) {
         content_append_text(gui_scratch_data, &length, "DELETE ", 7U);
         for (uint64_t index = 0U; index < browser_new_file_length; index++) {
@@ -588,6 +593,20 @@ static int browser_remove_named_entry(void) {
         return 0;
     }
     return system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) != UINT64_MAX;
+}
+static int browser_rename_named_object(void) {
+    struct myos_vfs_rename_request request = { { 0 }, { 0 } };
+    char source_path[MYOS_VFS_PATH_MAX] = { 0 };
+    char target_path[MYOS_VFS_PATH_MAX] = { 0 };
+
+    if (browser_directory_is_writable() == 0 || browser_rename_source_length == 0U
+        || browser_new_file_length == 0U
+        || browser_make_child_path(source_path, browser_rename_source_name) == 0
+        || browser_make_child_path(target_path, browser_new_file_name) == 0
+        || make_path(request.source, source_path) == 0 || make_path(request.target, target_path) == 0) {
+        return 0;
+    }
+    return system_call(MYOS_SYS_VFS_RENAME, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) != UINT64_MAX;
 }
 
 static int browser_names_equal_ascii(const char *left, const char *right) {
@@ -1021,6 +1040,7 @@ void _start(uint64_t argc, const char *arguments) {
                     const int create_directory = browser_new_entry_is_directory;
                     const int remove_entry = browser_prompt_is_remove;
                     const int copy_entry = browser_prompt_is_copy;
+                    const int rename_entry = browser_prompt_is_rename;
                     const int search_entry = browser_prompt_is_search;
                     int editor_result;
 
@@ -1052,6 +1072,23 @@ void _start(uint64_t argc, const char *arguments) {
                         show_browser_new_file_prompt();
                         continue;
                     }
+                    if (rename_entry != 0 && browser_rename_prompt_for_target == 0) {
+                        if (browser_new_file_length == 0U) {
+                            browser_new_file_mode = 0;
+                            browser_prompt_is_rename = 0;
+                            set_viewer_status("UNABLE TO RENAME");
+                            continue;
+                        }
+                        for (uint64_t index = 0U; index <= browser_new_file_length; index++) {
+                            browser_rename_source_name[index] = browser_new_file_name[index];
+                        }
+                        browser_rename_source_length = browser_new_file_length;
+                        browser_new_file_length = 0U;
+                        browser_new_file_name[0] = '\0';
+                        browser_rename_prompt_for_target = 1;
+                        show_browser_new_file_prompt();
+                        continue;
+                    }
                     if (remove_entry != 0 && browser_remove_confirmation == 0) {
                         if (browser_new_file_length == 0U || browser_directory_is_writable() == 0) {
                             browser_new_file_mode = 0;
@@ -1065,15 +1102,19 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_file_mode = 0;
                     browser_remove_confirmation = 0;
                     browser_prompt_is_copy = 0;
+                    browser_prompt_is_rename = 0;
+                    browser_rename_prompt_for_target = 0;
                     browser_prompt_is_search = 0;
                     if ((copy_entry != 0 ? browser_copy_named_file()
-                         : (remove_entry != 0 ? browser_remove_named_entry() : browser_create_empty_entry())) == 0) {
+                         : (rename_entry != 0 ? browser_rename_named_object()
+                            : (remove_entry != 0 ? browser_remove_named_entry() : browser_create_empty_entry()))) == 0) {
                         set_viewer_status(copy_entry != 0 ? "UNABLE TO COPY"
-                                          : (remove_entry != 0 ? "UNABLE TO DELETE"
-                                             : (create_directory != 0 ? "UNABLE TO CREATE DIRECTORY" : "UNABLE TO CREATE FILE")));
+                                          : (rename_entry != 0 ? "UNABLE TO RENAME"
+                                             : (remove_entry != 0 ? "UNABLE TO DELETE"
+                                                : (create_directory != 0 ? "UNABLE TO CREATE DIRECTORY" : "UNABLE TO CREATE FILE"))));
                         continue;
                     }
-                    if (copy_entry != 0 || remove_entry != 0 || create_directory != 0) {
+                    if (copy_entry != 0 || rename_entry != 0 || remove_entry != 0 || create_directory != 0) {
                         home_mode = 0;
                         show_file_browser();
                         continue;
@@ -1212,6 +1253,7 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_entry_is_directory = (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE_DIRECTORY;
                     browser_prompt_is_remove = 0;
                     browser_prompt_is_copy = 0;
+                    browser_prompt_is_rename = 0;
                     browser_prompt_is_search = 0;
                     browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
@@ -1226,6 +1268,7 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_entry_is_directory = 0;
                     browser_prompt_is_remove = 1;
                     browser_prompt_is_copy = 0;
+                    browser_prompt_is_rename = 0;
                     browser_prompt_is_search = 0;
                     browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
@@ -1242,8 +1285,27 @@ void _start(uint64_t argc, const char *arguments) {
                     browser_new_entry_is_directory = 0;
                     browser_prompt_is_remove = 0;
                     browser_prompt_is_copy = 1;
+                    browser_prompt_is_rename = 0;
                     browser_prompt_is_search = 0;
                     browser_copy_prompt_for_target = 0;
+                    browser_remove_confirmation = 0;
+                    browser_new_file_mode = 1;
+                    show_browser_new_file_prompt();
+                } else if (browser_mode != 0) {
+                    set_viewer_status("READ ONLY DIRECTORY");
+                }
+            } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_RENAME) {
+                if (browser_mode != 0 && browser_directory_is_writable() != 0) {
+                    browser_new_file_length = 0U;
+                    browser_new_file_name[0] = '\0';
+                    browser_rename_source_length = 0U;
+                    browser_rename_source_name[0] = '\0';
+                    browser_new_entry_is_directory = 0;
+                    browser_prompt_is_remove = 0;
+                    browser_prompt_is_copy = 0;
+                    browser_prompt_is_rename = 1;
+                    browser_prompt_is_search = 0;
+                    browser_rename_prompt_for_target = 0;
                     browser_remove_confirmation = 0;
                     browser_new_file_mode = 1;
                     show_browser_new_file_prompt();

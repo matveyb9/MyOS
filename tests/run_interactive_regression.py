@@ -136,6 +136,7 @@ GREP_MATCH_PATH = "/users/myos/files/grep-harness.txt"
 GUI_NEW_FILE_PATH = "/users/myos/guinew"
 GUI_COPY_SOURCE_PATH = "/users/myos/guicopysource"
 GUI_COPY_FILE_PATH = "/users/myos/guicopytarget"
+GUI_RENAME_TARGET_PATH = "/users/myos/guirenamed"
 GUI_NEW_FOLDER_PATH = "/users/myos/guidir"
 GUI_EDITOR_FIXTURE_PATH = "/system/core/resources/gui-16k.txt"
 GUI_EDITOR_FIXTURE_PAYLOAD = b"0123456789abcdef" * 1024
@@ -720,17 +721,49 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_files_rename_and_exit(self):
+        start = len(self.output)
+        self.send("startgui\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        self.qmp_move(delta_x=229)
+        self.qmp_left_click()
+        time.sleep(0.25)
+        browser = self.qmp_screendump("files-rename-browser")
+        # RENAME is directly below COPY in the fixed File Workspace action area.
+        # This mouse path verifies the framebuffer row-to-action mapping as well
+        # as the ring-3 two-step rename prompt.
+        self.qmp_move(delta_x=-370, delta_y=2)
+        time.sleep(0.10)
+        rename_ready = self.qmp_screendump("files-rename-ready")
+        self.qmp_left_click()
+        time.sleep(0.25)
+        source_prompt = self.qmp_screendump("files-rename-source-prompt")
+        self.require_small_framebuffer_transition(browser, source_prompt, "FILES RENAME source prompt")
+        self.require_region_transition(rename_ready, source_prompt, 330, 245, 200, 36, "FILES RENAME action")
+        self.send("guicopytarget\n")
+        time.sleep(0.25)
+        target_prompt = self.qmp_screendump("files-rename-target-prompt")
+        self.require_region_transition(source_prompt, target_prompt, 330, 210, 200, 60, "FILES RENAME target prompt")
+        self.send("guirenamed\n")
+        time.sleep(0.25)
+        renamed = self.qmp_screendump("files-rename-refresh")
+        self.require_region_transition(target_prompt, renamed, 330, 210, 200, 84, "FILES rename refresh")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_files_search_and_exit(self):
         start = len(self.output)
         self.send("startgui\n")
         self.expect("Started process ", start)
         time.sleep(0.25)
-        # SEARCH is one row below COPY in the fixed File Workspace action area.
+        # RENAME now occupies the row below COPY, so SEARCH is two rows below COPY.
         self.qmp_move(delta_x=229)
         self.qmp_left_click()
         time.sleep(0.25)
         browser = self.qmp_screendump("files-search-browser")
-        self.qmp_move(delta_x=-370, delta_y=26)
+        self.qmp_move(delta_x=-370, delta_y=38)
         time.sleep(0.10)
         search_ready = self.qmp_screendump("files-search-ready")
         self.qmp_left_click()
@@ -975,6 +1008,9 @@ def run_bios(image_path, work_dir):
         guest.command(f"stat {GUI_COPY_FILE_PATH}", "16384 bytes")
         guest.gui_files_copy_existing_target_rejected_and_exit()
         guest.command(f"stat {GUI_COPY_FILE_PATH}", "16384 bytes")
+        guest.gui_files_rename_and_exit()
+        guest.command(f"stat {GUI_COPY_FILE_PATH}", "stat: path not found")
+        guest.command(f"stat {GUI_RENAME_TARGET_PATH}", "16384 bytes")
         guest.gui_files_search_and_exit()
         guest.gui_files_delete_empty_and_exit()
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "stat: path not found")
@@ -1548,7 +1584,8 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_files_launcher_and_exit()
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "stat: path not found")
         guest.command(f"stat {GUI_COPY_SOURCE_PATH}", "16384 bytes")
-        guest.command(f"stat {GUI_COPY_FILE_PATH}", "16384 bytes")
+        guest.command(f"stat {GUI_COPY_FILE_PATH}", "stat: path not found")
+        guest.command(f"stat {GUI_RENAME_TARGET_PATH}", "16384 bytes")
         guest.command(f"stat {GUI_NEW_FOLDER_PATH}", "type: directory")
         guest.gui_mouse_window_chrome_and_exit()
         guest.gui_mouse_editor_close_and_exit()
