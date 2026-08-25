@@ -126,16 +126,29 @@ static int project_argument_requested(const char *arguments) {
     return 1;
 }
 
-static int make_project_workspace_path(char *destination, const char *arguments) {
+static int make_project_workspace_path(char *destination, const char *arguments, int *editor_requested) {
     struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
-    const char *name;
+    char name[32] = { 0 };
+    const char *argument_name;
+    uint64_t name_length = 0U;
     uint64_t offset = 0U;
 
-    if (destination == (char *)0 || project_argument_requested(arguments) == 0) {
+    if (destination == (char *)0 || editor_requested == (int *)0 || project_argument_requested(arguments) == 0) {
         return 0;
     }
-    name = arguments + 8U;
+    argument_name = arguments + 8U;
+    while (name_length < 31U && argument_name[name_length] != '\0' && argument_name[name_length] != ' ') {
+        name[name_length] = argument_name[name_length];
+        name_length++;
+    }
     if (project_name_is_valid(name) == 0) { return 0; }
+    if (argument_name[name_length] == '\0') {
+        *editor_requested = 0;
+    } else if (text_equal(argument_name + name_length, " edit") != 0) {
+        *editor_requested = 1;
+    } else {
+        return 0;
+    }
     while (GUI_BROWSER_PROJECT_PATH[offset] != '\0') {
         destination[offset] = GUI_BROWSER_PROJECT_PATH[offset];
         offset++;
@@ -151,6 +164,44 @@ static int make_project_workspace_path(char *destination, const char *arguments)
         }
         if (request.entry.type == MYOS_VFS_OBJECT_DIRECTORY && text_equal(request.entry.name, name) != 0) {
             return 1;
+        }
+    }
+    return 0;
+}
+
+static int make_project_source_path(char *destination, const char *project_path) {
+    uint64_t offset = 0U;
+
+    if (destination == (char *)0 || project_path == (const char *)0) { return 0; }
+    while (project_path[offset] != '\0' && offset + 1U < MYOS_VFS_PATH_MAX) {
+        destination[offset] = project_path[offset];
+        offset++;
+    }
+    if (project_path[offset] != '\0' || offset + 10U >= MYOS_VFS_PATH_MAX) { return 0; }
+    destination[offset++] = '/';
+    destination[offset++] = 'm';
+    destination[offset++] = 'a';
+    destination[offset++] = 'i';
+    destination[offset++] = 'n';
+    destination[offset++] = '.';
+    destination[offset++] = 'm';
+    destination[offset++] = 'y';
+    destination[offset++] = 'a';
+    destination[offset] = '\0';
+    return 1;
+}
+
+static int project_source_is_regular(const char *project_path) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+
+    if (make_path(request.path, project_path) == 0) { return 0; }
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            return 0;
+        }
+        if (text_equal(request.entry.name, "main.mya") != 0) {
+            return request.entry.type == MYOS_VFS_OBJECT_REGULAR;
         }
     }
     return 0;
@@ -1101,13 +1152,16 @@ static int edit_selected_disk_file(void) {
 
 void _start(uint64_t argc, const char *arguments) {
     char project_path[MYOS_VFS_PATH_MAX] = { 0 };
+    char project_source_path[MYOS_VFS_PATH_MAX] = { 0 };
     uint64_t status = 0U;
     int home_mode = arguments[0] == '\0' || text_equal(arguments, "home");
     const int project_mode = text_equal(arguments, "projects");
     const int direct_project_request = project_argument_requested(arguments);
-    const int direct_project_mode = make_project_workspace_path(project_path, arguments);
+    int direct_project_editor = 0;
+    const int direct_project_mode = make_project_workspace_path(project_path, arguments, &direct_project_editor);
     int browser_mode = 0;
     int browser_new_file_mode = 0;
+    int session_finished = 0;
     const char *initial_path = arguments;
 
     (void)argc;
@@ -1119,7 +1173,23 @@ void _start(uint64_t argc, const char *arguments) {
         } else if (project_mode != 0 || direct_project_mode != 0) {
             browser_mode = 1;
             (void)browser_set_directory(direct_project_mode != 0 ? project_path : GUI_BROWSER_PROJECT_PATH);
-            show_file_browser();
+            if (direct_project_mode != 0 && direct_project_editor != 0) {
+                if (make_project_source_path(project_source_path, project_path) == 0
+                    || project_source_is_regular(project_path) == 0 || select_disk_path(project_source_path) == 0) {
+                    set_viewer_status("UNABLE TO OPEN PROJECT SOURCE");
+                } else {
+                    const int editor_result = edit_selected_disk_file();
+
+                    if (editor_result == GUI_EDITOR_RESULT_EXIT) {
+                        (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
+                        session_finished = 1;
+                    } else if (editor_result == GUI_EDITOR_RESULT_HOME) {
+                        show_file_browser();
+                    }
+                }
+            } else {
+                show_file_browser();
+            }
         } else if (direct_project_request != 0) {
             home_mode = 0;
             set_viewer_status("UNABLE TO OPEN PROJECT");
@@ -1129,7 +1199,7 @@ void _start(uint64_t argc, const char *arguments) {
             }
             load_viewer_file(initial_path);
         }
-        for (;;) {
+        while (session_finished == 0) {
             char character;
             const uint64_t read_result = system_call(MYOS_SYS_READ, 0U, (uint64_t)(uintptr_t)&character, 1U);
 

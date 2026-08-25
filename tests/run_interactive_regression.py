@@ -630,9 +630,21 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_direct_project_editor_and_exit(self, project_name):
+        start = len(self.output)
+        self.send(f"startgui project {project_name} edit\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        editor = self.qmp_screendump("direct-project-source-editor")
+        self.require_nonuniform_region(editor, 334, 210, 66, 7, "direct project source editor title")
+        self.require_nonuniform_region(editor, 330, 245, 200, 36, "direct project source editor content")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_invalid_project_workspace_and_exit(self):
         start = len(self.output)
-        self.send("startgui project no-such-project\n")
+        self.send("startgui project no-such-project edit\n")
         self.expect("Started process ", start)
         time.sleep(0.25)
         status = self.qmp_screendump("invalid-project-workspace-status")
@@ -1223,6 +1235,7 @@ def run_bios(image_path, work_dir):
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
         guest.command(f"projstatus {NEWPROJ_NAME}", "package: MISSING")
         guest.gui_direct_project_workspace_and_exit(NEWPROJ_NAME)
+        guest.gui_direct_project_editor_and_exit(NEWPROJ_NAME)
         guest.gui_invalid_project_workspace_and_exit()
         project_list_start = len(guest.output)
         guest.command("projlist", f"PROJECT {NEWPROJ_NAME}")
@@ -1722,6 +1735,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if NEWPROJ_TEMPLATE not in bytes(guest.output[newproj_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: persisted newproj template is not exact\\n{guest._tail()}")
         guest.gui_direct_project_workspace_and_exit(NEWPROJ_NAME)
+        guest.gui_direct_project_editor_and_exit(NEWPROJ_NAME)
         newproj_run_start = len(guest.output)
         guest.command(f"run {NEWPROJ_NAME}", "exited with status 0")
         newproj_run_output = bytes(guest.output[newproj_run_start:])
