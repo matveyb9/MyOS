@@ -126,16 +126,19 @@ static int project_argument_requested(const char *arguments) {
     return 1;
 }
 
-static int make_project_workspace_path(char *destination, const char *arguments, int *requested_mode) {
+static int make_project_workspace_path(char *destination, const char *arguments, int *requested_mode,
+                                       char *run_arguments) {
     struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
     char name[32] = { 0 };
     const char *argument_name;
     uint64_t name_length = 0U;
     uint64_t offset = 0U;
 
-    if (destination == (char *)0 || requested_mode == (int *)0 || project_argument_requested(arguments) == 0) {
+    if (destination == (char *)0 || requested_mode == (int *)0 || run_arguments == (char *)0
+        || project_argument_requested(arguments) == 0) {
         return 0;
     }
+    run_arguments[0] = '\0';
     argument_name = arguments + 8U;
     while (name_length < 31U && argument_name[name_length] != '\0' && argument_name[name_length] != ' ') {
         name[name_length] = argument_name[name_length];
@@ -150,6 +153,22 @@ static int make_project_workspace_path(char *destination, const char *arguments,
         *requested_mode = 2;
     } else if (text_equal(argument_name + name_length, " build") != 0) {
         *requested_mode = 3;
+    } else if (argument_name[name_length] == ' ') {
+        uint64_t run_length = 0U;
+        const char *tail = argument_name + name_length + 1U;
+
+        if (tail[0] != 'r' || tail[1] != 'u' || tail[2] != 'n' || (tail[3] != '\0' && tail[3] != ' ')) {
+            return 0;
+        }
+        tail += 3U;
+        if (tail[0] == ' ') { tail++; }
+        while (tail[run_length] != '\0' && run_length + 1U < MYOS_SPAWN_ARGUMENTS_MAX) {
+            run_arguments[run_length] = tail[run_length];
+            run_length++;
+        }
+        if (tail[run_length] != '\0') { return 0; }
+        run_arguments[run_length] = '\0';
+        *requested_mode = 4;
     } else {
         return 0;
     }
@@ -193,6 +212,22 @@ static int make_project_source_path(char *destination, const char *project_path)
     destination[offset++] = 'a';
     destination[offset] = '\0';
     return 1;
+}
+
+static int project_build_is_regular(const char *project_path) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+
+    if (make_path(request.path, project_path) == 0) { return 0; }
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            return 0;
+        }
+        if (text_equal(request.entry.name, "main.elf") != 0) {
+            return request.entry.type == MYOS_VFS_OBJECT_REGULAR;
+        }
+    }
+    return 0;
 }
 
 static int project_source_is_regular(const char *project_path) {
@@ -585,6 +620,30 @@ static int launch_project_build(const char *project_path, uint64_t *child_status
         request.arguments[argument_length++] = output[output_index++];
     }
     if (output[output_index] != '\0') { return 0; }
+    request.arguments[argument_length] = '\0';
+    child = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
+    if (child == UINT64_MAX) { return 0; }
+    (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
+    *child_status = system_call(MYOS_SYS_WAIT, child, 0U, 0U);
+    if (*child_status == UINT64_MAX) { *child_status = 1U; }
+    return 1;
+}
+
+static int launch_project_run(const char *project_path, const char *arguments, uint64_t *child_status) {
+    struct myos_spawn_request request = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
+    char output[MYOS_VFS_PATH_MAX] = { 0 };
+    uint64_t argument_length = 0U;
+    uint64_t child;
+
+    if (arguments == (const char *)0 || child_status == (uint64_t *)0 || make_project_build_path(output, project_path) == 0
+        || project_build_is_regular(project_path) == 0 || make_path(request.path, output) == 0) {
+        return 0;
+    }
+    while (arguments[argument_length] != '\0' && argument_length + 1U < MYOS_SPAWN_ARGUMENTS_MAX) {
+        request.arguments[argument_length] = arguments[argument_length];
+        argument_length++;
+    }
+    if (arguments[argument_length] != '\0') { return 0; }
     request.arguments[argument_length] = '\0';
     child = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
     if (child == UINT64_MAX) { return 0; }
@@ -1278,12 +1337,14 @@ static int edit_selected_disk_file(void) {
 void _start(uint64_t argc, const char *arguments) {
     char project_path[MYOS_VFS_PATH_MAX] = { 0 };
     char project_source_path[MYOS_VFS_PATH_MAX] = { 0 };
+    char project_run_arguments[MYOS_SPAWN_ARGUMENTS_MAX] = { 0 };
     uint64_t status = 0U;
     int home_mode = arguments[0] == '\0' || text_equal(arguments, "home");
     const int project_mode = text_equal(arguments, "projects");
     const int direct_project_request = project_argument_requested(arguments);
     int direct_project_view = 0;
-    const int direct_project_mode = make_project_workspace_path(project_path, arguments, &direct_project_view);
+    const int direct_project_mode = make_project_workspace_path(project_path, arguments, &direct_project_view,
+                                                                 project_run_arguments);
     int browser_mode = 0;
     int browser_new_file_mode = 0;
     int session_finished = 0;
@@ -1321,6 +1382,14 @@ void _start(uint64_t argc, const char *arguments) {
                     session_finished = 1;
                 } else {
                     set_viewer_status("UNABLE TO BUILD PROJECT");
+                }
+            } else if (direct_project_mode != 0 && direct_project_view == 4) {
+                if (project_build_is_regular(project_path) == 0) {
+                    set_viewer_status("UNABLE TO OPEN PROJECT OUTPUT");
+                } else if (launch_project_run(project_path, project_run_arguments, &status) != 0) {
+                    session_finished = 1;
+                } else {
+                    set_viewer_status("UNABLE TO RUN PROJECT");
                 }
             } else {
                 show_file_browser();

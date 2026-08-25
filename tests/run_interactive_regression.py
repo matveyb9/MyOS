@@ -637,6 +637,30 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_direct_project_run_and_exit(self, project_name, arguments, expected_output):
+        start = len(self.output)
+        command = f"startgui project {project_name} run"
+        if arguments:
+            command += f" {arguments}"
+        self.send(command + "\n")
+        self.expect("Started process ", start)
+        self.expect(expected_output, start)
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
+    def gui_direct_project_run_output_missing_and_exit(self, project_name):
+        start = len(self.output)
+        self.send(f"startgui project {project_name} run\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        if b"exited with status" in bytes(self.output[start:]):
+            raise RegressionFailure(f"GUI run missing-output request unexpectedly spawned a child\n{self._tail()}")
+        status = self.qmp_screendump("direct-project-run-output-missing-status")
+        self.require_nonuniform_region(status, 330, 210, 200, 24, "direct project run missing-output status")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_direct_project_build_source_missing_and_exit(self, project_name):
         start = len(self.output)
         self.send(f"startgui project {project_name} build\n")
@@ -1235,6 +1259,7 @@ def run_bios(image_path, work_dir):
         if ARGS_PROJ_TEMPLATE not in bytes(guest.output[args_template_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"BIOS: args newproj template is not exact\n{guest._tail()}")
         guest.command(f"buildproj {ARGS_PROJ_NAME}", "exited with status 0")
+        guest.gui_direct_project_run_and_exit(ARGS_PROJ_NAME, "starter args", "[starter args]")
         args_template_run_start = len(guest.output)
         guest.command(f"runproj {ARGS_PROJ_NAME} starter args", "exited with status 0")
         args_template_run_output = bytes(guest.output[args_template_run_start:])
@@ -1270,11 +1295,13 @@ def run_bios(image_path, work_dir):
         guest.command(f"projstatus {NEWPROJ_NAME}", "source: READY")
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
         guest.command(f"projstatus {NEWPROJ_NAME}", "package: MISSING")
+        guest.gui_direct_project_run_output_missing_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_workspace_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_status_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_editor_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_build_and_exit(NEWPROJ_NAME)
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: READY")
+        guest.gui_direct_project_run_and_exit(NEWPROJ_NAME, "", "Hello from MyOS project")
         guest.command(f"cleanproj {NEWPROJ_NAME}", "Removed build output")
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
         guest.gui_invalid_project_workspace_and_exit()
@@ -1780,6 +1807,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_direct_project_editor_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_build_and_exit(NEWPROJ_NAME)
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: READY")
+        guest.gui_direct_project_run_and_exit(NEWPROJ_NAME, "", "Hello from MyOS project")
         guest.command(f"cleanproj {NEWPROJ_NAME}", "Removed build output")
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
         newproj_run_start = len(guest.output)
