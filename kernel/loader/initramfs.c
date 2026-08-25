@@ -19,7 +19,9 @@
 #define ELF64_PT_LOAD UINT32_C(1)
 #define ELF64_PF_WRITE UINT32_C(2)
 #define INIT_STACK_PAGE UINT64_C(0x00007FFFFFFFF000)
-#define INIT_STACK_GUARD UINT64_C(0x00007FFFFFFFE000)
+#define INIT_STACK_PAGE_COUNT UINT64_C(4)
+#define INIT_STACK_LOWEST_PAGE (INIT_STACK_PAGE - (INIT_STACK_PAGE_COUNT - UINT64_C(1)) * UINT64_C(4096))
+#define INIT_STACK_GUARD (INIT_STACK_LOWEST_PAGE - UINT64_C(4096))
 #define INIT_STACK_TOP UINT64_C(0x00007FFFFFFFFFF0)
 #define INIT_ARGUMENTS_ADDRESS (INIT_STACK_PAGE + UINT64_C(256))
 #define INIT_MAX_PAGES 32U
@@ -66,7 +68,7 @@ static int init_started;
 static struct loaded_page loaded_pages[INIT_MAX_PAGES];
 static uint64_t loaded_page_count;
 static struct paging_space init_address_space;
-static uint64_t init_stack_frame;
+static uint64_t init_stack_frames[INIT_STACK_PAGE_COUNT];
 
 static uint64_t align_up4(uint64_t value) {
     return (value + 3U) & ~UINT64_C(3);
@@ -127,7 +129,43 @@ static int cpio_hex8(const uint8_t *text, uint64_t *value) {
     return 1;
 }
 
-static int cpio_find(const char *path, const uint8_t **data, uint64_t *size) {
+static int ascii_fold_equal(char left, char right) {
+    if (left >= 'A' && left <= 'Z') { left = (char)(left - 'A' + 'a'); }
+    if (right >= 'A' && right <= 'Z') { right = (char)(right - 'A' + 'a'); }
+    return left == right;
+}
+
+static int text_starts_with_fold(const char *text, const char *prefix) {
+    uint64_t index = 0U;
+
+    if (text == (const char *)0 || prefix == (const char *)0) { return 0; }
+    while (prefix[index] != '\0') {
+        if (text[index] == '\0' || ascii_fold_equal(text[index], prefix[index]) == 0) { return 0; }
+        index++;
+    }
+    return 1;
+}
+
+static int text_ends_with_fold(const char *text, const char *suffix) {
+    uint64_t text_length = 0U;
+    uint64_t suffix_length = 0U;
+
+    if (text == (const char *)0 || suffix == (const char *)0) { return 0; }
+    while (text[text_length] != '\0') { text_length++; }
+    while (suffix[suffix_length] != '\0') { suffix_length++; }
+    if (suffix_length > text_length) { return 0; }
+    for (uint64_t index = 0U; index < suffix_length; index++) {
+        if (ascii_fold_equal(text[text_length - suffix_length + index], suffix[index]) == 0) { return 0; }
+    }
+    return 1;
+}
+
+static int program_path_is_valid(const char *path) {
+    return text_starts_with_fold(path, "/system/core/apps/") != 0
+           || (text_starts_with_fold(path, "/apps/") != 0 && text_ends_with_fold(path, "/main.elf") != 0);
+}
+
+static int __attribute__((unused)) cpio_find(const char *path, const uint8_t **data, uint64_t *size) {
     uint64_t offset = 0U;
 
     if (archive == (const uint8_t *)0 || data == (const uint8_t **)0 || size == (uint64_t *)0) {
@@ -178,12 +216,14 @@ static void unload_pages(void) {
         (void)pmm_free_frame(loaded_pages[index].physical_address);
     }
     loaded_page_count = 0U;
-    (void)paging_unmap_page(INIT_STACK_PAGE);
-    (void)paging_unmap_page(INIT_STACK_GUARD);
-    if (init_stack_frame != PMM_INVALID_ADDRESS) {
-        (void)pmm_free_frame(init_stack_frame);
-        init_stack_frame = PMM_INVALID_ADDRESS;
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        (void)paging_unmap_page(INIT_STACK_LOWEST_PAGE + index * UINT64_C(4096));
+        if (init_stack_frames[index] != PMM_INVALID_ADDRESS) {
+            (void)pmm_free_frame(init_stack_frames[index]);
+            init_stack_frames[index] = PMM_INVALID_ADDRESS;
+        }
     }
+    (void)paging_unmap_page(INIT_STACK_GUARD);
 }
 
 static int load_page(uint64_t virtual_address, uint64_t flags) {
@@ -233,6 +273,7 @@ static int copy_user_arguments(const char *arguments, uint64_t *argument_address
 
 static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *entry) {
     const struct elf64_header *header;
+    int entry_mapped = 0;
 
     if (image == (const uint8_t *)0 || entry == (uint64_t *)0 || image_size < ELF64_HEADER_SIZE) {
         return 0;
@@ -241,7 +282,9 @@ static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *en
     if (header->identification[0] != 0x7FU || header->identification[1] != 'E'
         || header->identification[2] != 'L' || header->identification[3] != 'F'
         || header->identification[4] != 2U || header->identification[5] != 1U
-        || header->machine != ELF64_MACHINE_X86_64 || header->program_header_size != ELF64_PROGRAM_HEADER_SIZE
+        || header->identification[6] != 1U || header->type != UINT16_C(2)
+        || header->machine != ELF64_MACHINE_X86_64 || header->version != UINT32_C(1)
+        || header->program_header_size != ELF64_PROGRAM_HEADER_SIZE || header->program_header_count == 0U
         || header->program_header_offset > image_size
         || header->program_header_count > (image_size - header->program_header_offset) / ELF64_PROGRAM_HEADER_SIZE
         || header->entry < PAGING_USER_SPACE_START || header->entry > PAGING_USER_SPACE_END) {
@@ -265,6 +308,10 @@ static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *en
             unload_pages();
             return 0;
         }
+        if (header->entry >= program->virtual_address
+            && header->entry < program->virtual_address + program->memory_size) {
+            entry_mapped = 1;
+        }
         page_flags = (program->flags & ELF64_PF_WRITE) != 0U ? PAGING_FLAG_WRITABLE : 0U;
         for (uint64_t page = align_down_page(program->virtual_address);
              page < align_up_page(program->virtual_address + program->memory_size);
@@ -277,6 +324,10 @@ static int load_elf_init(const uint8_t *image, uint64_t image_size, uint64_t *en
         for (uint64_t byte = 0U; byte < program->file_size; byte++) {
             ((uint8_t *)(uintptr_t)program->virtual_address)[byte] = image[program->offset + byte];
         }
+    }
+    if (entry_mapped == 0) {
+        unload_pages();
+        return 0;
     }
     for (uint64_t index = 0U; index < loaded_page_count; index++) {
         if (paging_map_page(loaded_pages[index].virtual_address, loaded_pages[index].physical_address,
@@ -300,7 +351,9 @@ int initramfs_init(const struct limine_module_response *modules) {
     loaded_page_count = 0U;
     init_address_space.root_physical = 0U;
     init_address_space.mapping_count = 0U;
-    init_stack_frame = PMM_INVALID_ADDRESS;
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        init_stack_frames[index] = PMM_INVALID_ADDRESS;
+    }
     if (modules == (const struct limine_module_response *)0) {
         return 0;
     }
@@ -323,7 +376,7 @@ int initramfs_init(const struct limine_module_response *modules) {
         struct vfs_file init_file;
 
         init_available = vfs_mount_newc(archive, archive_length) != 0
-                         && vfs_open("init", &init_file) != 0;
+                         && vfs_open("/system/core/apps/init.elf", &init_file) != 0;
     }
     archive_files = vfs_file_count();
     return init_available;
@@ -348,8 +401,15 @@ int initramfs_start_init(void) {
     uint64_t argument_address;
     int task_id;
 
-    if (init_available == 0 || init_started != 0 || cpio_find("init", &image, &image_size) == 0) {
-        return 0;
+    {
+        struct vfs_file init_file;
+
+        if (init_available == 0 || init_started != 0
+            || vfs_open("/system/core/apps/init.elf", &init_file) == 0) {
+            return 0;
+        }
+        image = init_file.data;
+        image_size = init_file.size;
     }
     arch_disable_interrupts();
     if (paging_space_create_user(&init_address_space) == 0
@@ -357,11 +417,18 @@ int initramfs_start_init(void) {
         || load_elf_init(image, image_size, &entry) == 0) {
         goto cleanup;
     }
-    init_stack_frame = pmm_allocate_user_frame();
-    if (init_stack_frame == PMM_INVALID_ADDRESS
-        || paging_space_map_guard(&init_address_space, INIT_STACK_GUARD) == 0
-        || paging_map_page(INIT_STACK_PAGE, init_stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0
-        || copy_user_arguments("", &argument_address) == 0) {
+    if (paging_space_map_guard(&init_address_space, INIT_STACK_GUARD) == 0) {
+        goto cleanup;
+    }
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        init_stack_frames[index] = pmm_allocate_user_frame();
+        if (init_stack_frames[index] == PMM_INVALID_ADDRESS
+            || paging_map_page(INIT_STACK_LOWEST_PAGE + index * UINT64_C(4096), init_stack_frames[index],
+                               PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0) {
+            goto cleanup;
+        }
+    }
+    if (copy_user_arguments("", &argument_address) == 0) {
         goto cleanup;
     }
     task_id = scheduler_create_user_task("init", &init_address_space, entry, INIT_STACK_TOP,
@@ -388,9 +455,11 @@ int initramfs_spawn(const char *path, const char *arguments, uint64_t input_pipe
                     uint64_t output_pipe_id, uint64_t pipe_owner_task_id) {
     const uint8_t *image;
     uint64_t image_size;
+    struct vfs_file disk_file;
     uint64_t entry;
     uint64_t argument_address;
-    uint64_t stack_frame = PMM_INVALID_ADDRESS;
+    uint64_t stack_frames[INIT_STACK_PAGE_COUNT] = { PMM_INVALID_ADDRESS, PMM_INVALID_ADDRESS,
+                                                       PMM_INVALID_ADDRESS, PMM_INVALID_ADDRESS };
     struct paging_space address_space = { 0U, 0U };
     int task_id;
 
@@ -398,24 +467,37 @@ int initramfs_spawn(const char *path, const char *arguments, uint64_t input_pipe
         || (input_pipe_id != PIPE_INVALID_ID
             && pipe_can_attach_reader(pipe_owner_task_id, input_pipe_id) == 0)
         || (output_pipe_id != PIPE_INVALID_ID
-            && pipe_can_attach_writer(pipe_owner_task_id, output_pipe_id) == 0)
-        || cpio_find(path, &image, &image_size) == 0) {
+            && pipe_can_attach_writer(pipe_owner_task_id, output_pipe_id) == 0)) {
         return -1;
     }
+    if (program_path_is_valid(path) == 0 || vfs_open(path, &disk_file) == 0) {
+        return -1;
+    }
+    image = disk_file.data;
+    image_size = disk_file.size;
     arch_disable_interrupts();
     /* The running init task owns the previous pages; new pages are tracked only for this spawn attempt. */
     loaded_page_count = 0U;
-    init_stack_frame = PMM_INVALID_ADDRESS;
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        init_stack_frames[index] = PMM_INVALID_ADDRESS;
+    }
     if (paging_space_create_user(&address_space) == 0
         || paging_space_activate(&address_space) == 0
         || load_elf_init(image, image_size, &entry) == 0) {
         goto cleanup;
     }
-    stack_frame = pmm_allocate_user_frame();
-    if (stack_frame == PMM_INVALID_ADDRESS
-        || paging_space_map_guard(&address_space, INIT_STACK_GUARD) == 0
-        || paging_map_page(INIT_STACK_PAGE, stack_frame, PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0
-        || copy_user_arguments(arguments, &argument_address) == 0) {
+    if (paging_space_map_guard(&address_space, INIT_STACK_GUARD) == 0) {
+        goto cleanup;
+    }
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        stack_frames[index] = pmm_allocate_user_frame();
+        if (stack_frames[index] == PMM_INVALID_ADDRESS
+            || paging_map_page(INIT_STACK_LOWEST_PAGE + index * UINT64_C(4096), stack_frames[index],
+                               PAGING_FLAG_USER | PAGING_FLAG_WRITABLE) == 0) {
+            goto cleanup;
+        }
+    }
+    if (copy_user_arguments(arguments, &argument_address) == 0) {
         goto cleanup;
     }
     task_id = scheduler_create_user_task(path, &address_space, entry, INIT_STACK_TOP,
@@ -438,10 +520,13 @@ cleanup:
         (void)paging_unmap_page(loaded_pages[index].virtual_address);
         (void)pmm_free_frame(loaded_pages[index].physical_address);
     }
-    if (stack_frame != PMM_INVALID_ADDRESS) {
-        (void)paging_unmap_page(INIT_STACK_PAGE);
-        (void)pmm_free_frame(stack_frame);
+    for (uint64_t index = 0U; index < INIT_STACK_PAGE_COUNT; index++) {
+        (void)paging_unmap_page(INIT_STACK_LOWEST_PAGE + index * UINT64_C(4096));
+        if (stack_frames[index] != PMM_INVALID_ADDRESS) {
+            (void)pmm_free_frame(stack_frames[index]);
+        }
     }
+    (void)paging_unmap_page(INIT_STACK_GUARD);
     (void)paging_activate_kernel_space();
     if (address_space.root_physical != 0U) {
         (void)paging_space_destroy_user(&address_space);

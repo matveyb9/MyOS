@@ -75,6 +75,9 @@ void pic_clear_mask(uint8_t irq) {
         line = (uint8_t)(irq - 8U);
     }
     arch_out8(port, (uint8_t)(arch_in8(port) & (uint8_t)~(UINT8_C(1) << line)));
+    if (irq >= 8U) {
+        arch_out8(PIC1_DATA, (uint8_t)(arch_in8(PIC1_DATA) & (uint8_t)~(UINT8_C(1) << 2U)));
+    }
 }
 
 void pic_send_eoi(uint8_t irq) {

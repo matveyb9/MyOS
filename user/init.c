@@ -19,9 +19,9 @@ static struct shell_environment_entry shell_environment[SHELL_ENV_MAX];
 static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
-    "help", "echo", "uname", "ps", "meminfo", "date", "uptime", "ls", "cat", "touch", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "pipe", "wait", "kill", "stress", "calc", "reboot",
-    "poweroff", "dmesg", "clear", "exit"
+    "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "tree", "find", "head", "sort", "tail", "stat", "touch", "mkdir", "write", "rm",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
+    "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
 static uint64_t system_call(uint64_t number, uint64_t argument1, uint64_t argument2, uint64_t argument3) {
@@ -362,6 +362,28 @@ static void environment_expand(const char *source, char *destination, uint64_t c
     destination[write_index] = '\0';
 }
 
+static int built_in_program(const char *name) {
+    static const char *const names[] = {
+        "init", "hello", "sleeper", "orphaner", "safety", "argshow", "calc", "pipewrite",
+        "piperead", "wc", "grep", "edit", "startgui", "install", "asm", "tree", "find", "stackprobe", "head", "stat", "tail", "sort", "cp"
+    };
+
+    for (uint64_t index = 0U; index < sizeof(names) / sizeof(names[0]); index++) {
+        if (text_equal(name, names[index]) != 0) { return 1; }
+    }
+    return 0;
+}
+
+static int append_text(char *destination, uint64_t capacity, uint64_t *length, const char *source) {
+    if (destination == (char *)0 || length == (uint64_t *)0 || source == (const char *)0) { return 0; }
+    while (*source != '\0') {
+        if (*length + 1U >= capacity) { return 0; }
+        destination[(*length)++] = *source++;
+    }
+    destination[*length] = '\0';
+    return 1;
+}
+
 static int make_spawn_request(struct myos_spawn_request *request, char *line) {
     char *arguments;
     uint64_t path_length = 0U;
@@ -373,14 +395,17 @@ static int make_spawn_request(struct myos_spawn_request *request, char *line) {
     request->input_pipe_id = UINT64_MAX;
     request->output_pipe_id = UINT64_MAX;
     arguments = first_argument(line);
-    while (line[path_length] != '\0' && path_length + 1U < MYOS_SPAWN_PATH_MAX) {
-        request->path[path_length] = line[path_length];
-        path_length++;
+    if (line[0] == '/') {
+        if (append_text(request->path, sizeof(request->path), &path_length, line) == 0) { return 0; }
+    } else if (built_in_program(line) != 0) {
+        if (append_text(request->path, sizeof(request->path), &path_length, "/system/core/apps/") == 0
+            || append_text(request->path, sizeof(request->path), &path_length, line) == 0
+            || append_text(request->path, sizeof(request->path), &path_length, ".elf") == 0) { return 0; }
+    } else {
+        if (append_text(request->path, sizeof(request->path), &path_length, "/apps/") == 0
+            || append_text(request->path, sizeof(request->path), &path_length, line) == 0
+            || append_text(request->path, sizeof(request->path), &path_length, "/main.elf") == 0) { return 0; }
     }
-    if (path_length == 0U || line[path_length] != '\0') {
-        return 0;
-    }
-    request->path[path_length] = '\0';
     while (arguments[arguments_length] != '\0'
            && arguments_length + 1U < MYOS_SPAWN_ARGUMENTS_MAX) {
         request->arguments[arguments_length] = arguments[arguments_length];
@@ -400,6 +425,85 @@ static void command_help(const char *topic) {
         write_text("Uses signed 64-bit integers; division truncates toward zero.\n");
         return;
     }
+    if (text_equal(topic, "cp")) {
+        write_text("cp <absolute-source> <new-absolute-target>\n");
+        write_text("Copies one file through the bounded native cp app; target must not exist and parent directory must exist.\n");
+        write_text("run cp remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "wc")) {
+        write_text("wc <absolute-file>\n");
+        write_text("Counts newline-terminated lines, space/tab/CR/LF-delimited words and bytes in bounded 256-byte VFS chunks.\n");
+        write_text("run wc remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "grep")) {
+        write_text("grep <text> <absolute-file>\n");
+        write_text("Prints lines up to 127 bytes containing the unspaced text; longer lines are skipped while the file is read in bounded 256-byte VFS chunks.\n");
+        write_text("run grep remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "tree")) {
+        write_text("tree [absolute-directory]\n");
+        write_text("Recursively lists logical VFS entries without mutation; limits: 8 levels, 64 entries/directory, 256 entries total.\n");
+        write_text("run tree remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "find")) {
+        write_text("find <name-fragment> [absolute-directory]\n");
+        write_text("Case-insensitive read-only name search; limits: 8 levels, 64 entries/directory, 256 entries total.\n");
+        write_text("run find remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "head")) {
+        write_text("head <absolute-file> [1..64 lines]\n");
+        write_text("Prints the first 10 lines by default; output is read in 256-byte chunks and capped at 4096 bytes.\n");
+        write_text("run head remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "sort")) {
+        write_text("sort <absolute-file>\n");
+        write_text("Sorts up to 64 lines in bytewise ASCII ascending order; each retained line is capped at 127 bytes.\n");
+        write_text("run sort remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "tail")) {
+        write_text("tail <absolute-file> [1..64 lines]\n");
+        write_text("Prints the last 10 lines by default; retains only the final 4096 bytes read through 256-byte chunks.\n");
+        write_text("run tail remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "stat")) {
+        write_text("stat <absolute-path>\n");
+        write_text("Reports logical VFS entry type and size by bounded parent-directory enumeration; it never modifies storage.\n");
+        write_text("run stat remains a compatibility form.\n");
+        return;
+    }
+    if (text_equal(topic, "startgui")) {
+        write_text("startgui [absolute-file]\n");
+        write_text("Without a file it opens MYOS DESKTOP; click SYSTEM, NOTES or EDIT NOTE. Click top-bar X to exit.\n");
+        write_text("Hotkeys: Alt-Tab focus, Alt-F4 close, Esc back/cancel, Ctrl-Q exit and Ctrl-S save. 'home' is an alias.\n");
+        return;
+    }
+    if (text_equal(topic, "sysinfo")) {
+        write_text("sysinfo\n");
+        write_text("Prints read-only boot, compiled-in driver and detected-device inventory from /system/live.\n");
+        return;
+    }
+    if (text_equal(topic, "asm")) {
+        write_text("run asm <source.mya> <output.elf>\n");
+        write_text("Source: input; time; args; set <0..255>; not; neg; inc; dec; parity; clz; add/sub/mul/and/or/xor/test <0..255>; shl/shr/rol/ror <1..7>; div/mod <1..255>; store/load/cmp/swap <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
+        write_text("input reads one non-CR/LF byte; time prints RTC HH:MM:SS; args writes run arguments; not/neg/inc/dec/and/or/xor update one initialized byte, parity normalizes even byte parity to zero or one, clz counts leading zero bits (zero becomes eight), test normalizes its bitwise intersection with one byte to zero or one, shl/shr shift it logically and rol/ror rotate it circularly by 1..7 positions, neg/inc/dec/add/sub/mul wrap one byte, div returns an unsigned quotient, mod returns its unsigned remainder, and both reject zero; cmp compares the accumulator with one private slot and yields zero when equal; swap exchanges it with one private slot. Bitwise operations, parity, clz, test, shifts, arithmetic, cmp and swap require input/set/load. Conditional jumps use that result and target a later label.\n");
+        write_text("Escape \\n, \\r, \\t, \\\\ and \\\" inside text.\n");
+        return;
+    }
+    if (text_equal(topic, "edit")) {
+        write_text("edit <absolute-file>\n");
+        write_text("Multi-line text editor for ordinary files and .mya source.\n");
+        write_text("Ctrl-S saves+exits; Ctrl-Q or Esc discards; arrows/Home/End, Del and Backspace edit.\n");
+        write_text("Current document limit: 4096 bytes.\n");
+        return;
+    }
     if (topic[0] != '\0') {
         write_text("No detailed help for: ");
         write_text(topic);
@@ -407,11 +511,13 @@ static void command_help(const char *topic) {
         return;
     }
     write_text("MYOS SHELL QUICK START\n");
-    write_text("Files: ls cat touch write rm | Processes: ps run spawn wait kill sleep\n");
-    write_text("System: uname meminfo date uptime reboot poweroff clear dmesg\n");
-    write_text("Tools: calc <a> <op> <b>; run <program> [arguments]; pipe <text>\n");
+    write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
+    write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; tree [absolute-directory]; find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
+    write_text("Native: build <source.mya> <output.elf>; help asm/edit for syntax and controls\n");
+    write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
+    write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
-    write_text("Files: tmp/<name> is temporary; disk/<name> persists across reboots.\n");
+    write_text("Root: /system /apps /users/myos /temp; paths are case-insensitive.\n");
     write_text("For calculator details, type: help calc\n");
 }
 
@@ -517,17 +623,44 @@ static void command_uptime(void) {
     write_text(" ticks)\n");
 }
 
-static void command_ls(void) {
-    for (uint64_t index = 0U; index < UINT64_C(64); index++) {
-        struct myos_vfs_entry entry;
+static int copy_vfs_path(char *destination, const char *path) {
+    uint64_t length = 0U;
 
-        if (system_call(MYOS_SYS_VFS_ENTRY, index, (uint64_t)(uintptr_t)&entry, sizeof(entry))
-            == UINT64_MAX) {
+    if (destination == (char *)0 || path == (const char *)0) { return 0; }
+    while (path[length] != '\0' && length + 1U < MYOS_VFS_PATH_MAX) {
+        destination[length] = path[length];
+        length++;
+    }
+    if (length == 0U || path[length] != '\0') { return 0; }
+    destination[length] = '\0';
+    return 1;
+}
+
+static int make_vfs_path_request(struct myos_vfs_path_request *request, const char *path) {
+    return request != (struct myos_vfs_path_request *)0 && copy_vfs_path(request->path, path) != 0;
+}
+
+static void command_ls(const char *argument) {
+    struct myos_vfs_list_request request;
+    const char *path = argument[0] == '\0' ? "/" : argument;
+
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        if (copy_vfs_path(request.path, path) == 0) {
+            write_text("Usage: ls [absolute-directory]\n");
             return;
         }
-        write_text(entry.name);
-        write_text("  ");
-        write_number(entry.size);
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            return;
+        }
+        if (request.entry.type == MYOS_VFS_OBJECT_DIRECTORY) { write_text("[dir] "); }
+        else if (request.entry.type == MYOS_VFS_OBJECT_VIRTUAL) { write_text("[live] "); }
+        else { write_text("[file] "); }
+        write_text(request.entry.name);
+        if (request.entry.type == MYOS_VFS_OBJECT_REGULAR) {
+            write_text("  ");
+            write_number(request.entry.size);
+        }
         write_char('\n');
     }
 }
@@ -536,12 +669,12 @@ static void command_cat(const char *argument) {
     struct myos_vfs_read_request request;
     uint64_t path_length = 0U;
 
-    while (argument[path_length] != '\0' && path_length + 1U < MYOS_VFS_NAME_MAX) {
+    while (argument[path_length] != '\0' && path_length + 1U < MYOS_VFS_PATH_MAX) {
         request.path[path_length] = argument[path_length];
         path_length++;
     }
-    if (path_length == 0U || argument[path_length] != '\0') {
-        write_text("Usage: cat <file>\n");
+    if (path_length == 0U || argument[path_length] != '\0' || argument[0] != '/') {
+        write_text("Usage: cat <absolute-file>\n");
         return;
     }
     request.path[path_length] = '\0';
@@ -566,108 +699,92 @@ static void command_cat(const char *argument) {
     }
 }
 
-static int make_tmpfs_path_request(struct myos_tmpfs_path_request *request, const char *argument) {
-    uint64_t length = 0U;
-
-    if (request == (struct myos_tmpfs_path_request *)0 || argument == (const char *)0) {
-        return 0;
-    }
-    for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) {
-        request->path[index] = '\0';
-    }
-    while (argument[length] != '\0' && length + 1U < MYOS_VFS_NAME_MAX) {
-        request->path[length] = argument[length];
-        length++;
-    }
-    return length != 0U && argument[length] == '\0';
-}
-
-static int persistent_path_requested(const char *path) {
-    return path != (const char *)0 && path[0] == 'd' && path[1] == 'i' && path[2] == 's'
-        && path[3] == 'k' && path[4] == '/';
+static void command_sysinfo(void) {
+    write_text("MYOS SYSTEM INVENTORY\n");
+    write_text("[boot]\n");
+    command_cat("/system/live/boot/info");
+    write_text("[drivers]\n");
+    command_cat("/system/live/drivers/framebuffer");
+    command_cat("/system/live/drivers/keyboard");
+    command_cat("/system/live/drivers/mouse");
+    command_cat("/system/live/drivers/ahci");
+    command_cat("/system/live/drivers/acpi");
+    command_cat("/system/live/drivers/pit");
+    command_cat("/system/live/drivers/rtc");
+    command_cat("/system/live/drivers/pci");
+    write_text("[devices]\n");
+    command_cat("/system/live/devices/storage");
+    command_cat("/system/live/devices/display");
+    command_cat("/system/live/devices/input");
+    command_cat("/system/live/devices/clock");
 }
 
 static void command_touch(const char *argument) {
-    struct myos_tmpfs_path_request request;
-    uint64_t create_number;
+    struct myos_vfs_path_request request;
 
-    if (make_tmpfs_path_request(&request, argument) == 0) {
-        write_text("Usage: touch tmp/<name> | disk/<name>\n");
+    if (make_vfs_path_request(&request, argument) == 0 || argument[0] != '/') {
+        write_text("Usage: touch <absolute-file>\n");
         return;
     }
-    create_number = persistent_path_requested(request.path) != 0 ? MYOS_SYS_PERSIST_CREATE : MYOS_SYS_TMPFS_CREATE;
-    if (system_call(create_number, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
-        == UINT64_MAX) {
+    if (system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
         write_text("Unable to create file.\n");
         return;
     }
-    write_text("Created ");
-    write_text(request.path);
-    write_char('\n');
+    write_text("Created "); write_text(request.path); write_char('\n');
+}
+
+static void command_mkdir(const char *argument) {
+    struct myos_vfs_path_request request;
+
+    if (make_vfs_path_request(&request, argument) == 0 || argument[0] != '/') {
+        write_text("Usage: mkdir <absolute-directory>\n");
+        return;
+    }
+    if (system_call(MYOS_SYS_VFS_CREATE_DIRECTORY, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+        write_text("Unable to create directory.\n");
+        return;
+    }
+    write_text("Created directory "); write_text(request.path); write_char('\n');
 }
 
 static void command_write(char *argument) {
-    struct myos_tmpfs_path_request path_request;
-    struct myos_tmpfs_write_request request;
+    struct myos_vfs_path_request path_request;
+    struct myos_vfs_write_request request;
     char *text = first_argument(argument);
     uint64_t text_length_value;
-    uint64_t create_number;
-    uint64_t remove_number;
-    uint64_t write_number_value;
 
-    if (make_tmpfs_path_request(&path_request, argument) == 0 || text[0] == '\0') {
-        write_text("Usage: write tmp/<name> | disk/<name> <text>\n");
+    if (make_vfs_path_request(&path_request, argument) == 0 || argument[0] != '/' || text[0] == '\0') {
+        write_text("Usage: write <absolute-file> <text>\n");
         return;
     }
     text_length_value = text_length(text);
-    if (text_length_value > MYOS_TMPFS_WRITE_CHUNK) {
-        write_text("Text is too long.\n");
-        return;
-    }
-    for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) {
-        request.path[index] = path_request.path[index];
-    }
-    for (uint64_t index = 0U; index < MYOS_TMPFS_WRITE_CHUNK; index++) {
-        request.data[index] = 0U;
-    }
-    for (uint64_t index = 0U; index < text_length_value; index++) {
-        request.data[index] = (uint8_t)text[index];
-    }
+    if (text_length_value > MYOS_VFS_READ_CHUNK) { write_text("Text is too long.\n"); return; }
+    for (uint64_t index = 0U; index < MYOS_VFS_PATH_MAX; index++) { request.path[index] = path_request.path[index]; }
+    for (uint64_t index = 0U; index < MYOS_VFS_READ_CHUNK; index++) { request.data[index] = 0U; }
+    for (uint64_t index = 0U; index < text_length_value; index++) { request.data[index] = (uint8_t)text[index]; }
     request.offset = 0U;
     request.length = text_length_value;
-    remove_number = persistent_path_requested(path_request.path) != 0 ? MYOS_SYS_PERSIST_REMOVE : MYOS_SYS_TMPFS_REMOVE;
-    create_number = persistent_path_requested(path_request.path) != 0 ? MYOS_SYS_PERSIST_CREATE : MYOS_SYS_TMPFS_CREATE;
-    write_number_value = persistent_path_requested(path_request.path) != 0 ? MYOS_SYS_PERSIST_WRITE : MYOS_SYS_TMPFS_WRITE;
-    (void)system_call(remove_number, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request));
-    if (system_call(create_number, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request)) == UINT64_MAX
-        || system_call(write_number_value, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+    (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request));
+    if (system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&path_request, sizeof(path_request)) == UINT64_MAX
+        || system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
         write_text("Unable to write file.\n");
         return;
     }
-    write_text("Wrote ");
-    write_number(text_length_value);
-    write_text(" byte(s) to ");
-    write_text(request.path);
-    write_char('\n');
+    write_text("Wrote "); write_number(text_length_value); write_text(" byte(s) to "); write_text(request.path); write_char('\n');
 }
 
 static void command_rm(const char *argument) {
-    struct myos_tmpfs_path_request request;
-    uint64_t remove_number;
+    struct myos_vfs_path_request request;
 
-    if (make_tmpfs_path_request(&request, argument) == 0) {
-        write_text("Usage: rm tmp/<name> | disk/<name>\n");
+    if (make_vfs_path_request(&request, argument) == 0 || argument[0] != '/') {
+        write_text("Usage: rm <absolute-file-or-empty-directory>\n");
         return;
     }
-    remove_number = persistent_path_requested(request.path) != 0 ? MYOS_SYS_PERSIST_REMOVE : MYOS_SYS_TMPFS_REMOVE;
-    if (system_call(remove_number, 0U, (uint64_t)(uintptr_t)&request, sizeof(request))
-        == UINT64_MAX) {
-        write_text("Unable to remove file.\n");
+    if (system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+        write_text("Unable to remove object.\n");
         return;
     }
-    write_text("Removed ");
-    write_text(request.path);
-    write_char('\n');
+    write_text("Removed "); write_text(request.path); write_char('\n');
 }
 
 static void command_meminfo(void) {
@@ -800,12 +917,12 @@ static void command_pipe(char *argument) {
         write_text("Usage: pipe <text up to 127 bytes>\n");
         return;
     }
-    writer.path[0] = 'p'; writer.path[1] = 'i'; writer.path[2] = 'p'; writer.path[3] = 'e';
-    writer.path[4] = 'w'; writer.path[5] = 'r'; writer.path[6] = 'i'; writer.path[7] = 't';
-    writer.path[8] = 'e'; writer.path[9] = '\0';
-    reader.path[0] = 'p'; reader.path[1] = 'i'; reader.path[2] = 'p'; reader.path[3] = 'e';
-    reader.path[4] = 'r'; reader.path[5] = 'e'; reader.path[6] = 'a'; reader.path[7] = 'd';
-    reader.path[8] = '\0';
+    {
+        uint64_t writer_length = 0U;
+        uint64_t reader_length = 0U;
+        (void)append_text(writer.path, sizeof(writer.path), &writer_length, "/system/core/apps/pipewrite.elf");
+        (void)append_text(reader.path, sizeof(reader.path), &reader_length, "/system/core/apps/piperead.elf");
+    }
     for (uint64_t index = 0U; index <= length; index++) {
         writer.arguments[index] = argument[index];
     }
@@ -843,7 +960,7 @@ static int run_foreground(char *argument, int verbose) {
         if (verbose != 0) {
             write_text("Usage: run <program> [arguments]\n");
         } else {
-            write_text("calc: unable to prepare expression\n");
+            write_text("Unable to prepare command.\n");
         }
         return 0;
     }
@@ -852,7 +969,7 @@ static int run_foreground(char *argument, int verbose) {
         if (verbose != 0) {
             write_text("Unable to start program.\n");
         } else {
-            write_text("calc: unable to start calculator\n");
+            write_text("Unable to start command.\n");
         }
         return 0;
     }
@@ -866,7 +983,7 @@ static int run_foreground(char *argument, int verbose) {
         if (verbose != 0) {
             write_text("Wait failed.\n");
         } else {
-            write_text("calc: wait failed\n");
+            write_text("Command wait failed.\n");
         }
         return 0;
     }
@@ -882,6 +999,270 @@ static int run_foreground(char *argument, int verbose) {
 
 static void command_run(char *argument) {
     (void)run_foreground(argument, 1);
+}
+
+static void command_install(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "install";
+    uint64_t length = 7U;
+
+    if (argument[0] == '\0') {
+        write_text("Usage: install <source> </apps/name/main.elf>\n");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Install command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Install command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 1);
+}
+
+static void command_cp(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "cp";
+    uint64_t length = 2U;
+
+    if (argument[0] == '\0') {
+        command_help("cp");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Copy command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Copy command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
+static void command_wc(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "wc";
+    uint64_t length = 2U;
+
+    if (argument[0] == '\0') {
+        command_help("wc");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Word-count command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Word-count command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
+static void command_tree(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "tree";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        (void)run_foreground(program, 0);
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Tree command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Tree command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
+static void command_find(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "find";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("find");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Find command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Find command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
+static void command_head(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "head";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("head");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Head command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Head command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
+static void command_sort(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "sort";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("sort");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Sort command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Sort command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
+static void command_tail(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "tail";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("tail");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Tail command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Tail command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
+static void command_stat(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "stat";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("stat");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Status command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Status command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
+static void command_grep(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "grep";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("grep");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Search command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Search command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 0);
+}
+
+static void command_build(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "asm";
+    uint64_t length = 3U;
+
+    if (argument[0] == '\0') {
+        write_text("Usage: build <source.mya> <output.elf>\n");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Build command is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Build command is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    (void)run_foreground(program, 1);
 }
 
 static void command_calc(const char *argument) {
@@ -906,6 +1287,52 @@ static void command_calc(const char *argument) {
     }
     program[length] = '\0';
     (void)run_foreground(program, 0);
+}
+
+static void command_edit(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "edit";
+    uint64_t length = 4U;
+
+    if (argument[0] == '\0') {
+        command_help("edit");
+        return;
+    }
+    if (length + 1U >= sizeof(program)) {
+        write_text("Editor file path is too long.\n");
+        return;
+    }
+    program[length++] = ' ';
+    for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+        if (length + 1U >= sizeof(program)) {
+            write_text("Editor file path is too long.\n");
+            return;
+        }
+        program[length++] = argument[index];
+    }
+    program[length] = '\0';
+    command_run(program);
+}
+
+static void command_startgui(const char *argument) {
+    char program[USER_LINE_CAPACITY] = "startgui";
+    uint64_t length = 8U;
+
+    if (argument[0] != '\0') {
+        if (length + 1U >= sizeof(program)) {
+            write_text("GUI file path is too long.\n");
+            return;
+        }
+        program[length++] = ' ';
+        for (uint64_t index = 0U; argument[index] != '\0'; index++) {
+            if (length + 1U >= sizeof(program)) {
+                write_text("GUI file path is too long.\n");
+                return;
+            }
+            program[length++] = argument[index];
+        }
+        program[length] = '\0';
+    }
+    command_run(program);
 }
 
 static void command_poweroff(void) {
@@ -958,7 +1385,9 @@ static void execute_command(char *line) {
         write_text(argument);
         write_char('\n');
     } else if (text_equal(line, "uname")) {
-        write_text("MyOS 0.12.2-dev x86_64\n");
+        write_text("MyOS 0.13.1-gui-preview.1 x86_64\n");
+    } else if (text_equal(line, "sysinfo")) {
+        command_sysinfo();
     } else if (text_equal(line, "ps")) {
         command_ps();
     } else if (text_equal(line, "meminfo")) {
@@ -968,11 +1397,31 @@ static void execute_command(char *line) {
     } else if (text_equal(line, "uptime")) {
         command_uptime();
     } else if (text_equal(line, "ls")) {
-        command_ls();
+        command_ls(argument);
     } else if (text_equal(line, "cat")) {
         command_cat(argument);
+    } else if (text_equal(line, "cp")) {
+        command_cp(argument);
+    } else if (text_equal(line, "wc")) {
+        command_wc(argument);
+    } else if (text_equal(line, "grep")) {
+        command_grep(argument);
+    } else if (text_equal(line, "tree")) {
+        command_tree(argument);
+    } else if (text_equal(line, "find")) {
+        command_find(argument);
+    } else if (text_equal(line, "head")) {
+        command_head(argument);
+    } else if (text_equal(line, "sort")) {
+        command_sort(argument);
+    } else if (text_equal(line, "tail")) {
+        command_tail(argument);
+    } else if (text_equal(line, "stat")) {
+        command_stat(argument);
     } else if (text_equal(line, "touch")) {
         command_touch(argument);
+    } else if (text_equal(line, "mkdir")) {
+        command_mkdir(argument);
     } else if (text_equal(line, "write")) {
         command_write(argument);
     } else if (text_equal(line, "rm")) {
@@ -987,6 +1436,10 @@ static void execute_command(char *line) {
         command_run(argument);
     } else if (text_equal(line, "spawn")) {
         command_spawn(argument);
+    } else if (text_equal(line, "install")) {
+        command_install(argument);
+    } else if (text_equal(line, "build")) {
+        command_build(argument);
     } else if (text_equal(line, "pipe")) {
         command_pipe(argument);
     } else if (text_equal(line, "wait")) {
@@ -999,6 +1452,10 @@ static void execute_command(char *line) {
         command_sleep(argument);
     } else if (text_equal(line, "calc")) {
         command_calc(argument);
+    } else if (text_equal(line, "edit")) {
+        command_edit(argument);
+    } else if (text_equal(line, "startgui")) {
+        command_startgui(argument);
     } else if (text_equal(line, "reboot")) {
         command_reboot();
     } else if (text_equal(line, "poweroff")) {
@@ -1023,7 +1480,7 @@ void _start(void) {
 
     write_text("\x1B[2J\x1B[H");
     write_text("+----------------------------------------------+\n");
-    write_text("| MYOS USER SHELL 0.12.2-dev                  |\n");
+    write_text("| MYOS USER SHELL 0.13.1-gui-preview.1                  |\n");
     write_text("| Ready. Type help for available commands.    |\n");
     write_text("| Tab: complete   |  Up/Down: history         |\n");
     write_text("+----------------------------------------------+\n");

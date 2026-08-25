@@ -12,8 +12,10 @@
 #include <heap.h>
 #include <idt.h>
 #include <initramfs.h>
+#include <inventory.h>
 #include <irq.h>
 #include <keyboard.h>
+#include <mouse.h>
 #include <lapic.h>
 #include <paging.h>
 #include <pic.h>
@@ -190,6 +192,46 @@ static uint64_t memory_region_count(void) {
     return memory_map == NULL ? 0U : memory_map->entry_count;
 }
 
+static void inventory_copy_text(char *destination, uint64_t capacity, const char *source) {
+    uint64_t index = 0U;
+
+    if (destination == (char *)0 || capacity == 0U) {
+        return;
+    }
+    while (source != (const char *)0 && source[index] != '\0' && index + 1U < capacity) {
+        destination[index] = source[index];
+        index++;
+    }
+    destination[index] = '\0';
+}
+
+static void publish_system_inventory(int initramfs_ready, int persistent_ready, int acpi_ready,
+                                     int ahci_controller_ready, int ahci_probe_ready,
+                                     int keyboard_ready, int mouse_ready) {
+    const struct limine_bootloader_info_response *bootloader = bootloader_info_request.response;
+    struct system_inventory_boot_state state = { { 0 }, { 0 }, { 0 }, 0U, 0U, 0U, 0U,
+                                                 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U };
+
+    inventory_copy_text(state.firmware, sizeof(state.firmware), firmware_name());
+    inventory_copy_text(state.bootloader, sizeof(state.bootloader),
+                        bootloader == (const struct limine_bootloader_info_response *)0 ? "unknown" : bootloader->name);
+    inventory_copy_text(state.bootloader_version, sizeof(state.bootloader_version),
+                        bootloader == (const struct limine_bootloader_info_response *)0 ? "unknown" : bootloader->version);
+    state.usable_memory_bytes = usable_memory_bytes();
+    state.memory_region_count = memory_region_count();
+    state.initramfs_bytes = initramfs_size();
+    state.initramfs_files = initramfs_file_count();
+    state.initramfs_ready = initramfs_ready != 0 ? 1U : 0U;
+    state.framebuffer_ready = framebuffer_console_available() != 0 ? 1U : 0U;
+    state.persistent_ready = persistent_ready != 0 ? 1U : 0U;
+    state.acpi_ready = acpi_ready != 0 ? 1U : 0U;
+    state.ahci_controller_ready = ahci_controller_ready != 0 ? 1U : 0U;
+    state.ahci_probe_ready = ahci_probe_ready != 0 ? 1U : 0U;
+    state.keyboard_ready = keyboard_ready != 0 ? 1U : 0U;
+    state.mouse_ready = mouse_ready != 0 ? 1U : 0U;
+    system_inventory_set_boot_state(&state);
+}
+
 static void boot_stage(const char *title) {
     serial_write("\n== ");
     serial_write(title);
@@ -279,15 +321,22 @@ void kmain(void) {
     pic_init();
     irq_register_handler(0U, pit_on_irq);
     irq_register_handler(1U, keyboard_on_irq);
+    irq_register_handler(12U, mouse_on_irq);
     pit_init(PIT_FREQUENCY_HZ);
     const int keyboard_ready = keyboard_init();
+    const int mouse_ready = mouse_init();
     pic_clear_mask(0U);
     if (keyboard_ready != 0) {
         pic_clear_mask(1U);
     }
+    if (mouse_ready != 0) {
+        pic_clear_mask(12U);
+    }
     arch_enable_interrupts();
+    publish_system_inventory(initramfs_ready, persistent_ready, acpi_power_ready, ahci_ready, ahci_probe_ready,
+                             keyboard_ready, mouse_ready);
 
-    serial_write("\nMyOS 0.12.2-dev — x86_64 kernel\n");
+    serial_write("\nMyOS 0.13.1-gui-preview.1 — x86_64 kernel\n");
     serial_write("--------------------------------\n");
 
     boot_stage("BOOT ENVIRONMENT");
@@ -361,6 +410,8 @@ void kmain(void) {
     serial_write("\n");
     serial_write("[ok] PS/2 keyboard IRQ: ");
     serial_write(keyboard_ready != 0 ? "enabled\n" : "unavailable; serial input remains active\n");
+    serial_write("[ok] PS/2 mouse IRQ12: ");
+    serial_write(mouse_ready != 0 ? "enabled\n" : "unavailable; keyboard pointer fallback remains active\n");
     serial_write("[ok] Bootstrap complete. IRQ0 timer is enabled.\n");
     serial_write("[ok] Framebuffer text console is active; COM1 remains mirrored.\n");
 

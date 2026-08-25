@@ -9,43 +9,41 @@
 
 ## Implemented milestone
 
-MyOS 0.7.0-dev adds the first on-screen text console on top of the Limine-provided framebuffer. The console accepts the same character stream as COM1, so the serial port remains available for headless QEMU and debugging while the normal screen shows the boot log and an interactive shell.
+MyOS 0.7.0-dev adds a first on-screen text console on top of the framebuffer provided by Limine. The console accepts the same character stream as COM1, so the serial port remains available for headless QEMU and debugging, while the normal display shows the boot log and an interactive shell.
 
-| Компонент | Реализация | Проверяемый результат |
+| Component | Implementation | Verified outcome |
 |---|---|---|
-| Формат | Только 32-bit RGB Limine framebuffer; проверяются `bpp`, memory model и pitch. | Неподдерживаемый формат не получает записи в VRAM, COM1 остаётся активен. |
-| Геометрия | 8×8 glyph и сетка до 160×100 ячеек. | В QEMU 1280×800 получены 160×100 text cells. |
-| Шрифт | Встроенные растровые glyph для ASCII letters, digits и базовой punctuation. | Загрузочный журнал, shell и hexadecimal значения читаются на screendump. |
-| Output | `serial_write_char()` зеркалирует символ в framebuffer после COM1 write. | Один и тот же kernel log виден в COM1 и на экране. |
-| Редактирование | Поддержаны printable ASCII, CR, LF, Backspace и игнорирование текущих ANSI clear sequences. | Ввод PS/2 и COM1 редактирует строку shell на экране. |
-| Прокрутка | Сдвиг символьного буфера на строку, полный repaint и scroll counter. | `fbdemo` вызвал scroll и `fbinfo` показал ненулевой счётчик. |
-| Очистка | `clear` вызывает framebuffer clear и сохраняет ANSI очистку serial terminal. | Экран очищается без вывода escape bytes как glyph. |
-
-(Notes: Table headers and code identifiers are preserved exactly as in the original.)
+| Format | Only 32-bit RGB Limine framebuffer; `bpp`, memory model and pitch are validated. | Unsupported formats do not receive writes to VRAM; COM1 remains active. |
+| Geometry | 8×8 glyphs and a grid up to 160×100 cells. | On QEMU 1280×800 a 160×100 text cell grid was obtained. |
+| Font | Built-in raster glyphs for ASCII letters, digits and basic punctuation. | Boot log, shell and hexadecimal values are readable in the screendump. |
+| Output | `serial_write_char()` mirrors the character to the framebuffer after the COM1 write. | The same kernel log is visible on COM1 and on-screen. |
+| Editing | Supports printable ASCII, CR, LF, Backspace and ignores current ANSI clear sequences. | PS/2 and COM1 input edit the shell line on the screen. |
+| Scrolling | Line-shift of the character buffer, full repaint and a scroll counter. | `fbdemo` caused scrolling and `fbinfo` showed a non-zero counter. |
+| Clearing | `clear` triggers a framebuffer clear and preserves ANSI clearing of the serial terminal. | The screen is cleared without rendering escape bytes as glyphs. |
 
 ## Validation matrix
 
-| Сценарий | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Результат |
+| Scenario | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Result |
 |---|---:|---:|---|
-| Инициализация framebuffer | Пройдено | Пройдено | `MYOS FRAMEBUFFER CONSOLE`, 160×100 text cells. |
-| Видимый boot log и cursor | Пройдено | Пройдено | QMP screendump показывает читаемые 8×8 glyph и `myos>` cursor. |
-| Shell с PS/2 IRQ1 | Пройдено через QMP `sendkey` | Пройдено через QMP `sendkey` | Виртуальная клавиатура выполнила `fbdemo` и `fbinfo`. |
-| Прокрутка | Пройдено | Пройдено | Последние `FB DEMO ROW` остаются на экране; счётчик scroll ненулевой. |
-| PIT/IRQ0 после repaint | Пройдено | Пройдено | Таймер и shell продолжили работу после полной перерисовки. |
-| Parallel COM1 | Пройдено | Пройдено | Serial log подтверждает те же команды и значения, что framebuffer. |
+| Framebuffer initialization | Passed | Passed | `MYOS FRAMEBUFFER CONSOLE`, 160×100 text cells. |
+| Visible boot log and cursor | Passed | Passed | QMP screendump shows readable 8×8 glyphs and the `myos>` cursor. |
+| Shell with PS/2 IRQ1 | Passed via QMP `sendkey` | Passed via QMP `sendkey` | The virtual keyboard executed `fbdemo` and `fbinfo`. |
+| Scrolling | Passed | Passed | The last `FB DEMO ROW` entries remain on screen; the scroll counter is non-zero. |
+| PIT/IRQ0 after repaint | Passed | Passed | Timer and shell continued operating after a full repaint. |
+| Parallel COM1 | Passed | Passed | Serial log confirms the same commands and values as the framebuffer. |
 
 ## Visual confirmation
 
-| Образ | Наблюдение |
+| Image | Observation |
 |---|---|
-| `framebuffer-bios-after-demo.png` | Shows the last lines of the demo, `myos> fbinfo`, `scrolls: 0x8` and the current cursor. |
+| `framebuffer-bios-after-demo.png` | Shows the final lines of the demo, `myos> fbinfo`, `scrolls: 0x8` and the current cursor. |
 | `framebuffer-uefi.png` | The same raster console after OVMF, `scrolls: 0x16`; verification is independent of the BIOS path. |
 
-> Pixel address calculation uses the row pitch rather than assuming `width * bytes_per_pixel`: framebuffer rows may have padding. Base formula — `address + y * pitch + x * pixelwidth`. [1]
+> The pixel address calculation uses the row pitch, rather than assuming `width * bytes_per_pixel`: framebuffer lines may have padding. The basic formula is `address + y * pitch + x * pixelwidth`. [1]
 
 ## Limitations
 
-The implementation is intentionally small: only printable 7-bit ASCII and basic control characters; no Unicode, wide glyphs, VT100, mouse, hardware cursor, double buffering, GPU acceleration or mode switching. Scrolling repaints the entire grid and is suitable for an early console, but will later be optimized with rectangle blit or a retained compositor.
+The implementation is intentionally small: only printable 7-bit ASCII and basic control characters; no Unicode, wide glyphs, VT100, mouse, hardware cursor, double buffering, GPU acceleration or mode switching. Scrolling repaints the entire grid and is suitable for an early console, but will later be optimized with rectangle blits or a retained compositor.
 
 ## Reproduction
 
@@ -56,7 +54,7 @@ make run-graphic
 make run-uefi-graphic
 ```
 
-In the terminal on COM1 run `fbinfo`, `fbdemo`, `fbinfo` and `clear`. The QEMU graphical window will show the console; `fbdemo` should increase the scroll counter.
+In the terminal attached to COM1 run `fbinfo`, `fbdemo`, `fbinfo` and `clear`. The QEMU graphical window will show the console; `fbdemo` should increase the scroll counter.
 
 ## References
 

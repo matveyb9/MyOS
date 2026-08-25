@@ -16,6 +16,19 @@ USER_PIPEREAD  := $(USER_BUILD_DIR)/piperead
 USER_WC        := $(USER_BUILD_DIR)/wc
 USER_GREP      := $(USER_BUILD_DIR)/grep
 USER_EDIT      := $(USER_BUILD_DIR)/edit
+USER_STARTGUI  := $(USER_BUILD_DIR)/startgui
+USER_INSTALL   := $(USER_BUILD_DIR)/install
+USER_ASM       := $(USER_BUILD_DIR)/asm
+USER_TREE      := $(USER_BUILD_DIR)/tree
+USER_FIND      := $(USER_BUILD_DIR)/find
+USER_STACKPROBE := $(USER_BUILD_DIR)/stackprobe
+USER_HEAD      := $(USER_BUILD_DIR)/head
+USER_STAT      := $(USER_BUILD_DIR)/stat
+USER_TAIL      := $(USER_BUILD_DIR)/tail
+USER_SORT      := $(USER_BUILD_DIR)/sort
+SDK_HELLO      := $(BUILD_DIR)/sdk/sdk-hello.elf
+SDK_CP         := $(BUILD_DIR)/sdk/cp.elf
+SDK_WRITE      := $(BUILD_DIR)/sdk/sdk-write.elf
 USER_MOTD      := user/motd.txt
 INITRAMFS      := $(BUILD_DIR)/initramfs.cpio
 ISO_ROOT       := $(BUILD_DIR)/iso_root
@@ -44,7 +57,7 @@ ASM_SOURCES    := $(shell find kernel -name '*.asm' | sort)
 OBJECTS        := $(patsubst %.c,$(BUILD_DIR)/obj/%.c.o,$(C_SOURCES)) \
                   $(patsubst %.asm,$(BUILD_DIR)/obj/%.asm.o,$(ASM_SOURCES))
 
-.PHONY: all kernel initramfs iso img run run-graphic run-uefi run-uefi-graphic debug clean distclean inspect help
+.PHONY: all kernel initramfs iso img run run-graphic run-uefi run-uefi-graphic smoke regression release-check debug clean distclean inspect help sdk-stage
 
 all: iso
 kernel: $(KERNEL)
@@ -124,8 +137,69 @@ $(USER_EDIT): user/edit.c user/linker.ld include/syscall.h
 	$(CC) $(USER_CFLAGS) -c user/edit.c -o $(USER_BUILD_DIR)/edit.o
 	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/edit.o -o $@
 
-$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_MOTD) tools/mkcpio.py
-	python3 tools/mkcpio.py $@ init $(USER_INIT) hello $(USER_HELLO) sleeper $(USER_SLEEPER) orphaner $(USER_ORPHANER) safety $(USER_SAFETY) argshow $(USER_ARGSHOW) calc $(USER_CALC) pipewrite $(USER_PIPEWRITE) piperead $(USER_PIPEREAD) wc $(USER_WC) grep $(USER_GREP) edit $(USER_EDIT) motd.txt $(USER_MOTD)
+$(USER_STARTGUI): user/startgui.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/startgui.c -o $(USER_BUILD_DIR)/startgui.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/startgui.o -o $@
+
+$(USER_INSTALL): user/install.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/install.c -o $(USER_BUILD_DIR)/install.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/install.o -o $@
+
+$(USER_ASM): user/asm.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/asm.c -o $(USER_BUILD_DIR)/asm.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/asm.o -o $@
+
+$(USER_TREE): user/tree.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/tree.c -o $(USER_BUILD_DIR)/tree.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/tree.o -o $@
+
+$(USER_FIND): user/find.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/find.c -o $(USER_BUILD_DIR)/find.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/find.o -o $@
+
+$(USER_STACKPROBE): user/stackprobe.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/stackprobe.c -o $(USER_BUILD_DIR)/stackprobe.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/stackprobe.o -o $@
+
+$(USER_HEAD): user/head.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/head.c -o $(USER_BUILD_DIR)/head.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/head.o -o $@
+
+$(USER_STAT): user/stat.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/stat.c -o $(USER_BUILD_DIR)/stat.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/stat.o -o $@
+
+$(USER_TAIL): user/tail.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/tail.c -o $(USER_BUILD_DIR)/tail.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/tail.o -o $@
+
+$(USER_SORT): user/sort.c user/linker.ld include/syscall.h
+	@mkdir -p $(USER_BUILD_DIR)
+	$(CC) $(USER_CFLAGS) -c user/sort.c -o $(USER_BUILD_DIR)/sort.o
+	$(LD) -m elf_x86_64 -nostdlib -static -T user/linker.ld $(USER_BUILD_DIR)/sort.o -o $@
+
+$(SDK_HELLO): sdk/examples/hello.c sdk/Makefile sdk/lib/crt0.c sdk/include/myos.h sdk/myos-user.ld
+	$(MAKE) -C sdk APP=$(abspath sdk/examples/hello.c) OUT=$(abspath $@)
+
+$(SDK_CP): sdk/examples/cp.c sdk/Makefile sdk/lib/crt0.c sdk/include/myos.h sdk/myos-user.ld
+	$(MAKE) -C sdk APP=$(abspath sdk/examples/cp.c) OUT=$(abspath $@)
+
+$(SDK_WRITE): sdk/examples/write.c sdk/Makefile sdk/lib/crt0.c sdk/include/myos.h sdk/myos-user.ld
+	$(MAKE) -C sdk APP=$(abspath sdk/examples/write.c) OUT=$(abspath $@)
+
+sdk-stage: $(SDK_HELLO) $(SDK_CP) $(SDK_WRITE)
+
+$(INITRAMFS): $(USER_INIT) $(USER_HELLO) $(USER_SLEEPER) $(USER_ORPHANER) $(USER_SAFETY) $(USER_ARGSHOW) $(USER_CALC) $(USER_PIPEWRITE) $(USER_PIPEREAD) $(USER_WC) $(USER_GREP) $(USER_EDIT) $(USER_STARTGUI) $(USER_INSTALL) $(USER_ASM) $(USER_TREE) $(USER_FIND) $(USER_STACKPROBE) $(USER_HEAD) $(USER_STAT) $(USER_TAIL) $(USER_SORT) $(SDK_HELLO) $(SDK_CP) $(SDK_WRITE) $(USER_MOTD) user/gui_16k_fixture.txt tools/mkcpio.py Makefile
+	python3 tools/mkcpio.py $@ system/core/apps/init.elf $(USER_INIT) system/core/apps/hello.elf $(USER_HELLO) system/core/apps/sleeper.elf $(USER_SLEEPER) system/core/apps/orphaner.elf $(USER_ORPHANER) system/core/apps/safety.elf $(USER_SAFETY) system/core/apps/argshow.elf $(USER_ARGSHOW) system/core/apps/calc.elf $(USER_CALC) system/core/apps/pipewrite.elf $(USER_PIPEWRITE) system/core/apps/piperead.elf $(USER_PIPEREAD) system/core/apps/wc.elf $(USER_WC) system/core/apps/grep.elf $(USER_GREP) system/core/apps/edit.elf $(USER_EDIT) system/core/apps/startgui.elf $(USER_STARTGUI) system/core/apps/install.elf $(USER_INSTALL) system/core/apps/asm.elf $(USER_ASM) system/core/apps/tree.elf $(USER_TREE) system/core/apps/find.elf $(USER_FIND) system/core/apps/stackprobe.elf $(USER_STACKPROBE) system/core/apps/head.elf $(USER_HEAD) system/core/apps/stat.elf $(USER_STAT) system/core/apps/tail.elf $(USER_TAIL) system/core/apps/sort.elf $(USER_SORT) system/core/examples/sdk/hello.elf $(SDK_HELLO) system/core/examples/sdk/write.elf $(SDK_WRITE) system/core/apps/cp.elf $(SDK_CP) system/core/resources/motd.txt $(USER_MOTD) system/core/resources/gui-16k.txt user/gui_16k_fixture.txt
 
 $(LIMINE_DIR)/limine:
 	@rm -rf $(LIMINE_DIR)
@@ -186,6 +260,15 @@ run-uefi-graphic: $(PROJECT).iso $(BUILD_DIR)/OVMF_VARS.fd
 		-drive if=pflash,format=raw,file=$(BUILD_DIR)/OVMF_VARS.fd \
 		-cdrom $(PROJECT).iso -boot d -serial stdio -no-reboot -no-shutdown
 
+smoke: $(PROJECT).img tests/run_qemu_boot_smoke.sh
+	tests/run_qemu_boot_smoke.sh $(PROJECT).img
+
+regression: $(PROJECT).img tests/run_interactive_regression.py
+	tests/run_interactive_regression.py $(PROJECT).img
+
+release-check: tests/run_release_candidate_check.sh
+	tests/run_release_candidate_check.sh
+
 debug: $(PROJECT).iso
 	qemu-system-x86_64 -machine q35 -m 256M -cdrom $(PROJECT).iso -boot d \
 		-serial stdio -display none -no-reboot -no-shutdown -S -s
@@ -206,6 +289,9 @@ help:
 		'make run-graphic    Start BIOS QEMU with framebuffer window and COM1 output.' \
 		'make run-uefi       Start UEFI QEMU headlessly and show COM1 output.' \
 		'make run-uefi-graphic Start UEFI QEMU with framebuffer window and COM1 output.' \
+		'make smoke          Run headless BIOS and UEFI boot smoke checks against myos.img.' \
+		'make regression     Run isolated GUI, persistent-storage and native-workflow BIOS/UEFI regression.' \
+		'make release-check  Clean rebuild, artifact hashes, BIOS/UEFI smoke and interactive regression; creates no tag.' \
 		'make img            Build a raw hybrid GPT disk/USB image. Flash only to a dedicated test device.' \
 		'make debug          Start QEMU paused with a GDB server on TCP port 1234.'
 

@@ -91,6 +91,14 @@ int ahci_data_lba_valid(uint64_t lba) {
     return lba >= AHCI_DATA_LBA_START && lba <= AHCI_DATA_LBA_END;
 }
 
+static void release_command_frames(uint64_t command_list, uint64_t received_fis,
+                                   uint64_t command_table, uint64_t data_frame) {
+    if (command_list != PMM_INVALID_ADDRESS) { (void)pmm_free_frame(command_list); }
+    if (received_fis != PMM_INVALID_ADDRESS) { (void)pmm_free_frame(received_fis); }
+    if (command_table != PMM_INVALID_ADDRESS) { (void)pmm_free_frame(command_table); }
+    if (data_frame != PMM_INVALID_ADDRESS) { (void)pmm_free_frame(data_frame); }
+}
+
 int ahci_read_sector(uint64_t lba, uint8_t *output) {
     uint64_t command_list = PMM_INVALID_ADDRESS;
     uint64_t received_fis = PMM_INVALID_ADDRESS;
@@ -99,6 +107,7 @@ int ahci_read_sector(uint64_t lba, uint8_t *output) {
     uint8_t *list;
     uint8_t *table;
     uint8_t *data;
+    int result = 0;
 
     if (output == (uint8_t *)0 || lba > UINT64_C(0x0000FFFFFFFFFFFF) || active_port_base == 0U) {
         return 0;
@@ -109,14 +118,14 @@ int ahci_read_sector(uint64_t lba, uint8_t *output) {
     data_frame = pmm_allocate_frame();
     if (command_list == PMM_INVALID_ADDRESS || received_fis == PMM_INVALID_ADDRESS
         || command_table == PMM_INVALID_ADDRESS || data_frame == PMM_INVALID_ADDRESS) {
-        return 0;
+        goto cleanup;
     }
     zero_frame(command_list); zero_frame(received_fis); zero_frame(command_table); zero_frame(data_frame);
     list = (uint8_t *)paging_physical_to_hhdm(command_list);
     table = (uint8_t *)paging_physical_to_hhdm(command_table);
     data = (uint8_t *)paging_physical_to_hhdm(data_frame);
     if (list == (uint8_t *)0 || table == (uint8_t *)0 || data == (uint8_t *)0) {
-        return 0;
+        goto cleanup;
     }
     mmio_write32(active_port_base + AHCI_PORT_CMD_OFFSET,
                  mmio_read32(active_port_base + AHCI_PORT_CMD_OFFSET) & ~(AHCI_PORT_CMD_ST | AHCI_PORT_CMD_FRE));
@@ -142,15 +151,16 @@ int ahci_read_sector(uint64_t lba, uint8_t *output) {
     for (uint64_t wait = 0U; wait < AHCI_POLL_LIMIT && (mmio_read32(active_port_base + AHCI_PORT_TFD_OFFSET) & (AHCI_TFD_BSY | AHCI_TFD_DRQ)) != 0U; wait++) { }
     mmio_write32(active_port_base + AHCI_PORT_CI_OFFSET, 1U);
     for (uint64_t wait = 0U; wait < AHCI_POLL_LIMIT; wait++) {
-        if ((mmio_read32(active_port_base + AHCI_PORT_IS_OFFSET) & AHCI_INTERRUPT_TFES) != 0U) { return 0; }
+        if ((mmio_read32(active_port_base + AHCI_PORT_IS_OFFSET) & AHCI_INTERRUPT_TFES) != 0U) { goto cleanup; }
         if ((mmio_read32(active_port_base + AHCI_PORT_CI_OFFSET) & 1U) == 0U) {
-            for (uint64_t index = 0U; index < AHCI_SECTOR_SIZE; index++) {
-                output[index] = data[index];
-            }
-            return 1;
+            for (uint64_t index = 0U; index < AHCI_SECTOR_SIZE; index++) { output[index] = data[index]; }
+            result = 1;
+            break;
         }
     }
-    return 0;
+cleanup:
+    release_command_frames(command_list, received_fis, command_table, data_frame);
+    return result;
 }
 
 int ahci_write_data_sector(uint64_t lba, const uint8_t *input) {
@@ -161,6 +171,7 @@ int ahci_write_data_sector(uint64_t lba, const uint8_t *input) {
     uint8_t *list;
     uint8_t *table;
     uint8_t *data;
+    int result = 0;
 
     if (input == (const uint8_t *)0 || ahci_data_lba_valid(lba) == 0 || active_port_base == 0U) {
         return 0;
@@ -171,18 +182,16 @@ int ahci_write_data_sector(uint64_t lba, const uint8_t *input) {
     data_frame = pmm_allocate_frame();
     if (command_list == PMM_INVALID_ADDRESS || received_fis == PMM_INVALID_ADDRESS
         || command_table == PMM_INVALID_ADDRESS || data_frame == PMM_INVALID_ADDRESS) {
-        return 0;
+        goto cleanup;
     }
     zero_frame(command_list); zero_frame(received_fis); zero_frame(command_table); zero_frame(data_frame);
     list = (uint8_t *)paging_physical_to_hhdm(command_list);
     table = (uint8_t *)paging_physical_to_hhdm(command_table);
     data = (uint8_t *)paging_physical_to_hhdm(data_frame);
     if (list == (uint8_t *)0 || table == (uint8_t *)0 || data == (uint8_t *)0) {
-        return 0;
+        goto cleanup;
     }
-    for (uint64_t index = 0U; index < AHCI_SECTOR_SIZE; index++) {
-        data[index] = input[index];
-    }
+    for (uint64_t index = 0U; index < AHCI_SECTOR_SIZE; index++) { data[index] = input[index]; }
     mmio_write32(active_port_base + AHCI_PORT_CMD_OFFSET,
                  mmio_read32(active_port_base + AHCI_PORT_CMD_OFFSET) & ~(AHCI_PORT_CMD_ST | AHCI_PORT_CMD_FRE));
     for (uint64_t wait = 0U; wait < AHCI_POLL_LIMIT && (mmio_read32(active_port_base + AHCI_PORT_CMD_OFFSET) & UINT32_C(0xC000)) != 0U; wait++) { }
@@ -207,10 +216,12 @@ int ahci_write_data_sector(uint64_t lba, const uint8_t *input) {
     for (uint64_t wait = 0U; wait < AHCI_POLL_LIMIT && (mmio_read32(active_port_base + AHCI_PORT_TFD_OFFSET) & (AHCI_TFD_BSY | AHCI_TFD_DRQ)) != 0U; wait++) { }
     mmio_write32(active_port_base + AHCI_PORT_CI_OFFSET, 1U);
     for (uint64_t wait = 0U; wait < AHCI_POLL_LIMIT; wait++) {
-        if ((mmio_read32(active_port_base + AHCI_PORT_IS_OFFSET) & AHCI_INTERRUPT_TFES) != 0U) { return 0; }
-        if ((mmio_read32(active_port_base + AHCI_PORT_CI_OFFSET) & 1U) == 0U) { return 1; }
+        if ((mmio_read32(active_port_base + AHCI_PORT_IS_OFFSET) & AHCI_INTERRUPT_TFES) != 0U) { goto cleanup; }
+        if ((mmio_read32(active_port_base + AHCI_PORT_CI_OFFSET) & 1U) == 0U) { result = 1; break; }
     }
-    return 0;
+cleanup:
+    release_command_frames(command_list, received_fis, command_table, data_frame);
+    return result;
 }
 
 int ahci_read_boot_signature(uint16_t *signature) {

@@ -9,34 +9,34 @@
 
 ## What was tested
 
-MyOS 0.4.0-dev uses the legacy PIC as the IRQ source controller, but delivers its signal via the Local APIC LINT0 in **ExtINT virtual-wire** mode. This is necessary for the common QEMU APIC configuration: PIC/PIT operates with the APIC disabled, but without the Local APIC the route does not reach the CPU. Local APIC MMIO is mapped only into a single uncached page at `0xFFFFFFFFC0000000`; this early mapper is not a full virtual memory system.
+MyOS 0.4.0-dev uses the legacy PIC as the IRQ source controller, but delivers its signal via the Local APIC LINT0 in **ExtINT virtual-wire** mode. This is required for the normal APIC configuration in QEMU: the PIC/PIT operates with the APIC disabled, but without the Local APIC the route does not reach the CPU. Local APIC MMIO is mapped only in a single uncached page `0xFFFFFFFFC0000000`; this early mapper is not a full virtual memory system.
 
-| Test | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Result |
+| Check | BIOS QEMU Q35 | UEFI QEMU Q35 + OVMF | Result |
 |---|---:|---:|---|
-| ISO boot | Passed | Passed | Kernel reports `Local APIC virtual wire: enabled`. |
+| Boot ISO | Passed | Passed | Kernel reports `Local APIC virtual wire: enabled`. |
 | PIT IRQ0 | Passed | Passed | `ticks` increases at roughly 100 Hz. |
 | PIC mask | Passed | Passed | Mask `0xFFFC`: only IRQ0 and IRQ1 enabled. |
 | PS/2 scanning | Passed | Passed | Driver received ACK for `0xF4` and unmasked IRQ1. |
 | QMP `sendkey` | Passed | Passed | `help`, `keyboard`, `halt` were typed only via the virtual PS/2 keyboard. |
-| Keyboard IRQ counter | Passed | Passed | IRQ1 counter increased; no ring-buffer overruns. |
+| Keyboard IRQ counter | Passed | Passed | IRQ1 counter increased; no ring buffer overflows. |
 
-> For testing, keys were injected with the QEMU HMP `sendkey` command via the QMP socket. This validates the path "virtual PS/2 keyboard → PIC IRQ1 → Local APIC → IDT → IRQ dispatcher → keyboard ring buffer → shell", not COM1-serial input.
+> For the test, keys were injected using QEMU HMP `sendkey` via the QMP socket. This verifies the path "virtual PS/2 keyboard → PIC IRQ1 → Local APIC → IDT → IRQ dispatcher → keyboard ring buffer → shell", not COM1-serial input.
 
 ## Observed results
 
-In the BIOS scenario the PIT counter increased roughly from `0xA4` to `0x16C` over a two-second interval. In the UEFI scenario it increased from `0xD01` to `0x118D` between two `ticks` queries. The `keyboard` command in UEFI showed `IRQ1` count `0x2A` and `dropped characters: 0x0` after entering the `ticks`, `keyboard` and `halt` commands.
+In the BIOS scenario the PIT counter rose approximately from `0xA4` to `0x16C` over a two-second interval. In the UEFI scenario it rose from `0xD01` to `0x118D` between two `ticks` queries. The `keyboard` command in UEFI showed `IRQ1` count `0x2A` and `dropped characters: 0x0` after entering the commands `ticks`, `keyboard` and `halt`.
 
 | Subsystem | Implemented behavior | Explicit limitation |
 |---|---|---|
-| PIC 8259A | Remap `0x20–0x2F`, line masking, master/slave EOI. | No correct logic for spurious IRQ7/IRQ15. |
+| PIC 8259A | Remap `0x20–0x2F`, line masking, master/slave EOI. | No correct handling for spurious IRQ7/IRQ15. |
 | Local APIC | LINT0 ExtINT, TPR 0, software-enable via SVR, LAPIC EOI. | No Local APIC timer, IPI, SMP or IOAPIC. |
-| PIT | Channel 0, rate generator, approximately 100 Hz. | PIT is obsolete and not a long-term time source. |
-| PS/2 | Enable-scanning `0xF4`, ACK/Resend, Set 1 US QWERTY, Shift, Backspace, Enter. | No USB HID, Caps Lock, extended keys, command queue or layouts. |
-| Shell | Polls serial and keyboard buffers; `hlt` when no input ready. | On-screen text console will appear only in version 0.6.0-dev. |
+| PIT | Channel 0, rate generator, about 100 Hz. | PIT is legacy and not a long-term time source. |
+| PS/2 | Enable-scanning `0xF4`, ACK/Resend, Set 1 US QWERTY, Shift, Backspace, Enter. | No USB HID, Caps Lock, extended keys, command queue or keyboard layouts. |
+| Shell | Polls serial and keyboard buffer; `hlt` with no ready input. | A screen text console will appear only in version 0.6.0-dev. |
 
 ## Reproducing the test
 
-Standard quick checks remain:
+Standard quick checks are preserved:
 
 ```bash
 cd /home/ubuntu/myos
@@ -45,11 +45,11 @@ make run
 make run-uefi
 ```
 
-For automated hardware input, QEMU must be started with a QMP socket and serial log. Then QMP receives `qmp_capabilities`, after which commands of the form `human-monitor-command` with `sendkey h`, `sendkey e`, `sendkey l`, `sendkey p`, `sendkey ret` are sent. After that the serial log should contain the executed command and the increase in `IRQ1 keyboard count`.
+For automated hardware input, QEMU must be started with a QMP socket and a serial log. Then QMP obtains `qmp_capabilities`, after which commands of the form `human-monitor-command` with `sendkey h`, `sendkey e`, `sendkey l`, `sendkey p`, `sendkey ret` are issued. After that the serial log should contain the executed command and the increase in the `IRQ1` keyboard count.
 
 ## Next milestone
 
-The next priority will be to extend the current simple mapper into a controlled 4-level paging: a unified `boot_info` structure, reservation of pages for kernel/modules/MMIO, a kernel heap and safe mapping APIs. Then a text terminal on the framebuffer will appear — a key step to run a command line on an ordinary PC without COM1.
+The next priority will be to extend the current point mapper to a controlled 4-level paging: a single `boot_info` structure, reservation of pages for the kernel/modules/MMIO, a kernel heap and safe mapping APIs. After that a text terminal on the framebuffer will appear — a key step to run a command line on a normal PC without COM1.
 
 ## References
 

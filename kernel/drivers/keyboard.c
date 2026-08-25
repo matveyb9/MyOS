@@ -3,6 +3,7 @@
 #include <arch.h>
 #include <keyboard.h>
 #include <scheduler.h>
+#include <syscall.h>
 
 #define PS2_DATA_PORT 0x60U
 #define PS2_STATUS_PORT 0x64U
@@ -17,6 +18,8 @@ static volatile uint8_t input_tail;
 static volatile char input_buffer[256];
 static volatile uint64_t dropped_characters;
 static uint8_t shift_held;
+static uint8_t control_held;
+static uint8_t alt_held;
 static uint8_t extended_prefix;
 
 static const char unshifted_set1[128] = {
@@ -92,13 +95,53 @@ static void keyboard_process_scancode(uint8_t scan_code) {
         extended_prefix = 0U;
         return;
     }
-
-    if (key_released != 0U || extended_prefix != 0U) {
+    if (key_code == 0x1dU) {
+        control_held = key_released == 0U ? 1U : 0U;
         extended_prefix = 0U;
         return;
     }
-
-    character = shift_held != 0U ? shifted_set1[key_code] : unshifted_set1[key_code];
+    if (key_code == 0x38U) {
+        alt_held = key_released == 0U ? 1U : 0U;
+        extended_prefix = 0U;
+        return;
+    }
+    if (key_released != 0U) {
+        extended_prefix = 0U;
+        return;
+    }
+    if (extended_prefix != 0U) {
+        extended_prefix = 0U;
+        if (key_code == 0x4bU) {
+            character = (char)MYOS_INPUT_KEY_LEFT;
+        } else if (key_code == 0x4dU) {
+            character = (char)MYOS_INPUT_KEY_RIGHT;
+        } else if (key_code == 0x48U) {
+            character = (char)MYOS_INPUT_KEY_UP;
+        } else if (key_code == 0x50U) {
+            character = (char)MYOS_INPUT_KEY_DOWN;
+        } else if (key_code == 0x53U) {
+            character = (char)MYOS_INPUT_KEY_DELETE;
+        } else if (key_code == 0x47U) {
+            character = (char)MYOS_INPUT_KEY_HOME;
+        } else if (key_code == 0x4fU) {
+            character = (char)MYOS_INPUT_KEY_END;
+        } else {
+            return;
+        }
+    } else {
+        if (alt_held != 0U && key_code == 0x0fU) {
+            character = (char)MYOS_INPUT_KEY_ALT_TAB;
+        } else if (alt_held != 0U && key_code == 0x3eU) {
+            character = (char)MYOS_INPUT_KEY_ALT_F4;
+        } else if (control_held != 0U && key_code == 0x10U) {
+            character = (char)MYOS_INPUT_KEY_CTRL_Q;
+        } else {
+            character = shift_held != 0U ? shifted_set1[key_code] : unshifted_set1[key_code];
+            if (control_held != 0U && character >= 'a' && character <= 'z') {
+                character = (char)(character - 'a' + 1);
+            }
+        }
+    }
     if (character != '\0') {
         keyboard_push_char(character);
         scheduler_wake_console_input();
@@ -112,6 +155,8 @@ int keyboard_init(void) {
     input_tail = 0U;
     dropped_characters = 0U;
     shift_held = 0U;
+    control_held = 0U;
+    alt_held = 0U;
     extended_prefix = 0U;
 
     while ((arch_in8(PS2_STATUS_PORT) & PS2_STATUS_OUTPUT_FULL) != 0U) {
@@ -141,6 +186,14 @@ void keyboard_on_irq(uint8_t irq) {
     if ((arch_in8(PS2_STATUS_PORT) & PS2_STATUS_OUTPUT_FULL) != 0U) {
         keyboard_process_scancode(arch_in8(PS2_DATA_PORT));
     }
+}
+
+void keyboard_inject_char(char character) {
+    if (character == '\0') {
+        return;
+    }
+    keyboard_push_char(character);
+    scheduler_wake_console_input();
 }
 
 int keyboard_has_char(void) {

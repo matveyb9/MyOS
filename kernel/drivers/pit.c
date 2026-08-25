@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include <arch.h>
+#include <framebuffer.h>
 #include <pit.h>
 
 #define PIT_CHANNEL0_DATA 0x40U
@@ -36,6 +37,9 @@ void pit_init(uint32_t frequency_hz) {
 void pit_on_irq(uint8_t irq) {
     (void)irq;
     ticks++;
+    if (configured_frequency_hz != 0U && ticks % configured_frequency_hz == 0U) {
+        framebuffer_gui_on_timer_tick();
+    }
 }
 
 uint64_t pit_ticks(void) {

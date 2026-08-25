@@ -14,7 +14,20 @@
 | [Руководство по платформам](PLATFORMS_RU.md) | Настроить host environment на Linux, Windows/WSL или macOS. |
 | [Руководство разработчика](DEVELOPER_GUIDE_RU.md) | Понять source tree, архитектуру, ABI, storage invariants и validation. |
 | [Руководство по релизам](RELEASES_RU.md) | Разобраться в branches, tags, release notes и двуязычном формате commits. |
+| [Дорожная карта](ROADMAP_RU.md) | Узнать о завершённых milestones и запланированной работе. |
 | [Политика документации](DOCUMENTATION_POLICY_RU.md) | Выполнять same-commit updates, переводы и проверку ссылок. |
+
+## Руководства по возможностям
+
+| Документ | Откройте его, если нужно… |
+|---|---|
+| [GUI bring-up](GUI_BRINGUP_RU.md) | Использовать экспериментальный framebuffer desktop в `feature/gui`. |
+| [Текстовый редактор](TEXT_EDITOR_RU.md) | Редактировать обычные files и многострочный `.mya` source внутри MyOS. |
+| [Native build](NATIVE_BUILD_RU.md) | Написать, собрать, установить и запустить ограниченную `.mya` программу. |
+| [MyOS SDK](SDK_RU.md) | Собрать freestanding C11 program на host-компьютере. |
+| [Спецификация файловой системы](FILESYSTEM_SPEC_RU.md) | Понять root layout, paths и runtime projection. |
+| [MYPFS004 storage](MYPFS004_STORAGE_RU.md) | Узнать limits persistent files, extents и migration. |
+| [Release stabilization](RELEASE_STABILIZATION_RU.md) | Выполнить automated checks и подготовить physical-PC release gate. |
 
 ## Исторические заметки
 

@@ -25,16 +25,16 @@
 On every platform, first obtain the project and enter its root:
 
 ```bash
-git clone <URL-вашего-репозитория> myos
+git clone https://github.com/matveyb9/MyOS.git myos
 cd myos
 ```
 
-If you downloaded a full ZIP, unpack it and open its root (`myos-complete-project`). The full ZIP already contains `.git`; check the project state with:
+If you downloaded a GitHub ZIP archive, unpack it and open its root. ZIP contains source only: it does **not** contain `.git`, branch references or tags. Use `git clone` when you need branch selection, history or future `git pull` updates.
+
+The published default branch is the console-maintenance `main`. To build the current GUI development line after cloning, select it explicitly:
 
 ```bash
-git branch
-git tag
-git status
+git switch feature/gui
 ```
 
 For every verified path, the main build command is:
@@ -43,7 +43,7 @@ For every verified path, the main build command is:
 make all img
 ```
 
-This creates `myos.iso` and `myos.img`. The raw `myos.img` is the required artifact for persistent `disk/` file testing.
+This creates `myos.iso` and `myos.img`. The raw `myos.img` is the required artifact for persistent MYPFS004 testing through `/system`, `/apps`, `/users/myos` and `/temp`.
 
 ## Linux: Ubuntu and Debian
 
@@ -118,8 +118,9 @@ Restart when Windows asks. Then open the Ubuntu application from the Start menu,
 sudo apt update
 sudo apt install build-essential nasm xorriso mtools gdisk qemu-system-x86 ovmf git
 cd ~
-git clone <URL-вашего-репозитория> myos
+git clone https://github.com/matveyb9/MyOS.git myos
 cd myos
+git switch feature/gui
 make all img
 ```
 
@@ -136,7 +137,7 @@ qemu-system-x86_64 \
   -boot c -serial stdio -display none
 ```
 
-Use `init` after boot. QEMU display-window support depends on your WSL/Windows graphics configuration; if it is unavailable, the serial route above remains sufficient for the console OS.
+MyOS enters `[myos]$` automatically after the three-second countdown. Press `K` only when the diagnostic `kernel>` shell is needed, then use `init` for manual user-shell entry. QEMU display-window support depends on your WSL/Windows graphics configuration; if it is unavailable, the serial route above remains sufficient for the console OS.
 
 ## Windows native: MSYS2 path
 

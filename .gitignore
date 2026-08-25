@@ -1,9 +1,14 @@
 # Generated build products
 /build/
+/sdk/build/
 /*.iso
 /*.hdd
 /*.img
 /myos-source-*.zip
+/tests/*.img
+/tests/OVMF_VARS_*.fd
+__pycache__/
+*.py[cod]
 
 # Downloaded and rebuilt on demand by Makefile
 /third_party/limine-binary/

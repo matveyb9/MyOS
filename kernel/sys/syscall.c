@@ -4,6 +4,7 @@
 #include <acpi.h>
 #include <arch.h>
 #include <gdt.h>
+#include <framebuffer.h>
 #include <initramfs.h>
 #include <keyboard.h>
 #include <paging.h>
@@ -22,12 +23,13 @@
 #define IA32_FMASK UINT32_C(0xC0000084)
 #define EFER_SYSCALL_ENABLE UINT64_C(0x0000000000000001)
 #define SYSCALL_MASK_FLAGS UINT64_C(0x0000000000000700)
-#define SYSCALL_WRITE_LIMIT UINT64_C(256)
+#define SYSCALL_WRITE_LIMIT UINT64_C(512)
 
 extern void syscall_entry(void);
 
 static volatile uint64_t total_syscalls;
 static volatile uint64_t write_syscalls;
+static uint64_t gui_owner_task_id;
 
 static int user_buffer_is_valid(uint64_t address, uint64_t length, int writable) {
     if (length == 0U || length > SYSCALL_WRITE_LIMIT) {
@@ -45,6 +47,19 @@ static int copy_from_user(void *destination, uint64_t source_address, uint64_t l
     }
     for (uint64_t index = 0U; index < length; index++) {
         destination_bytes[index] = source_bytes[index];
+    }
+    return 1;
+}
+
+static int copy_gui_content_from_user(struct myos_gui_content_request *destination, uint64_t source_address) {
+    const uint8_t *source = (const uint8_t *)(uintptr_t)source_address;
+
+    if (destination == (struct myos_gui_content_request *)0
+        || paging_user_range_is_mapped(source_address, sizeof(*destination), 0) == 0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < sizeof(*destination); index++) {
+        ((uint8_t *)destination)[index] = source[index];
     }
     return 1;
 }
@@ -80,6 +95,7 @@ void syscall_init(void) {
 
     total_syscalls = 0U;
     write_syscalls = 0U;
+    gui_owner_task_id = UINT64_MAX;
     arch_write_msr(IA32_EFER, arch_read_msr(IA32_EFER) | EFER_SYSCALL_ENABLE);
     arch_write_msr(IA32_STAR, star);
     arch_write_msr(IA32_LSTAR, (uint64_t)(uintptr_t)syscall_entry);
@@ -140,6 +156,53 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         }
         return 1U;
     }
+    if (number == MYOS_SYS_GUI_SESSION) {
+        const uint64_t current_task_id = scheduler_current_task_id();
+
+        if (descriptor == MYOS_GUI_BEGIN) {
+            if (buffer != 0U || length != 0U || gui_owner_task_id != UINT64_MAX
+                || framebuffer_gui_begin() == 0) {
+                return UINT64_MAX;
+            }
+            gui_owner_task_id = current_task_id;
+            return 0U;
+        }
+        if (gui_owner_task_id != current_task_id || framebuffer_gui_active() == 0) {
+            return UINT64_MAX;
+        }
+        if (descriptor == MYOS_GUI_INPUT) {
+            if (length != 0U || buffer > UINT64_C(127)) {
+                return UINT64_MAX;
+            }
+            return (uint64_t)(uint8_t)framebuffer_gui_handle_input((char)buffer);
+        }
+        if (descriptor == MYOS_GUI_SET_CONTENT) {
+            struct myos_gui_content_request request;
+
+            if (buffer == 0U || length != sizeof(request) || copy_gui_content_from_user(&request, buffer) == 0
+                || request.length > MYOS_GUI_CONTENT_MAX
+                || (request.flags & ~(MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_LAUNCHER
+                                      | MYOS_GUI_CONTENT_FLAG_BROWSER)) != 0U
+                || ((request.flags & MYOS_GUI_CONTENT_FLAG_LAUNCHER) != 0U
+                    && (request.flags & (MYOS_GUI_CONTENT_FLAG_EDITABLE | MYOS_GUI_CONTENT_FLAG_BROWSER)) != 0U)
+                || ((request.flags & MYOS_GUI_CONTENT_FLAG_EDITABLE) != 0U
+                    && (request.flags & MYOS_GUI_CONTENT_FLAG_BROWSER) != 0U)
+                || request.cursor > request.length
+                || request.viewport > request.length
+                || request_string_is_terminated(request.title, MYOS_GUI_CONTENT_TITLE_MAX, 1) == 0
+                || framebuffer_gui_set_content(request.title, request.data, request.length, request.flags,
+                                               request.cursor, request.viewport) == 0) {
+                return UINT64_MAX;
+            }
+            return 0U;
+        }
+        if (descriptor == MYOS_GUI_END && buffer == 0U && length == 0U) {
+            framebuffer_gui_end();
+            gui_owner_task_id = UINT64_MAX;
+            return 0U;
+        }
+        return UINT64_MAX;
+    }
     if (number == MYOS_SYS_TICKS) {
         return pit_ticks();
     }
@@ -187,6 +250,10 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     if (number == MYOS_SYS_KILL) {
         if (buffer != 0U || length != 0U) {
             return UINT64_MAX;
+        }
+        if (descriptor == gui_owner_task_id) {
+            framebuffer_gui_end();
+            gui_owner_task_id = UINT64_MAX;
         }
         return scheduler_kill_child(descriptor, MYOS_EXIT_STATUS_KILLED) == 0 ? 0U : UINT64_MAX;
     }
@@ -254,32 +321,65 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
     }
     if (number == MYOS_SYS_VFS_READ) {
         struct myos_vfs_read_request request;
-        struct vfs_file file;
-        uint64_t name_length = 0U;
-        uint64_t remaining;
-        uint64_t copy_length;
+        uint64_t read_length;
         uint64_t data_address;
 
         if (descriptor != 0U || buffer == 0U || length != sizeof(request)
-            || copy_from_user(&request, buffer, sizeof(request)) == 0) {
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.path, MYOS_VFS_PATH_MAX, 1) == 0
+            || vfs_read(request.path, request.offset, request.data, MYOS_VFS_READ_CHUNK, &read_length) == 0) {
             return UINT64_MAX;
         }
-        while (name_length < MYOS_VFS_NAME_MAX && request.path[name_length] != '\0') {
-            name_length++;
-        }
-        if (name_length == 0U || name_length == MYOS_VFS_NAME_MAX || vfs_open(request.path, &file) == 0) {
-            return UINT64_MAX;
-        }
-        if (request.offset >= file.size) {
-            return 0U;
-        }
-        remaining = file.size - request.offset;
-        copy_length = remaining < MYOS_VFS_READ_CHUNK ? remaining : MYOS_VFS_READ_CHUNK;
         data_address = buffer + offsetof(struct myos_vfs_read_request, data);
-        if (copy_to_user(data_address, file.data + request.offset, copy_length) == 0) {
+        return read_length == 0U || copy_to_user(data_address, request.data, read_length) != 0 ? read_length : UINT64_MAX;
+    }
+    if (number == MYOS_SYS_VFS_LIST) {
+        struct myos_vfs_list_request request;
+        struct vfs_directory_entry entry;
+        uint64_t entry_address;
+
+        if (descriptor != 0U || buffer == 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.path, MYOS_VFS_PATH_MAX, 1) == 0
+            || vfs_list(request.path, request.index, &entry) == 0) {
             return UINT64_MAX;
         }
-        return copy_length;
+        for (uint64_t index = 0U; index < MYOS_VFS_NAME_MAX; index++) { request.entry.name[index] = entry.name[index]; }
+        request.entry.size = entry.size;
+        request.entry.type = entry.type;
+        entry_address = buffer + offsetof(struct myos_vfs_list_request, entry);
+        return copy_to_user(entry_address, &request.entry, sizeof(request.entry)) != 0 ? 0U : UINT64_MAX;
+    }
+    if (number == MYOS_SYS_VFS_CREATE_FILE || number == MYOS_SYS_VFS_CREATE_DIRECTORY
+        || number == MYOS_SYS_VFS_REMOVE) {
+        struct myos_vfs_path_request request;
+        int result;
+
+        if (descriptor != 0U || buffer == 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.path, MYOS_VFS_PATH_MAX, 1) == 0) {
+            return UINT64_MAX;
+        }
+        if (number == MYOS_SYS_VFS_CREATE_FILE) {
+            result = vfs_create_file(request.path);
+        } else if (number == MYOS_SYS_VFS_CREATE_DIRECTORY) {
+            result = vfs_create_directory(request.path);
+        } else {
+            result = vfs_remove_object(request.path);
+        }
+        return result != 0 ? 0U : UINT64_MAX;
+    }
+    if (number == MYOS_SYS_VFS_WRITE) {
+        struct myos_vfs_write_request request;
+
+        if (descriptor != 0U || buffer == 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.path, MYOS_VFS_PATH_MAX, 1) == 0
+            || request.length > MYOS_VFS_READ_CHUNK
+            || vfs_write_file(request.path, request.offset, request.data, request.length) == 0) {
+            return UINT64_MAX;
+        }
+        return request.length;
     }
     if (number == MYOS_SYS_TMPFS_CREATE || number == MYOS_SYS_TMPFS_REMOVE
         || number == MYOS_SYS_PERSIST_CREATE || number == MYOS_SYS_PERSIST_REMOVE) {
@@ -352,7 +452,13 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         arch_reboot();
     }
     if (number == MYOS_SYS_EXIT) {
-        uint64_t *next_context = scheduler_exit_current(descriptor);
+        uint64_t *next_context;
+
+        if (scheduler_current_task_id() == gui_owner_task_id) {
+            framebuffer_gui_end();
+            gui_owner_task_id = UINT64_MAX;
+        }
+        next_context = scheduler_exit_current(descriptor);
 
         if (next_context == (uint64_t *)0) {
             serial_write("[user] exit failed: no runnable replacement task.\n");
