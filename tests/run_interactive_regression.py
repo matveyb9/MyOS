@@ -602,6 +602,18 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_project_workspace_and_exit(self):
+        start = len(self.output)
+        self.send("startgui projects\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        browser = self.qmp_screendump("project-workspace-browser")
+        self.require_nonuniform_region(browser, 334, 210, 66, 7, "project workspace current-path title")
+        self.require_nonuniform_region(browser, 441, 284, 28, 7, "project workspace entry metadata")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_files_create_empty_and_exit(self):
         start = len(self.output)
         self.send("startgui\n")
@@ -1095,6 +1107,7 @@ def run_bios(image_path, work_dir):
         guest.gui_files_move_and_exit()
         guest.command(f"stat {GUI_RENAME_TARGET_PATH}", "stat: path not found")
         guest.command(f"stat {GUI_MOVE_TARGET_PATH}", "16384 bytes")
+        guest.gui_project_workspace_and_exit()
         guest.gui_files_search_and_exit()
         guest.gui_files_delete_empty_and_exit()
         guest.command(f"stat {GUI_NEW_FILE_PATH}", "stat: path not found")

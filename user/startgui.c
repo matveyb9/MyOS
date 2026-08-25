@@ -9,6 +9,7 @@
 #define GUI_APP_DIRECTORY "/apps"
 #define GUI_LAUNCHER_APP_NAME_MAX UINT64_C(16)
 #define GUI_BROWSER_START_PATH "/users/myos"
+#define GUI_BROWSER_PROJECT_PATH "/users/myos/projects"
 #define GUI_BROWSER_PAGE_SIZE MYOS_GUI_BROWSER_ENTRY_MAX
 #define GUI_BROWSER_READ_TOO_LARGE (UINT64_MAX - UINT64_C(1))
 #define GUI_BROWSER_COPY_ENTRY_SCAN_LIMIT UINT64_C(128)
@@ -1046,6 +1047,7 @@ static int edit_selected_disk_file(void) {
 void _start(uint64_t argc, const char *arguments) {
     uint64_t status = 0U;
     int home_mode = arguments[0] == '\0' || text_equal(arguments, "home");
+    const int project_mode = text_equal(arguments, "projects");
     int browser_mode = 0;
     int browser_new_file_mode = 0;
     const char *initial_path = arguments;
@@ -1056,6 +1058,10 @@ void _start(uint64_t argc, const char *arguments) {
     } else {
         if (home_mode != 0) {
             show_desktop_home();
+        } else if (project_mode != 0) {
+            browser_mode = 1;
+            (void)browser_set_directory(GUI_BROWSER_PROJECT_PATH);
+            show_file_browser();
         } else {
             if (disk_path_is_valid(initial_path) != 0) {
                 (void)select_disk_path(initial_path);
