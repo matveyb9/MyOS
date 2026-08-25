@@ -153,6 +153,8 @@ static int make_project_workspace_path(char *destination, const char *arguments,
         *requested_mode = 2;
     } else if (text_equal(argument_name + name_length, " build") != 0) {
         *requested_mode = 3;
+    } else if (text_equal(argument_name + name_length, " install") != 0) {
+        *requested_mode = 5;
     } else if (argument_name[name_length] == ' ') {
         uint64_t run_length = 0U;
         const char *tail = argument_name + name_length + 1U;
@@ -569,6 +571,29 @@ static int make_project_package_directory(char *destination, const char *project
     return project_path[name_offset] != '\0' && disk_path_is_valid(destination) != 0;
 }
 
+static int make_project_package_path(char *destination, const char *project_path) {
+    char directory[MYOS_VFS_PATH_MAX] = { 0 };
+    uint64_t offset = 0U;
+
+    if (destination == (char *)0 || make_project_package_directory(directory, project_path) == 0) { return 0; }
+    while (directory[offset] != '\0' && offset + 1U < MYOS_VFS_PATH_MAX) {
+        destination[offset] = directory[offset];
+        offset++;
+    }
+    if (directory[offset] != '\0' || offset + 10U >= MYOS_VFS_PATH_MAX) { return 0; }
+    destination[offset++] = '/';
+    destination[offset++] = 'm';
+    destination[offset++] = 'a';
+    destination[offset++] = 'i';
+    destination[offset++] = 'n';
+    destination[offset++] = '.';
+    destination[offset++] = 'e';
+    destination[offset++] = 'l';
+    destination[offset++] = 'f';
+    destination[offset] = '\0';
+    return 1;
+}
+
 static void append_project_file_status(uint8_t *data, uint64_t *length, const char *label,
                                        const char *directory, const char *name) {
     struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
@@ -644,6 +669,38 @@ static int launch_project_run(const char *project_path, const char *arguments, u
         argument_length++;
     }
     if (arguments[argument_length] != '\0') { return 0; }
+    request.arguments[argument_length] = '\0';
+    child = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
+    if (child == UINT64_MAX) { return 0; }
+    (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
+    *child_status = system_call(MYOS_SYS_WAIT, child, 0U, 0U);
+    if (*child_status == UINT64_MAX) { *child_status = 1U; }
+    return 1;
+}
+
+static int launch_project_install(const char *project_path, uint64_t *child_status) {
+    struct myos_spawn_request request = { { 0 }, { 0 }, UINT64_MAX, UINT64_MAX };
+    char source[MYOS_VFS_PATH_MAX] = { 0 };
+    char target[MYOS_VFS_PATH_MAX] = { 0 };
+    uint64_t argument_length = 0U;
+    uint64_t source_index = 0U;
+    uint64_t target_index = 0U;
+    uint64_t child;
+
+    if (child_status == (uint64_t *)0 || make_project_build_path(source, project_path) == 0
+        || make_project_package_path(target, project_path) == 0 || project_build_is_regular(project_path) == 0
+        || make_path(request.path, "/system/core/apps/install.elf") == 0) {
+        return 0;
+    }
+    while (source[source_index] != '\0' && argument_length + 1U < MYOS_SPAWN_ARGUMENTS_MAX) {
+        request.arguments[argument_length++] = source[source_index++];
+    }
+    if (source[source_index] != '\0' || argument_length + 1U >= MYOS_SPAWN_ARGUMENTS_MAX) { return 0; }
+    request.arguments[argument_length++] = ' ';
+    while (target[target_index] != '\0' && argument_length + 1U < MYOS_SPAWN_ARGUMENTS_MAX) {
+        request.arguments[argument_length++] = target[target_index++];
+    }
+    if (target[target_index] != '\0') { return 0; }
     request.arguments[argument_length] = '\0';
     child = system_call(MYOS_SYS_SPAWN, 0U, (uint64_t)(uintptr_t)&request, sizeof(request));
     if (child == UINT64_MAX) { return 0; }
@@ -1390,6 +1447,14 @@ void _start(uint64_t argc, const char *arguments) {
                     session_finished = 1;
                 } else {
                     set_viewer_status("UNABLE TO RUN PROJECT");
+                }
+            } else if (direct_project_mode != 0 && direct_project_view == 5) {
+                if (project_build_is_regular(project_path) == 0) {
+                    set_viewer_status("UNABLE TO OPEN PROJECT OUTPUT");
+                } else if (launch_project_install(project_path, &status) != 0) {
+                    session_finished = 1;
+                } else {
+                    set_viewer_status("UNABLE TO INSTALL PROJECT");
                 }
             } else {
                 show_file_browser();
