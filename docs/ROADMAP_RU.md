@@ -1,179 +1,110 @@
-# Дорожная карта MyOS
+# Roadmap MyOS
 
 <p align="center">
   <strong>🇷🇺 РУССКИЙ</strong> / <a href="ROADMAP.md">🇺🇸 ENGLISH</a>
 </p>
 
-
-> **Статус на 21 августа 2026 года.** MyOS — собственная учебно-практическая ОС для `x86_64`, написанная на freestanding C11 и x86_64 NASM. Проект не основан на Linux или BSD; Limine используется только как текущий загрузчик и поставщик boot environment. Стабильная консольная линия завершена, а новая GUI-функциональность изолирована в отдельной ветке.
+> **Статус на 25 августа 2026 года.** MyOS — учебно-практическая ОС для `x86_64`, написанная на freestanding C11 и x86_64 NASM. Она не основана на Linux или BSD. Limine остаётся текущим bootloader и поставщиком boot environment.
 
 ## Обозначения статуса
 
 | Маркер | Значение |
 |---|---|
-| `[x]` | Завершено, включено в соответствующий milestone и проверено в объёме этого этапа. |
-| `[~]` | Реализовано в development branch, но этап ещё не имеет отдельного стабильного release или требует запланированного закрытия проверок. |
-| `[ ]` | Запланировано; работа ещё не начата. |
-| `[R&D]` | Исследовательское направление. Оно не блокирует ближайшие milestones и начнётся только при отдельном решении. |
+| `[x]` | Завершено и проверено в объёме указанного milestone. |
+| `[~]` | Активная или интегрированная QEMU-validated работа, ещё не представленная отдельным публичным release. |
+| `[ ]` | Запланировано; реализация не начата. |
+| `[R&D]` | Исследовательское направление; начинается только отдельным решением. |
 
 ## Текущее состояние проекта
 
 | Линия | Назначение | Состояние |
 |---|---|---|
-| `console-stable` | Неподвижная опорная линия завершённой консольной ОС. | `[x]` `v0.12.1-console` на commit `b6914d4`. |
-| `main` | Основная линия консольной ОС и её поддерживаемой документации. | `[x]` boot UX refinement в `0dbcc25`: stage headers, three-second auto-init и очистка экрана перед user shell. |
-| `feature/gui` | Изолированная разработка framebuffer GUI и user-program platform. | `[~]` Checkpoints `v0.12.2-gui-preview` и historical `v0.13.0-gui-rc.1` сохранены; `v0.13.1-gui-preview.1` — текущий QEMU-validated preview, в котором MYPFS004, persistent ELF execution, внешний SDK VFS subset с live `cp`, bounded native argument/input/time/arithmetic toolchain и File Workspace v1 реализованы без слияния в `main`. |
+| `console-stable` | Единственный immutable stable console baseline. | `[x]` Закреплён `v0.12.1-console`; maintenance требует отдельного stable decision. |
+| `main` | Активная экспериментальная QEMU-validated integration line. | `[~]` Содержит GUI, MYPFS004, native execution, SDK workflow и File Workspace. |
+| `feature/gui` | Историческая pre-integration GUI line. | `[x]` Сохранена для истории, inactive и не является целью новой разработки. |
 
-Версия разработки — **MyOS 0.13.1-gui-preview.1**. Теги `v0.12.0-console` и `v0.12.1-console` являются историческими неизменяемыми границами и не перемещаются.
+`main` сам по себе не задаёт release identifier. `v0.12.0-console`, `v0.12.1-console` и `v0.13.1-gui-preview.1` остаются неизменяемыми историческими checkpoint.
 
-## 1. Базовая платформа и ядро
+## 1. Базовая платформа и stable console baseline
 
-| Статус | Результат | Содержание |
+| Статус | Результат | Scope |
 |---|---|---|
-| `[x]` | Загрузка на x86_64 | Higher-half kernel с Limine 12.5.2, BIOS и UEFI/OVMF paths, ISO и raw `IMG` artifacts. |
-| `[x]` | Архитектурная основа | GDT, IDT, TSS, exception/IRQ handling, SYSCALL/SYSRET boundary. |
-| `[x]` | Управление памятью | PMM, four-level paging, kernel heap, user address spaces и guard pages. |
-| `[x]` | Вытесняемое выполнение | Round-robin scheduler, PIT 100 Hz, Local APIC virtual-wire и до 16 task slots. |
-| `[x]` | Базовые драйверы | PS/2 keyboard, RTC, PIC, PCI, AHCI и ACPI S5 poweroff. |
-| `[x]` | Хранение данных | Initramfs CPIO, tmpfs overlay, persistent storage и GPT disk image с изолированным data partition. |
+| `[x]` | Загрузка x86_64 и hardware foundation | Higher-half kernel; Limine BIOS и UEFI/OVMF paths; ISO и raw GPT image; GDT, IDT, TSS, PMM, paging, user address spaces, scheduler, PS/2, RTC, AHCI, PCI и ACPI S5 poweroff. |
+| `[x]` | Persistent logical VFS | CPIO `/system/core`, MYPFS004-backed writable roots, tmpfs `/temp`, generated read-only `/system/live`, GPT data partition и migration legacy storage. |
+| `[x]` | Stable console user environment | User shell, completion, history, pipes, direct bounded file tools, text editor, diagnostics и завершённая граница `v0.12.1-console`. |
+| `[x]` | QEMU BIOS/UEFI baseline | Raw-image boot smoke, persistent AHCI path и reproducible validation commands. |
 
-## 2. Консольная ОС — завершённый baseline
+Граница stable console остаётся неизменной, пока не будет принято отдельное maintenance decision.
 
-Консольный этап завершён и закреплён выпуском **`v0.12.1-console`**. Его последующие поддерживающие улучшения в `main` не меняют границу стабильного console release без отдельного решения о новом patch release.
+## 2. Интегрированная GUI, VFS и native platform
 
-| Статус | Результат | Пользовательская возможность |
+Framebuffer GUI, VFS workspace и native-program platform интегрированы в **`main`**. `startgui` по-прежнему явно запускается из user shell, сохраняя console interaction model, а `console-stable` остаётся неизменным.
+
+| Статус | Возможность | Реализованный результат |
 |---|---|---|
-| `[x]` | Framebuffer text console и COM1 mirror | Диагностика доступна на физическом экране и через serial output QEMU. |
-| `[x]` | Kernel diagnostic shell | Prompt `kernel>`, диагностические команды и безопасный вход в user space. |
-| `[x]` | User shell `/init` | Prompt `[myos]$`, history, Up/Down, Tab completion, переменные окружения, arguments и pipes. |
-| `[x]` | Расширение guarded ring-3 stack | `/init` и каждый spawned user program получают четыре mapped pages по 4 KiB (16 KiB суммарно) и одну lower guard page; `stackprobe` проверяет 12 KiB automatic buffer в BIOS и UEFI. |
-| `[x]` | User utilities | `hello`, `sleeper`, `orphaner`, `safety`, `argshow`, `calc`, `pipewrite`, `piperead`, `wc`, `grep`, `edit`, `tree`, `find`, `head`, `tail`, `sort`, `stat`. `tree` и `find` — read-only bounded logical-VFS explorer/search utilities с fixed recursion/output limits; `head` читает начало одного absolute file через chunks 256 bytes с запросом 1–64 lines и output cap 4 KiB; `tail` stream-читает один absolute file, сохраняя только его последние 4 KiB для запроса 1–64 trailing lines; `sort` стабильно сортирует до 64 retained lines по 127 bytes в bytewise ASCII order; `stat` выводит type и size через bounded parent-directory scan. |
-| `[x]` | Direct calculator | Signed 64-bit arithmetic и quiet output без lifecycle messages. |
-| `[x]` | Автоматический запуск | `/init` запускается через три секунды; `K` отменяет запуск и оставляет пользователя в `kernel>`. |
-| `[x]` | Читаемый boot presentation | Boot log разбит на четыре stage headers; normal user-shell handoff очищает framebuffer, diagnostic path сохраняет log. |
-| `[x]` | Актуальная эксплуатационная документация | Root README, user/developer/platform guides, release policy и документация Linux, Windows, macOS. |
+| `[x]` | Desktop и window system | Ring-3 `startgui`, bounded windows `SYSTEM`, `NOTES` и `MONITOR`, pointer, z-order, visible close controls, standard modifier hotkeys, RTC clock и task status. |
+| `[x]` | GUI editor и viewer | Writable regular files можно просматривать и редактировать через bounded GUI document ABI 16 KiB; read-only paths не входят в editor. |
+| `[x]` | File Workspace | `FILES` просматривает logical VFS через four-entry pages с revalidated type и metadata rows. Writable roots поддерживают new file, new folder, delete confirmation, copy, rename и file-only move; каждый browsable root поддерживает bounded read-only search. |
+| `[x]` | MOVE safety в File Workspace | MOVE сохраняет basename, меняет metadata без copy-delete, отклоняет existing target, работает только с files и остаётся в одном persistent move anchor либо hierarchy `/temp`. QEMU workflow проверяет rejection, успешное перемещение и UEFI persistence. |
+| `[x]` | Persistent native applications | Проверенная загрузка ELF64, installation `/apps/<name>/main.elf` и `run <name> [arguments]`; discovered app tiles запускают verified packages. |
+| `[x]` | SDK и in-OS development | Public SDK, bounded VFS subset, `asm`, `build`, `install`, constrained language `.mya` и source workflow в `/users/myos/projects/`. |
+| `[x]` | Runtime inventory | Read-only records `/system/live` и `sysinfo` показывают bounded boot, driver, device и process information без нового storage format. |
 
-## 3. GUI bringup — текущий этап
+Подробные contracts поддерживаются в [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md), [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md), [SDK_RU.md](SDK_RU.md), [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) и [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md).
 
-GUI преднамеренно остаётся в **`feature/gui`**. Он запускается только явной командой `startgui` из user shell; эта модель сохраняет консоль usable как baseline и даёт возможность проверять GUI независимо.
+## 3. Validation, branch и publication policy
 
-| Статус | Подэтап | Реализованный или ожидаемый результат |
+Работа ведётся небольшими user-visible milestones. Compact полностью validated change может коммититься прямо в `main`; short isolated branch остаётся подходящим для более рискованной VFS/ABI работы, экспериментов или multipart changes.
+
+| Статус | Правило | Evidence или decision gate |
 |---|---|---|
-| `[x]` | GUI launcher | `startgui` открывает framebuffer desktop из ring 3 и возвращает в text console после выхода. |
-| `[x]` | Desktop и window manager | Тёмный desktop, три bounded windows (`SYSTEM`, `NOTES`, `MONITOR`), visibility, z-order и focus. |
-| `[x]` | Keyboard interaction | Standard desktop fallback: `Alt+Tab` для focus, `Alt+F4` для закрытия focused window, `Esc` для back/cancel и `Ctrl+Q` для выхода из GUI; editor сохраняет `Ctrl+S`. |
-| `[x]` | Software pointer | Bounded crosshair pointer и focus верхнего окна под ним. |
-| `[x]` | VFS viewer | Просмотр `/system/core/resources/motd.txt` или файла, переданного как `startgui [absolute-path]`, с ограничением контента ABI. |
-| `[x]` | Persistent note editor | Загрузка `/users/myos/files/notes/note`, редактирование, `Ctrl-S` save и `Esc` cancel. |
-| `[x]` | File Workspace v1 | `FILES` начинает в `/users/myos/`, просматривает полную logical VFS через four-entry pages, отображает bounded type markers `D`/`F`/`L`/`V`, fixed names из 12 characters и byte sizes и открывает writable regular files в GUI editor без изменения VFS write policy. |
-| `[x]` | Boot UX integration | GUI branch содержит stage headers и clear перед normal user-shell entry; BIOS regression и `startgui` regression пройдены. |
-| `[x]` | Cross-firmware closure | UEFI/OVMF normal boot подтвердил stage headers и чистый framebuffer перед user shell. |
-| `[x]` | Desktop clock и task status | Compositor рисует normalized RTC clock `HH:MM:SS` и bounded scheduler snapshots `TASKS`/`RUN` без нового ABI или background repaint loop; BIOS/UEFI QEMU captures требуют обе text regions. |
+| `[x]` | GUI/VFS integration | Интегрирована в `main` после полного `make release-check`. |
+| `[x]` | File Workspace completion | BIOS/UEFI QEMU regression покрывает create, folder, delete confirmation, copy, rename, file-only move, search и MOVE no-overwrite behavior. |
+| `[x]` | Обычный development gate | До commit user-visible milestone используется релевантная build или QEMU regression evidence. |
+| `[~]` | Будущий Pre-release | Рассматривается только после coherent group meaningful changes и нового `make release-check`; создание требует отдельного explicit confirmation. |
+| `[ ]` | Будущий stable release | Требует physical x86_64 PC smoke test в дополнение к QEMU baseline. Это не блокирует QEMU-only development или scoped Pre-release. |
 
-## 4. Ближайшие GUI приоритеты
+Обычная feature work не создаёт release, tag или history rewrite. Подробный workflow записан в [DEVELOPMENT_WORKFLOW_RU.md](DEVELOPMENT_WORKFLOW_RU.md).
 
-Работа выполняется последовательно, с документацией и проверкой артефактов в каждом user-visible change. Порядок ниже выбран так, чтобы сначала улучшить основной сценарий работы с текстом, затем расширить хранение и только после этого подключать новое hardware input.
+## 4. Текущий development focus
 
-| Приоритет | Статус | Работа | Критерий завершения |
+Следующая функциональная работа должна улучшить практический end-to-end path:
+
+```text
+/users/myos/projects/  →  build  →  install  →  run
+```
+
+| Приоритет | Статус | Направление | Принцип завершения |
 |---:|---|---|---|
-| 1 | `[x]` | Cursor-aware editor with scrolling | Caret, `Left`/`Right`/`Up`/`Down`, `Home`/`End`, `Delete` и bounded 20-line viewport реализованы; BIOS и UEFI smoke tests пройдены. |
-| 2 | `[x]` | Historical pre-MYPFS003 named `disk/` files | Это завершённая historical GUI validation stage: `startgui disk/name` выбирал конкретный legacy path, `N` перебирал files, а editor сохранял selected file. Current workflow использует absolute paths под `/users/myos/files/notes/`. |
-| 3 | `[x]` | Hardware mouse/pointer support | PS/2 IRQ12 packets перемещают pointer, left click фокусирует topmost window, а compact modifier shortcuts остаются fallback; BIOS и UEFI tests пройдены. |
-| 4 | `[x]` | GUI reliability pass | BIOS create/save/return/relaunch, UEFI readback/append/save/return и cross-firmware AHCI persistence прошли без регрессии `startgui`. |
-| 5 | `[x]` | Решение о GUI release boundary | Принято: immutable `v0.12.2-gui-preview` фиксирует tested GUI scope; `main` и `console-stable` не меняются, а `feature/gui` продолжает следующий этап. |
-| 6 | `[x]` | Pointer refresh hardening | Ordinary PS/2 movement больше не repaint полный desktop: kernel restores the 11×11 pointer underlay and draws cursor at the new location. BIOS framebuffer captures, GUI note save, native program execution и UEFI remount checks пройдены. |
-| 7 | `[ ]` | Первый GUI release-stabilization pass | `make smoke` автоматизирует clean raw-image BIOS/UEFI boot markers, `make regression` на disposable image проверяет BIOS GUI note save и native build/install/run, затем UEFI persistence/readback and GUI exit, а `make release-check` cleanly rebuilds artifacts and records source/artifact SHA-256. Остаётся выполнить physical x86_64 PC smoke test, зафиксировать final release scope и release notes, затем отдельно решить вопрос нового GUI tag и переноса tested commit в `main`. |
+| 1 | `[~]` | Project и developer workflow | Делать small, visible, bounded improvements, которые упрощают совместное создание source, editing, build, installation и execution. Не добавлять новый VFS primitive, если он не требуется workflow. |
+| 2 | `[ ]` | Follow-on user-facing tools | Выбирать следующую utility или GUI step только если она прямо усиливает established project workflow. |
+| 3 | `[ ]` | Coherent Pre-release review | Возвращаться к Pre-release после нескольких related milestones, а не после каждого commit. |
+| 4 | `[ ]` | Physical-PC validation | При появлении hardware выполнить disposable-media x86_64 smoke test, затем отдельно решить, уместна ли stable-release work. |
 
-## 5. Ближайший пост-GUI этап: собственные программы и среда разработки
+> **Правило приоритета:** улучшения project и developer workflow не откладываются до networking, SMP, USB или custom bootloader.
 
-GUI release decision принят: immutable preview tag фиксирует проверенный framebuffer scope, но не объявляет GUI production-ready и не меняет stable console baseline. После checkpoint реализованы persistent ELF execution, MyOS SDK, MYPFS004, restricted native `asm`/`build` workflow, pointer-refresh hardening, read-only System Inventory VFS и `sysinfo`, File Workspace v1, `make smoke`, isolated `make regression` и clean-tree `make release-check`. Следующий merge-oriented приоритет — завершить GUI release-stabilization pass: остаются physical x86_64 PC smoke test, final release scope и explicit decision о новом tag. GUI не требуется сливать в `main`, чтобы продолжать development environment, но stable merge не должен предшествовать этой проверке.
-
-| Приоритет | Статус | Работа | Критерий завершения |
-|---:|---|---|---|
-| 1 | `[x]` | Persistent ELF64 program execution | `install <absolute-source> /apps/<name>/main.elf` копирует bounded ELF в global application package; `run <name> [arguments]` создаёт отдельный user task. Loader проверяет x86_64 ELF64 `ET_EXEC`, load segments и entry. |
-| 2 | `[x]` | MyOS SDK для внешней сборки | Public header, startup code, linker script, build template и example app находятся в `sdk/`; host-built ELF устанавливается в `/apps/<name>/main.elf` и запускается без пересборки kernel. Подробности и validation — в [SDK_RU.md](SDK_RU.md). |
-| 3 | `[x]` | Developer filesystem workflow | Реализован MYPFS003: real directories, lower-case unified root, `/system/core`, `/system/data`, `/system/config`, `/apps`, `/users/myos`, `/temp` и read-only `/system/live`. Поддержаны absolute paths, ASCII case-preserving/case-insensitive lookup, `/apps` packages, shell `ls`/`mkdir`/`touch`/`write`/`rm`, MYPFS001/MYPFS002 migration и legacy disk namespace removal. [FILESYSTEM_SPEC_RU.md](FILESYSTEM_SPEC_RU.md) фиксирует contract. |
-| 4 | `[x]` | MYPFS004 dynamic large-file storage | Regular files растут лениво до 8 MiB, используют до шести extents и 64 KiB allocation batches; AHCI command DMA frames освобождаются на всех exit paths. Пройдены fragmented 1 MiB exact readback, fresh-boot streamed read, MYPFS003 `M4MG` migration, MYPFS002 migration и BIOS/UEFI SDK execution. [MYPFS004_STORAGE_RU.md](MYPFS004_STORAGE_RU.md) фиксирует contract. |
-| 5 | `[x]` | Первая нативная сборка в MyOS | Реализованы `asm` и public shell wrapper `build`: bounded `.mya` source из `/users/myos/projects/` превращается в loader-valid x86_64 ELF64, затем `install` packages it as `/apps/<name>/main.elf`. BIOS build/run, fresh remount и UEFI execution прошли. [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) фиксирует syntax и bounds. |
-| 6 | `[x]` | Labels и forward-only jumps | `.mya` поддерживает `label name:` и `jump name`; identifiers bounded, labels уникальны, а target обязан располагаться строго позже перехода. BIOS package execution вывела только code до jump с authored status `23`; backward target отклонён, а BIOS-created package повторно выполнен в UEFI. [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) фиксирует syntax, limits и diagnostics. |
-| 7 | `[x]` | Bounded conditional control flow | `.mya` теперь поддерживает `set <0..255>`, `jump_if_zero name` и `jump_if_nonzero name` вместе с labels и безусловными jumps. Conditional и ordinary targets остаются строго forward; missing condition и backward targets отклоняются. BIOS true/false paths, rejected cases и UEFI persistence покрыты [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) и `make regression`. |
-| 8 | `[x]` | Общий in-OS текстовый редактор | Direct `edit <absolute-file>` предоставляет multi-line cursor editing для ordinary mutable VFS files и `.mya` source. Он имеет document limit 4 KiB, explicit save/discard controls и bounded VFS I/O. BIOS ordinary-text readback, editor-authored program build/run и UEFI persistence покрыты [TEXT_EDITOR_RU.md](TEXT_EDITOR_RU.md) и `make regression`. |
-| 9 | `[x]` | Bounded native arguments, input, RTC time и exact comparison | `.mya` поддерживает `args`, `input`, `time` и `jump_if <0..255> name`. `args` передаёт existing bounded string из `run <name> [arguments]`; `input` отфильтровывает terminal `CR`/`LF` и передаёт один condition byte; `time` выводит RTC `HH:MM:SS`; все targets остаются строго forward. Generated ELF использует fixed private RW data segment размером 32 bytes для entry pointer, input/time scratch и последующих private variable slots. `make regression` проверяет empty и forwarded BIOS arguments, input paths и valid time output, затем persistent UEFI argument/input/time execution. [NATIVE_BUILD_RU.md](NATIVE_BUILD_RU.md) фиксирует contract. |
-| 10 | `[x]` | SDK VFS subset и practical copy tool | Public SDK добавляет fixed-size VFS read/create-file/write/remove wrappers. SDK-built live app `cp` копирует editor-authored persistent file размером 305 bytes через 256-byte request boundary, отклоняет existing destination и сохраняет exact target data через UEFI. [SDK_RU.md](SDK_RU.md) фиксирует ABI и user contract. |
-| 11 | `[x]` | Bounded mouse-first desktop launcher | Bare `startgui` показывает fixed clickable tiles `SYSTEM`, `NOTES`, `EDIT NOTE` и top-bar exit `X`; `startgui home` — compatibility alias. Launcher использует existing single GUI session и bounded viewer/editor state. [GUI_BRINGUP_RU.md](GUI_BRINGUP_RU.md) фиксирует contract. |
-| 12 | `[x]` | Mouse window chrome | Non-launcher content поднимает `NOTES`, поэтому активный viewer/editor остаётся видим. Click по открытому title bar поднимает это окно; у каждого окна есть bounded `X`. `SYSTEM`/`MONITOR` скрываются, viewer `NOTES` возвращается home, а editor `NOTES` отменяет draft без сохранения и возвращает к viewer. QMP BIOS/UEFI regression проверяет закрытие SYSTEM/MONITOR, подъём MONITOR по title bar, viewer close-to-home и editor cancel-to-viewer через PPM transitions. |
-| 13 | `[x]` | Standard modifier hotkeys | Temporary `M`/`N`/`E`/`H`/`Q`, pointer, numeric и reset letter controls удалены. `Alt+Tab` переключает focus, `Alt+F4` закрывает focused window, `Esc` возвращает или отменяет, а `Ctrl+Q` выходит; `Ctrl+S` остаётся editor save. QMP BIOS/UEFI regression вводит каждый GUI-level standard shortcut. |
-| 14 | `[x]` | Read-only System Inventory VFS | `/system/live/boot/info`, compiled-in driver records, device summaries и process snapshots генерируются из bounded runtime state; `sysinfo` читает их через existing VFS ABI. Persistent storage format, raw-device capability и новый syscall не добавляются. BIOS/UEFI regression проверяет directory tree и stable inventory output. |
-| 15 | `[x]` | File Workspace v1 | Compact `FILES` начинает в `/users/myos/`, свободно проходит logical VFS через four-entry pages, показывает `D`/`F`/`L`/`V`, fixed names из 12 characters и byte sizes, безопасно просматривает system/inventory records и вызывает 16 KiB GUI editor только для writable roots. BIOS/UEFI QMP regression покрывает вход по tile, parent navigation, visible metadata и CPIO-backed traversal `/system/core/apps`. |
-| 16 | `[x]` | Начальное расширение GUI editor до 4 KiB | Initial fixed GUI content ABI предоставляло viewer/editor payload 4 096 bytes через dedicated mapped-range copy при неизменном ordinary syscall I/O limit 512 bytes. Этот исторический шаг заменён milestone 24. |
-| 17 | `[x]` | Bounded native variables | `.mya` теперь поддерживает `store <0..7>` и `load <0..7>` над восемью zero-initialized private byte slots в fixed RW segment размером 32 bytes. BIOS собирает, устанавливает и запускает value-preserving exact branch, отклоняет slot `8`, а UEFI повторно запускает persisted package. |
-| 18 | `[x]` | SDK VFS write reference | `sdk/examples/write.c` stage-ится как `/system/core/examples/sdk/write.elf`; после explicit installation он создаёт один новый absolute target и записывает fixed payload через public VFS wrappers. BIOS проверяет exact payload и no overwrite, а UEFI валидирует persisted package и второй exact target. |
-| 19 | `[x]` | Live desktop clock | PIT IRQ0 обновляет compositor-owned `HH:MM:SS` раз в секунду, перерисовывая только top-bar rectangle 72×32 и сохраняя pointer; окна, tiles и footer не перерисовываются. BIOS и UEFI QEMU captures доказывают продвижение clock region unchanged launcher. |
-| 20 | `[x]` | Native byte arithmetic | `.mya` поддерживает `add <0..255>` и `sub <0..255>` над initialized accumulator с wrap modulo 256; BIOS проверяет branch `(250 + 8 - 2) mod 256 = 0`, а UEFI повторно запускает persisted package. |
-| 21 | `[x]` | Bounded native multiply/divide | `.mya` поддерживает `mul <0..255>` с modulo-256 low-byte retention и safe unsigned `div <1..255>`; BIOS проверяет `((200 * 2 mod 256) + 57) / 3 = 67`, `div 0` отклоняется, а UEFI повторно запускает persisted package `MULDIV`. |
-| 22 | `[x]` | Bounded private comparison | `.mya` поддерживает `cmp <0..7>` над initialized accumulator и eight-slot private byte store; equality выдаёт `0`, а inequality — `1` для existing forward-only branches. BIOS проверяет `EQ` и `NE`, отклоняет uninitialized или slot-`8` comparisons, а UEFI повторно запускает persisted package. |
-| 23 | `[x]` | File Workspace full-path title | `FILES` теперь передаёт полный current logical-VFS directory через bounded GUI title field 112 bytes; compact title glyph spacing показывает весь path при supported geometry 1280×800. BIOS QMP captures проверяют visible title text и title transitions после parent и `/system` navigation; UEFI повторяет File Workspace workflow. |
-| 24 | `[x]` | GUI editor documents 16 KiB | Fixed GUI content ABI теперь передаёт viewer/editor documents 16 384 bytes в mapped request 16 528 bytes. Ring 3 читает и сохраняет их через до шестидесяти четырёх неизменных VFS chunks по 256 bytes; BIOS копирует deterministic fixture 16 KiB, сохраняет/перезагружает его в GUI и проверяет exact content, а UEFI подтверждает persisted payload. |
-| 25 | `[x]` | Direct shell copy | `cp <absolute-source> <new-absolute-target>` теперь вызывает existing bounded SDK-built copy app без lifecycle noise и появляется в shell completion/help. Он сохраняет transfers по 256 bytes, rule absent-target/existing-parent и partial-target cleanup; `run cp` остаётся compatible. BIOS проверяет exact copy 305 bytes и direct/compatibility overwrite rejection, а UEFI повторяет direct rejection для persisted target. |
-| 26 | `[x]` | Direct shell word count | `wc <absolute-file>` теперь напрямую вызывает existing bounded stream counter, выводит newline lines, space/tab/CR/LF-delimited words и bytes и появляется в shell completion/help. BIOS проверяет exact output `1 lines, 128 words, 259 bytes`, где final word пересекает boundary VFS chunk 256 bytes; UEFI повторяет persisted direct count, а `run wc` остаётся compatible. |
-| 27 | `[x]` | Direct shell text search | `grep <text> <absolute-file>` теперь напрямую вызывает bounded native search и появляется в shell completion/help. Он выводит matching newline-terminated lines до 127 bytes и пропускает более длинные lines при чтении VFS chunks по 256 bytes. BIOS проверяет одну короткую match при пропуске matching overlong line; UEFI повторяет persisted direct search; `run grep` остаётся compatible. |
-| 28 | `[x]` | File Workspace empty-file creation | FILES теперь предоставляет bounded browser row `[NEW FILE]`. В `/users/myos`, `/temp`, `/system/data` или `/system/config` она принимает printable имя без `/` до 63 bytes, создаёт только новый empty VFS file и открывает existing GUI editor; read-only roots остаются immutable. BIOS QMP создаёт и сохраняет `/users/myos/guinew`, а UEFI подтверждает его persisted zero-byte record. |
-| 29 | `[x]` | Native bitwise byte operations | In-OS assembler теперь принимает operand-free `not` и bounded `and <0..255>` / `or <0..255>` для initialized byte accumulator. BIOS собирает package `BITWISE`, вычисляющий `~240 & 63 | 128 = 143`, а UEFI повторяет persisted branch; uninitialized `not` и `and 256` отклоняются. |
-| 30 | `[x]` | Native exclusive-or byte operation | In-OS assembler теперь принимает bounded `xor <0..255>` для initialized byte accumulator. BIOS собирает package `XOR`, вычисляющий `170 xor 255 xor 85 = 0`, а UEFI повторяет persisted zero branch; uninitialized `xor` и `xor 256` отклоняются. |
-| 31 | `[x]` | Direct shell stat | `stat <absolute-path>` теперь напрямую вызывает existing bounded metadata lookup, выводит logical entry type и byte size и появляется в completion/help. BIOS проверяет direct help, exact MOTD type/size и retained `run stat` compatibility; UEFI повторяет direct MOTD и persisted zero-byte records. |
-| 32 | `[x]` | Direct shell sort | `sort <absolute-file>` теперь напрямую вызывает existing bounded text-ordering tool, выводит до 64 retained lines по 127 bytes в bytewise ASCII ascending order и появляется в completion/help. BIOS проверяет direct help, exact MOTD order и retained `run sort` compatibility; UEFI повторяет direct ordering. |
-| 33 | `[x]` | Direct shell head | `head <absolute-file> [1..64 lines]` теперь напрямую вызывает existing bounded preview tool, выводит первые 10 lines по умолчанию или requested prefix через VFS chunks 256 bytes с output cap 4 KiB и появляется в completion/help. BIOS проверяет direct help, exact two-line MOTD preview и retained `run head` compatibility; UEFI повторяет direct output. |
-| 34 | `[x]` | Direct shell tail | `tail <absolute-file> [1..64 lines]` теперь напрямую вызывает existing bounded trailing-preview tool, выводит последние 10 lines по умолчанию или requested suffix, сохраняя только final 4 KiB, прочитанные через VFS chunks 256 bytes, и появляется в completion/help. BIOS проверяет direct help, exact two-line MOTD preview и retained `run tail` compatibility; UEFI повторяет direct output. |
-| 35 | `[x]` | Direct shell find | `find <name-fragment> [absolute-directory]` теперь напрямую вызывает existing bounded logical-VFS name search, сохраняет case-insensitive read-only traversal limits 8 levels, 64 entries на directory и 256 scanned entries и появляется в completion/help. BIOS проверяет direct help, matching CPIO-backed record `tree.elf` и retained `run find` compatibility; UEFI повторяет direct discovery packaged `find.elf`. |
-| 36 | `[x]` | Direct shell tree | `tree [absolute-directory]` теперь напрямую вызывает existing bounded logical-VFS hierarchy view, сохраняет read-only traversal limits 8 levels, 64 entries на directory и 256 printed entries и появляется в completion/help. Без аргумента сохраняется native traversal корня. BIOS проверяет direct help, CPIO-backed hierarchy records и retained `run tree` compatibility; UEFI повторяет direct hierarchy output. |
-| 37 | `[x]` | Native logical byte shifts | In-OS assembler теперь принимает `shl <1..7>` и `shr <1..7>` для initialized byte accumulator, генерируя validated logical x86_64 byte shifts с отбрасыванием shifted-out bits. BIOS собирает package `SHIFT` для `3 shl 5 shr 4 = 6`; UEFI повторяет persisted branch; uninitialized shifts, `shl 0` и `shr 8` отклоняются. |
-| 38 | `[x]` | File Workspace folder creation | Mouse-first browser FILES теперь показывает `[NEW FOLDER]` под `[NEW FILE]`. В established writable roots он принимает одно непустое printable name без `/` до 63 bytes, создаёт только new empty directory через existing VFS syscall и обновляется на месте; existing file action по-прежнему открывает новый file в GUI editor. BIOS проверяет prompt, visible refresh и directory type, а UEFI повторяет persisted type check. |
-| 39 | `[x]` | GUI footer focus indicator | Desktop footer теперь показывает bounded `FOCUS HOME`, `FOCUS SYSTEM`, `FOCUS NOTES` или `FOCUS MONITOR` рядом с existing scheduler status. BIOS и UEFI QEMU regression требуют visible footer transition от `FOCUS NOTES` к `FOCUS MONITOR` после `Alt+Tab`; новый GUI ABI или background redraw loop не добавляются. |
-| 40 | `[x]` | Native circular byte rotates | In-OS assembler теперь принимает `rol <1..7>` и `ror <1..7>` для initialized byte accumulator, генерируя validated circular x86_64 byte rotates с сохранением всех восьми bits. BIOS собирает package `ROTATE` для `129 rol 1 ror 2 = 192`; UEFI повторяет persisted branch; uninitialized rotates, `rol 0` и `ror 8` отклоняются. |
-| 41 | `[x]` | Native byte remainder | In-OS assembler теперь принимает `mod <1..255>` для initialized byte accumulator, генерируя validated unsigned x86_64 division sequence, сохраняющую remainder. BIOS собирает package `MOD` для `200 mod 57 = 29`; UEFI повторяет persisted branch; uninitialized `mod` и `mod 0` отклоняются. |
-| 42 | `[x]` | Native modular byte negation | In-OS assembler теперь принимает operand-free `neg` для initialized byte accumulator, генерируя x86_64 `neg bl` и сохраняя two’s-complement результат modulo 256. BIOS собирает package `NEG`, в котором `neg 7` становится `249`; UEFI повторяет persisted exact branch; uninitialized `neg` отклоняется. |
-| 43 | `[x]` | Native modular byte increment | In-OS assembler теперь принимает operand-free `inc` для initialized byte accumulator, генерируя x86_64 `inc bl` и сохраняя byte result с wrapping modulo 256. BIOS собирает package `INC`, в котором `inc 255` становится `0`; UEFI повторяет persisted zero branch; uninitialized `inc` отклоняется. |
-| 44 | `[x]` | Native modular byte decrement | In-OS assembler теперь принимает operand-free `dec` для initialized byte accumulator, генерируя x86_64 `dec bl` и сохраняя byte result с wrapping modulo 256. BIOS собирает package `DEC`, в котором `dec 0` становится `255`; UEFI повторяет persisted exact branch; uninitialized `dec` отклоняется. |
-| 45 | `[x]` | Native private-slot swap | In-OS assembler теперь принимает `swap <0..7>` для initialized byte accumulator, генерируя x86_64 `xchg bl, byte [absolute slot]` для обмена с private slot. BIOS собирает package `SWAP`, обменивающий `12` с сохранённым byte `73`; UEFI повторяет persisted branch; uninitialized или out-of-range `swap` отклоняется. |
-| 46 | `[x]` | Native byte test predicate | In-OS assembler теперь принимает `test <0..255>` для initialized byte accumulator, генерируя x86_64 `test bl, imm8; setne bl; movzx ebx, bl` и нормализуя byte-wise intersection в `0` или `1`. BIOS собирает package `TEST` для nonzero и zero mask outcomes; UEFI повторяет persisted paths; uninitialized `test` отклоняется. |
-| 47 | `[x]` | Native byte parity predicate | In-OS assembler теперь принимает operand-free `parity` для initialized byte accumulator, генерируя x86_64 `test bl, bl; setp bl; movzx ebx, bl` и нормализуя even parity в `1` или odd parity в `0`. BIOS собирает package `PARITY` для обоих outcomes; UEFI повторяет persisted paths; uninitialized `parity` отклоняется. |
-| 48 | `[x]` | Native byte leading-zero count | In-OS assembler теперь принимает operand-free `clz` для initialized byte accumulator, возвращая bounded count leading zero bits: `clz 32 = 2` и `clz 0 = 8`. BIOS собирает package `CLZ` для обоих результатов; UEFI повторяет persisted paths; uninitialized `clz` отклоняется. |
-| 49 | `[x]` | File Workspace bounded delete | Mouse-first browser `FILES` теперь показывает `[DELETE]` после `[NEW FOLDER]`. Printable name без `/` длиной до 63 bytes удаляет только file или empty directory в established writable root, затем обновляет browser. BIOS создаёт и удаляет `guinew`; UEFI подтверждает persisted absence при сохранении `guidir`. |
-| 50 | `[x]` | File Workspace named-delete confirmation | `[DELETE]` теперь отображает complete named target и фиксирует его до удаления; только второй Enter вызывает existing remove syscall, а `Esc` отменяет действие без mutation. BIOS QMP regression захватывает и confirmation, и refresh после удаления; UEFI снова подтверждает, что `guinew` отсутствует, а `guidir` остаётся directory. |
-| 51 | `[x]` | File Workspace bounded same-directory copy | `[COPY]` теперь запрашивает source и absent target names, stream-копирует один regular file до 64 KiB в existing VFS chunks по 256 bytes, никогда не перезаписывает target и удаляет только собственный partial target при failure. BIOS QMP копирует zero-byte `guinew` в `guicopy`; после удаления source UEFI подтверждает persistence `guicopy`, а `guidir` остаётся directory. |
-| 52 | `[x]` | File Workspace multi-chunk copy regression | BIOS теперь копирует deterministic regular source 16 KiB в `guicopytarget` через шестьдесят четыре File Workspace VFS transfers по 256 bytes. UEFI подтверждает persistence target 16 KiB вместе с existing evidence directory и deletion. |
-| 53 | `[x]` | File Workspace no-overwrite copy regression | BIOS повторяет `[COPY]` с уже existing target и требует visible rejection вместо replacement. BIOS и UEFI сохраняют source и target 16 KiB вместе с prior evidence delete и directory. |
-| 54 | `[x]` | File Workspace bounded current-directory search | `[SEARCH]` принимает printable name fragment без `/`, выполняет case-insensitive matching не более 128 VFS entries current directory без mutation, выводит matching metadata и возвращает в browser по `Esc`. BIOS QMP проверяет prompt, results view и return; full UEFI persistence replay остаётся clean. |
-| 55 | `[x]` | File Workspace selectable search results | Первые четыре current-directory matches показываются как browser rows и revalidated against VFS в момент click перед open. `[RETURN]` и `Esc` закрывают result view без mutation. BIOS QMP открывает match `guidir`; UEFI persistence replay остаётся clean. |
-
-> **Приоритет пользователя:** собственные программы и первый native build workflow не откладываются до сети, SMP, USB или собственного bootloader. После GUI release decision они образуют ближайшую линию функциональной разработки.
-
-## 6. Последующий системный горизонт
+## 5. Последующий системный горизонт
 
 | Статус | Направление | Правило принятия решения |
 |---|---|---|
-| `[ ]` | Дополнительные user applications | Развивать поверх SDK и executable workflow, начиная с practical developer tools. |
-| `[ ]` | Поддержка физического hardware | Проверять на реальной x86_64 машине после сохранения QEMU BIOS/UEFI regression baseline. |
-| `[ ]` | Пользователи и права доступа | Вводить после базового user-program workflow: uid/gid, owners, file permissions, login/session model. |
-| `[ ]` | Сеть | Начать с QEMU-supported Ethernet driver и минимального IPv4 path после согласования user-program execution и storage contracts. |
-| `[R&D]` | Multiboot compatibility | Исследовать как дополнительный boot protocol, если появится конкретная задача совместимости; текущий Limine path не заменять без проверки всех boot artifacts. |
-| `[R&D]` | Собственный bootloader | Начать с изолированного учебного proof of concept; не заменять Limine, пока custom path не достигнет BIOS/UEFI feature parity и повторяемой validation. |
-| `[ ]` | SMP, IOAPIC и расширенный timer model | Планировать при появлении задач, которые действительно требуют параллельного CPU execution. |
+| `[ ]` | Users и access control | Вводить uid/gid, ownership, permissions и login/session concepts только после зрелого basic user-program workflow. |
+| `[ ]` | Networking | Начать с QEMU-supported Ethernet driver и minimal IPv4 path после согласования execution и storage contracts. |
+| `[ ]` | SMP, IOAPIC и extended timer model | Планировать только при появлении concrete workloads, которым нужно parallel CPU execution. |
+| `[R&D]` | Multiboot compatibility | Исследовать только для конкретной compatibility need; не заменять текущий Limine path без проверки каждого artifact. |
+| `[R&D]` | Custom bootloader | Начать как isolated educational proof of concept; не заменять Limine до BIOS/UEFI parity и repeatable validation. |
 
-## 7. Границы, которые не меняются
+## 6. Границы, которые не меняются
 
 | Решение | Статус | Причина |
 |---|---|---|
-| Основная архитектура только `x86_64` | `[x]` | Не добавлять 32-bit port в текущий roadmap: он дублирует low-level platform work и замедлит первый GUI release. Возможный i386 learning lab допускается только позже как отдельная ветка. |
-| Limine остаётся загрузчиком текущих artifacts | `[x]` | Он обеспечивает проверенный BIOS/UEFI путь; custom bootloader и Multiboot — отдельные будущие исследования. |
-| GUI не сливается в console baseline автоматически | `[x]` | `feature/gui` остаётся отдельной экспериментальной веткой до отдельного решения о release. |
-| Учебные комментарии и учебная документация — после разработки | `[x]` | Полный pedagogical pass начнётся только после завершения функциональной разработки, чтобы не превращать незавершённые детали в ложную спецификацию. |
+| Основная архитектура — только x86_64 | `[x]` | 32-bit port дублирует low-level platform work и находится вне выбранного scope. |
+| Limine остаётся текущим loader | `[x]` | Он предоставляет validated BIOS/UEFI boot path. |
+| `console-stable` и `main` имеют разные роли | `[x]` | `console-stable` — единственный stable console baseline; `main` — активная QEMU-validated integration line. |
+| `feature/gui` историческая | `[x]` | Ветка сохранена для истории и больше не развивается. |
+| Pedagogical edition следует после functional completion | `[x]` | Explanatory comments, chapters, diagrams и labs — отдельный этап, чтобы unfinished behavior не стал ложной спецификацией. |
 
-## 8. Условие перехода к учебной редакции
+## 7. Следующее действие
 
-После функционального завершения выбранной release scope потребуется отдельный финальный этап: объясняющие комментарии в исходниках, последовательные учебные главы, diagrams архитектуры, reproducible lab exercises и обновлённая validation guide. Этот этап намеренно не выполняется параллельно с активной разработкой.
+Выбрать один узкий project/developer-workflow milestone из текущего baseline `main`, реализовать его с bounded contract и синхронной EN/RU documentation, проверить в QEMU на подходящей глубине, а затем отдельно решить вопрос публикации проверенного commit. Обновление этого Roadmap не требует Pre-release.
 
-## Следующее действие
-
-Native build workflow, labels/forward-only jumps, bounded conditional control flow, SDK VFS copy tooling, direct bounded word counting и text search, native input/time, bounded default desktop launcher `startgui` с dynamic installed-app tiles, общий text editor, GUI pointer-refresh hardening, read-only System Inventory VFS с `sysinfo` и automated release-stabilization baseline завершены в `feature/gui`: MYPFS004 VFS предоставляет единый корень с `/system`, `/apps`, `/users/myos` и `/temp`, а `build` собирает bounded `.mya` source в native ELF64. `args` передаёт existing bounded string из `run <name> [arguments]`. Восемь private slots `store`/`load` сохраняют program bytes, но general user-addressable writable memory не вводится. `input` принимает один не-`CR`/`LF` byte как condition; `set <0..255>` предоставляет явную альтернативу; `not`, `and <0..255>`, `or <0..255>`, `xor <0..255>`, `add <0..255>`, `sub <0..255>` и `mul <0..255>` требуют этот initialized byte accumulator; bitwise operations обновляют его восемь bits, а arithmetic wrap modulo 256, а `div <1..255>` отклоняет zero и сохраняет unsigned integer quotient; `cmp <0..7>` сравнивает этот accumulator с private state и выдаёт `0` для equality или `1` для inequality; `jump_if_zero`, `jump_if_nonzero` и `jump_if <0..255>` сохраняют все targets строго forward. `time` выводит одну RTC line в формате `HH:MM:SS`. Fixed private RW ELF segment размером 32 bytes сохраняет entry argument pointer, syscall scratch storage и восемь private slots, но не создаёт general writable program data. SDK header также предоставляет fixed-size VFS read/create/write/remove wrappers; direct shell `cp` вызывает его live tool для copy files chunks по 256 bytes, требует new destination с existing parent и никогда не перезаписывает её, а `run cp` остаётся compatible. Direct `wc` stream-читает counts lines/words/bytes VFS chunks по 256 bytes, direct `grep` выводит matching lines до 127 bytes и пропускает более длинные lines, direct `tree` выполняет bounded logical-VFS hierarchy traversal, direct `find` выполняет bounded case-insensitive logical-VFS name search, direct `head` выводит bounded leading line range, direct `sort` выводит bounded bytewise ASCII order, direct `tail` выводит bounded trailing line range, а direct `stat` выводит bounded logical-entry type/size; `run wc`, `run grep`, `run tree`, `run find`, `run head`, `run sort`, `run tail` и `run stat` остаются compatible. Bare `startgui` — bounded mouse-first launcher: его четыре compact system-tile rectangles (`SYSTEM`, `NOTES`, `EDIT NOTE`, `FILES`) и top-bar exit rectangle вызывают existing actions; FILES начинает в `/users/myos/`, передаёт полный current logical path через title field 112 bytes, повторно перечисляет bounded VFS rows перед navigation, достигает `/` без raw boot media, создаёт new empty files только в established writable roots из 63-byte prompt без `/` и открывает только writable files до 16 KiB в GUI editor, а до четырёх verified packages `/apps/<name>/main.elf` появляются ниже как mouse-only launch tiles. Tile повторно проверяет и создаёт точный package, завершает GUI и ожидает child, поэтому console output остаётся видимым. `Alt+Tab` переключает focus, `Alt+F4` закрывает focused window, `Esc` возвращает или отменяет, а `Ctrl+Q` выходит; temporary single-letter, pointer, numeric и reset controls удалены. `startgui home` остаётся alias, а не general window API или application installer. Non-launcher content поднимает активную поверхность NOTES; открытый title bar поднимает record окна, а per-window `X` скрывает SYSTEM/MONITOR, возвращает viewer NOTES home или отменяет editor NOTES без сохранения. Direct `edit <absolute-file>` предоставляет cursor-based multi-line editing для ordinary files и `.mya` source с explicit save/discard и all-in-memory document limit 4 KiB. Disposable-image gate `make regression` покрывает QMP PS/2 `Alt+Tab` focus, `Alt+F4` закрытие focused MONITOR, `Esc` viewer return, `Alt+F4` editor cancel-to-viewer и `Ctrl+Q` clean exit в BIOS и UEFI, плюс mouse activation compact tiles `NOTES` и `FILES`, visible transitions title File Workspace при parent и `/system` navigation, FILES parent navigation, закрытие SYSTEM/MONITOR, подъём MONITOR по title bar, viewer close-to-home, editor cancel-to-viewer и запуск обнаруженного installed-app tile с PPM framebuffer transitions; также он покрывает retained alias `startgui home`, ordinary-text readback, GUI editor load/save/readback 16 KiB через шестьдесят четыре VFS chunks, seeded from deterministic initramfs fixture, File Workspace mouse creation и GUI-editor save zero-byte `/users/myos/guinew` с UEFI type/size persistence, paced 305-byte direct shell `cp` copy через VFS request boundary с direct и compatibility overwrite rejection, exact direct `wc` line/word/byte output через boundary 256 bytes с compatibility `run wc`, direct `grep` short-match output с пропуском matching overlong line и compatibility `run grep`, editor-authored program build/run, empty и forwarded arguments, legacy и exact input branches, modular add/sub arithmetic `(250 + 8 - 2) mod 256` с rejected uninitialized `add`, persisted multiply/divide arithmetic `MULDIV` с rejected `div 0`, persisted `BITWISE` not/and/or byte operations от `240` к `143` с rejected uninitialized `not` и `and 256`, persisted `XOR` byte operation `170 xor 255 xor 85 = 0` с rejected uninitialized `xor` и `xor 256`, persisted private-slot comparison `EQ`/`NE` с rejected uninitialized или slot-`8` `cmp`, valid RTC time output, invalid-control-flow rejection и UEFI persistence copied file и installed native packages.
- `install` явно переносит output в `/apps/<name>/main.elf`, после чего `run <name>` или обнаруженный desktop tile создаёт отдельный ring-3 task. `make smoke` подтверждает raw-image BIOS/UEFI boot markers, а `make release-check` создаёт clean-rebuild source/artifact evidence. Следующий merge-oriented GUI milestone по-прежнему требует physical x86_64 PC smoke test, final release scope и explicit decision о новом immutable GUI tag. Будущая native work должна сохранять bounded language и execution contract; личная установка приложений (`/users/myos/apps`) остаётся отдельным будущим расширением. Preview checkpoints, включая QEMU-validated `v0.13.1-gui-preview.1`, не сливаются автоматически в `main`; `main` и `console-stable` сохраняют console-only scope. Исходные `myos.iso` и `myos.img` продолжают собираться командой `make all img`.
+После сознательного закрытия functional release scope отдельный этап pedagogical edition сможет добавить source comments, последовательные учебные главы, architecture diagrams, reproducible lab exercises и updated validation guide.
