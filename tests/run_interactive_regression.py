@@ -648,6 +648,32 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_direct_project_remove_and_exit(self, project_name):
+        start = len(self.output)
+        self.send(f"startgui project {project_name} remove\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        if b"exited with status" in bytes(self.output[start:]):
+            raise RegressionFailure(f"GUI project removal unexpectedly ended the session\n{self._tail()}")
+        status = self.qmp_screendump("direct-project-remove-status")
+        self.require_nonuniform_region(status, 330, 210, 200, 24, "direct project removal status")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
+    def gui_direct_project_remove_rejected_and_exit(self, project_name):
+        start = len(self.output)
+        self.send(f"startgui project {project_name} remove\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        if b"exited with status" in bytes(self.output[start:]):
+            raise RegressionFailure(f"GUI unclean-project removal unexpectedly ended the session\n{self._tail()}")
+        status = self.qmp_screendump("direct-project-remove-rejected-status")
+        self.require_nonuniform_region(status, 330, 210, 200, 24, "direct project removal rejected status")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_direct_project_clean_and_exit(self, project_name):
         start = len(self.output)
         self.send(f"startgui project {project_name} clean\n")
@@ -1344,6 +1370,7 @@ def run_bios(image_path, work_dir):
         if b"[starter args]\n" not in bytes(guest.output[args_package_run_start:]) and b"[starter args]\r\n" not in bytes(guest.output[args_package_run_start:]):
             raise RegressionFailure(f"BIOS: installed args starter did not forward package arguments\n{guest._tail()}")
         guest.command(f"rmproj {ARGS_PROJ_NAME}", "Build output is present. Run cleanproj first.")
+        guest.gui_direct_project_remove_rejected_and_exit(ARGS_PROJ_NAME)
         guest.command(f"cleanproj {ARGS_PROJ_NAME}", "Removed build output")
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "source: READY")
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "build: MISSING")
@@ -1448,7 +1475,7 @@ def run_bios(image_path, work_dir):
         if b"Hello from MyOS project\n" not in rebuilt_direct_run_output and b"Hello from MyOS project\r\n" not in rebuilt_direct_run_output:
             raise RegressionFailure(f"BIOS: rebuilt runproj output changed the generated template\n{guest._tail()}")
         guest.command(f"cleanproj {NEWPROJ_NAME}", "Removed build output")
-        guest.command(f"rmproj {ARGS_PROJ_NAME}", "Removed project directory")
+        guest.gui_direct_project_remove_and_exit(ARGS_PROJ_NAME)
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "source: MISSING")
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "build: MISSING")
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "package: READY")
@@ -1457,11 +1484,11 @@ def run_bios(image_path, work_dir):
         guest.command("projlist", f"PROJECT {NEWPROJ_NAME}")
         project_list_output = bytes(guest.output[project_list_start:])
         if f"PROJECT {ARGS_PROJ_NAME}".encode("ascii") in project_list_output:
-            raise RegressionFailure(f"BIOS: rmproj left the removed project in projlist\n{guest._tail()}")
+            raise RegressionFailure(f"BIOS: direct GUI remove left the removed project in projlist\n{guest._tail()}")
         args_package_run_start = len(guest.output)
         guest.command(f"run {ARGS_PROJ_NAME} starter args", "exited with status 0")
         if b"[starter args]\n" not in bytes(guest.output[args_package_run_start:]) and b"[starter args]\r\n" not in bytes(guest.output[args_package_run_start:]):
-            raise RegressionFailure(f"BIOS: rmproj changed the installed args package\n{guest._tail()}")
+            raise RegressionFailure(f"BIOS: direct GUI remove changed the installed args package\n{guest._tail()}")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
         guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
@@ -1874,7 +1901,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         args_package_run_start = len(guest.output)
         guest.command(f"run {ARGS_PROJ_NAME} ovmf args", "exited with status 0")
         if b"[ovmf args]\n" not in bytes(guest.output[args_package_run_start:]) and b"[ovmf args]\r\n" not in bytes(guest.output[args_package_run_start:]):
-            raise RegressionFailure(f"UEFI: rmproj did not preserve the installed args package\n{guest._tail()}")
+            raise RegressionFailure(f"UEFI: direct GUI remove did not preserve the installed args package\n{guest._tail()}")
         project_list_start = len(guest.output)
         guest.command("projlist", f"PROJECT {NEWPROJ_NAME}")
         project_list_output = bytes(guest.output[project_list_start:])

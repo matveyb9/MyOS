@@ -159,6 +159,8 @@ static int make_project_workspace_path(char *destination, const char *arguments,
         *requested_mode = 6;
     } else if (text_equal(argument_name + name_length, " clean") != 0) {
         *requested_mode = 7;
+    } else if (text_equal(argument_name + name_length, " remove") != 0) {
+        *requested_mode = 8;
     } else if (argument_name[name_length] == ' ') {
         uint64_t run_length = 0U;
         const char *tail = argument_name + name_length + 1U;
@@ -186,6 +188,31 @@ static int make_project_workspace_path(char *destination, const char *arguments,
     for (uint64_t index = 0U; name[index] != '\0'; index++) { destination[offset++] = name[index]; }
     destination[offset] = '\0';
     if (make_path(request.path, GUI_BROWSER_PROJECT_PATH) == 0) { return 0; }
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            return 0;
+        }
+        if (request.entry.type == MYOS_VFS_OBJECT_DIRECTORY && text_equal(request.entry.name, name) != 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int project_workspace_is_directory(const char *project_path) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+    const char *name;
+    uint64_t prefix_length = 0U;
+
+    if (project_path == (const char *)0) { return 0; }
+    while (GUI_BROWSER_PROJECT_PATH[prefix_length] != '\0') {
+        if (project_path[prefix_length] != GUI_BROWSER_PROJECT_PATH[prefix_length]) { return 0; }
+        prefix_length++;
+    }
+    if (project_path[prefix_length] != '/') { return 0; }
+    name = project_path + prefix_length + 1U;
+    if (project_name_is_valid(name) == 0 || make_path(request.path, GUI_BROWSER_PROJECT_PATH) == 0) { return 0; }
     for (uint64_t index = 0U; index < UINT64_C(128); index++) {
         request.index = index;
         if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
@@ -734,6 +761,38 @@ static int launch_project_install(const char *project_path, uint64_t *child_stat
     *child_status = system_call(MYOS_SYS_WAIT, child, 0U, 0U);
     if (*child_status == UINT64_MAX) { *child_status = 1U; }
     return 1;
+}
+
+static int remove_project_workspace(const char *project_path) {
+    struct myos_vfs_list_request list_request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+    struct myos_vfs_path_request source_request = { { 0 } };
+    struct myos_vfs_path_request directory_request = { { 0 } };
+    char source_path[MYOS_VFS_PATH_MAX] = { 0 };
+    int source_present = 0;
+
+    if (project_workspace_is_directory(project_path) == 0 || make_path(list_request.path, project_path) == 0
+        || make_project_source_path(source_path, project_path) == 0 || make_path(source_request.path, source_path) == 0
+        || make_path(directory_request.path, project_path) == 0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        list_request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&list_request, sizeof(list_request)) == UINT64_MAX) {
+            break;
+        }
+        if (text_equal(list_request.entry.name, "main.elf") != 0) {
+            return 0;
+        }
+        if (text_equal(list_request.entry.name, "main.mya") == 0 || list_request.entry.type != MYOS_VFS_OBJECT_REGULAR) {
+            return 0;
+        }
+        source_present = 1;
+    }
+    if (source_present != 0
+        && system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&source_request, sizeof(source_request)) == UINT64_MAX) {
+        return 0;
+    }
+    return system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&directory_request, sizeof(directory_request)) != UINT64_MAX;
 }
 
 static int remove_project_build(const char *project_path) {
@@ -1519,6 +1578,12 @@ void _start(uint64_t argc, const char *arguments) {
                     set_viewer_status("PROJECT BUILD REMOVED");
                 } else {
                     set_viewer_status("UNABLE TO REMOVE PROJECT BUILD");
+                }
+            } else if (direct_project_mode != 0 && direct_project_view == 8) {
+                if (remove_project_workspace(project_path) != 0) {
+                    set_viewer_status("PROJECT WORKSPACE REMOVED");
+                } else {
+                    set_viewer_status("UNABLE TO REMOVE PROJECT");
                 }
             } else {
                 show_file_browser();
