@@ -155,6 +155,8 @@ static int make_project_workspace_path(char *destination, const char *arguments,
         *requested_mode = 3;
     } else if (text_equal(argument_name + name_length, " install") != 0) {
         *requested_mode = 5;
+    } else if (text_equal(argument_name + name_length, " uninstall") != 0) {
+        *requested_mode = 6;
     } else if (argument_name[name_length] == ' ') {
         uint64_t run_length = 0U;
         const char *tail = argument_name + name_length + 1U;
@@ -220,6 +222,28 @@ static int project_build_is_regular(const char *project_path) {
     struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
 
     if (make_path(request.path, project_path) == 0) { return 0; }
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            return 0;
+        }
+        if (text_equal(request.entry.name, "main.elf") != 0) {
+            return request.entry.type == MYOS_VFS_OBJECT_REGULAR;
+        }
+    }
+    return 0;
+}
+
+static int make_project_package_directory(char *destination, const char *project_path);
+
+static int project_package_is_regular(const char *project_path) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+    char package_directory[MYOS_VFS_PATH_MAX] = { 0 };
+
+    if (make_project_package_directory(package_directory, project_path) == 0
+        || make_path(request.path, package_directory) == 0) {
+        return 0;
+    }
     for (uint64_t index = 0U; index < UINT64_C(128); index++) {
         request.index = index;
         if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
@@ -708,6 +732,17 @@ static int launch_project_install(const char *project_path, uint64_t *child_stat
     *child_status = system_call(MYOS_SYS_WAIT, child, 0U, 0U);
     if (*child_status == UINT64_MAX) { *child_status = 1U; }
     return 1;
+}
+
+static int remove_project_package(const char *project_path) {
+    struct myos_vfs_path_request request = { { 0 } };
+    char package_path[MYOS_VFS_PATH_MAX] = { 0 };
+
+    if (make_project_package_path(package_path, project_path) == 0 || project_package_is_regular(project_path) == 0
+        || make_path(request.path, package_path) == 0) {
+        return 0;
+    }
+    return system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) != UINT64_MAX;
 }
 
 static void show_project_status(const char *project_path) {
@@ -1455,6 +1490,14 @@ void _start(uint64_t argc, const char *arguments) {
                     session_finished = 1;
                 } else {
                     set_viewer_status("UNABLE TO INSTALL PROJECT");
+                }
+            } else if (direct_project_mode != 0 && direct_project_view == 6) {
+                if (project_package_is_regular(project_path) == 0) {
+                    set_viewer_status("UNABLE TO OPEN PROJECT PACKAGE");
+                } else if (remove_project_package(project_path) != 0) {
+                    set_viewer_status("PROJECT PACKAGE REMOVED");
+                } else {
+                    set_viewer_status("UNABLE TO REMOVE PROJECT PACKAGE");
                 }
             } else {
                 show_file_browser();
