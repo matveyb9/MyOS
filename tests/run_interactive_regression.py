@@ -1162,6 +1162,10 @@ def run_bios(image_path, work_dir):
         if NEWPROJ_TEMPLATE not in bytes(guest.output[duplicate_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"BIOS: duplicate newproj changed its existing template\n{guest._tail()}")
         guest.command("help editproj", "Opens /users/myos/projects/<project-name>/main.mya in the bounded editor.")
+        guest.command("help projstatus", "Shows regular-file state and size for fixed source, build and installed package paths.")
+        guest.command(f"projstatus {NEWPROJ_NAME}", "source: READY")
+        guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
+        guest.command(f"projstatus {NEWPROJ_NAME}", "package: MISSING")
         editproj_start = len(guest.output)
         guest.send(f"editproj {NEWPROJ_NAME}\n")
         guest.expect(f"File: {NEWPROJ_SOURCE_PATH}", editproj_start)
@@ -1173,6 +1177,8 @@ def run_bios(image_path, work_dir):
         guest.command(f"buildproj {NEWPROJ_NAME}", "exited with status 0")
         guest.command(f"installproj {NEWPROJ_NAME}", "exited with status 0")
         guest.command(f"installproj {NEWPROJ_NAME}", "exited with status 0")
+        guest.command(f"projstatus {NEWPROJ_NAME}", "build: READY")
+        guest.command(f"projstatus {NEWPROJ_NAME}", "package: READY")
         newproj_run_start = len(guest.output)
         guest.command(f"run {NEWPROJ_NAME}", "exited with status 0")
         newproj_run_output = bytes(guest.output[newproj_run_start:])
@@ -1586,6 +1592,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
             raise RegressionFailure(f"UEFI: sdk-write UEFI payload readback is not exact\\n{guest._tail()}")
         newproj_read_start = len(guest.output)
         guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
+        guest.command(f"projstatus {NEWPROJ_NAME}", "package: READY")
         if NEWPROJ_TEMPLATE not in bytes(guest.output[newproj_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: persisted newproj template is not exact\\n{guest._tail()}")
         newproj_run_start = len(guest.output)

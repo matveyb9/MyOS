@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "tree", "find", "head", "sort", "tail", "stat", "touch", "mkdir", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "installproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "installproj", "projstatus", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -511,6 +511,11 @@ static void command_help(const char *topic) {
         write_text("Installs project main.elf as /apps/<project-name>/main.elf; an existing package target is replaced.\n");
         return;
     }
+    if (text_equal(topic, "projstatus")) {
+        write_text("projstatus <project-name>\n");
+        write_text("Shows regular-file state and size for fixed source, build and installed package paths.\n");
+        return;
+    }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
         write_text("Source: input; time; args; set <0..255>; not; neg; inc; dec; parity; clz; add/sub/mul/and/or/xor/test <0..255>; shl/shr/rol/ror <1..7>; div/mod <1..255>; store/load/cmp/swap <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
@@ -534,7 +539,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; tree [absolute-directory]; find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
-    write_text("Native: newproj/editproj/buildproj/installproj <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/installproj/asm/edit\n");
+    write_text("Native: newproj/editproj/buildproj/installproj/projstatus <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/installproj/projstatus/asm/edit\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -931,6 +936,64 @@ static void command_installproj(const char *argument) {
         return;
     }
     (void)run_foreground(program, 1);
+}
+
+static int vfs_lookup_child(const char *parent, const char *name, struct myos_vfs_directory_entry *entry) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+
+    if (copy_vfs_path(request.path, parent) == 0 || name == (const char *)0
+        || entry == (struct myos_vfs_directory_entry *)0) {
+        return 0;
+    }
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            return 0;
+        }
+        if (text_equal(request.entry.name, name) != 0) {
+            *entry = request.entry;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void print_project_file_status(const char *label, const char *parent, const char *name) {
+    struct myos_vfs_directory_entry entry = { { 0 }, 0U, 0U };
+
+    write_text(label);
+    write_text(": ");
+    if (vfs_lookup_child(parent, name, &entry) == 0) {
+        write_text("MISSING\n");
+    } else if (entry.type != MYOS_VFS_OBJECT_REGULAR) {
+        write_text("NOT REGULAR\n");
+    } else {
+        write_text("READY ");
+        write_number(entry.size);
+        write_text(" bytes\n");
+    }
+}
+
+static void command_projstatus(const char *argument) {
+    char project_directory[MYOS_VFS_PATH_MAX];
+    char package_directory[MYOS_VFS_PATH_MAX];
+    uint64_t project_length = 0U;
+    uint64_t package_length = 0U;
+
+    if (project_name_is_valid(argument) == 0
+        || append_text(project_directory, sizeof(project_directory), &project_length, "/users/myos/projects/") == 0
+        || append_text(project_directory, sizeof(project_directory), &project_length, argument) == 0
+        || append_text(package_directory, sizeof(package_directory), &package_length, "/apps/") == 0
+        || append_text(package_directory, sizeof(package_directory), &package_length, argument) == 0) {
+        write_text("Usage: projstatus <project-name>\n");
+        return;
+    }
+    write_text("PROJECT ");
+    write_text(argument);
+    write_char('\n');
+    print_project_file_status("source", project_directory, "main.mya");
+    print_project_file_status("build", project_directory, "main.elf");
+    print_project_file_status("package", package_directory, "main.elf");
 }
 
 static void command_rm(const char *argument) {
@@ -1608,6 +1671,8 @@ static void execute_command(char *line) {
         command_buildproj(argument);
     } else if (text_equal(line, "installproj")) {
         command_installproj(argument);
+    } else if (text_equal(line, "projstatus")) {
+        command_projstatus(argument);
     } else if (text_equal(line, "pipe")) {
         command_pipe(argument);
     } else if (text_equal(line, "wait")) {
