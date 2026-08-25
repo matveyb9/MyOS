@@ -1174,8 +1174,15 @@ def run_bios(image_path, work_dir):
         guest.expect("exited with status 0", editproj_start)
         guest.expect(PROMPT, editproj_start)
         guest.command("help buildproj", "Builds /users/myos/projects/<project-name>/main.mya to main.elf.")
+        guest.command("help runproj", "Runs only the regular generated /users/myos/projects/<project-name>/main.elf without installation.")
         guest.command("help installproj", "an existing package target is replaced")
         guest.command(f"buildproj {NEWPROJ_NAME}", "exited with status 0")
+        direct_run_start = len(guest.output)
+        guest.command(f"runproj {NEWPROJ_NAME}", "exited with status 0")
+        direct_run_output = bytes(guest.output[direct_run_start:])
+        if b"Hello from MyOS project\n" not in direct_run_output and b"Hello from MyOS project\r\n" not in direct_run_output:
+            raise RegressionFailure(f"BIOS: runproj did not run the uninstalled generated template\n{guest._tail()}")
+        guest.command(f"run {NEWPROJ_DIRECTORY}/not-main.elf", "Unable to start program.")
         guest.command(f"installproj {NEWPROJ_NAME}", "exited with status 0")
         guest.command(f"installproj {NEWPROJ_NAME}", "exited with status 0")
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: READY")
@@ -1188,6 +1195,7 @@ def run_bios(image_path, work_dir):
         guest.command(f"cleanproj {NEWPROJ_NAME}", "Removed build output")
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
         guest.command(f"projstatus {NEWPROJ_NAME}", "package: READY")
+        guest.command(f"runproj {NEWPROJ_NAME}", "Build output is missing. Run buildproj first.")
         clean_run_start = len(guest.output)
         guest.command(f"run {NEWPROJ_NAME}", "exited with status 0")
         clean_run_output = bytes(guest.output[clean_run_start:])
@@ -1195,6 +1203,11 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: cleanproj changed the installed package\n{guest._tail()}")
         guest.command(f"buildproj {NEWPROJ_NAME}", "exited with status 0")
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: READY")
+        rebuilt_direct_run_start = len(guest.output)
+        guest.command(f"runproj {NEWPROJ_NAME}", "exited with status 0")
+        rebuilt_direct_run_output = bytes(guest.output[rebuilt_direct_run_start:])
+        if b"Hello from MyOS project\n" not in rebuilt_direct_run_output and b"Hello from MyOS project\r\n" not in rebuilt_direct_run_output:
+            raise RegressionFailure(f"BIOS: rebuilt runproj output changed the generated template\n{guest._tail()}")
         guest.command(f"cleanproj {NEWPROJ_NAME}", "Removed build output")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
@@ -1607,6 +1620,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.command(f"projstatus {NEWPROJ_NAME}", "source: READY")
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
         guest.command(f"projstatus {NEWPROJ_NAME}", "package: READY")
+        guest.command(f"runproj {NEWPROJ_NAME}", "Build output is missing. Run buildproj first.")
         if NEWPROJ_TEMPLATE not in bytes(guest.output[newproj_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: persisted newproj template is not exact\\n{guest._tail()}")
         newproj_run_start = len(guest.output)

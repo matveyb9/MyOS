@@ -160,9 +160,41 @@ static int text_ends_with_fold(const char *text, const char *suffix) {
     return 1;
 }
 
+static int project_build_path_is_valid(const char *path) {
+    static const char prefix[] = "/users/myos/projects/";
+    static const char suffix[] = "/main.elf";
+    uint64_t index = 0U;
+    uint64_t name_length = 0U;
+    uint64_t suffix_index = 0U;
+
+    if (text_starts_with_fold(path, prefix) == 0) { return 0; }
+    while (prefix[index] != '\0') { index++; }
+    while (path[index] != '\0' && path[index] != '/') {
+        const char character = path[index];
+
+        if (!((character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z')
+              || (character >= '0' && character <= '9') || character == '-' || character == '_')
+            || name_length >= UINT64_C(31)) {
+            return 0;
+        }
+        name_length++;
+        index++;
+    }
+    if (name_length == 0U) { return 0; }
+    while (suffix[suffix_index] != '\0') {
+        if (path[index + suffix_index] == '\0'
+            || ascii_fold_equal(path[index + suffix_index], suffix[suffix_index]) == 0) {
+            return 0;
+        }
+        suffix_index++;
+    }
+    return path[index + suffix_index] == '\0';
+}
+
 static int program_path_is_valid(const char *path) {
     return text_starts_with_fold(path, "/system/core/apps/") != 0
-           || (text_starts_with_fold(path, "/apps/") != 0 && text_ends_with_fold(path, "/main.elf") != 0);
+           || (text_starts_with_fold(path, "/apps/") != 0 && text_ends_with_fold(path, "/main.elf") != 0)
+           || project_build_path_is_valid(path) != 0;
 }
 
 static int __attribute__((unused)) cpio_find(const char *path, const uint8_t **data, uint64_t *size) {

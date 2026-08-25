@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "tree", "find", "head", "sort", "tail", "stat", "touch", "mkdir", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "installproj", "projstatus", "cleanproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "runproj", "installproj", "projstatus", "cleanproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -506,6 +506,11 @@ static void command_help(const char *topic) {
         write_text("Builds /users/myos/projects/<project-name>/main.mya to main.elf.\n");
         return;
     }
+    if (text_equal(topic, "runproj")) {
+        write_text("runproj <project-name>\n");
+        write_text("Runs only the regular generated /users/myos/projects/<project-name>/main.elf without installation.\n");
+        return;
+    }
     if (text_equal(topic, "installproj")) {
         write_text("installproj <project-name>\n");
         write_text("Installs project main.elf as /apps/<project-name>/main.elf; an existing package target is replaced.\n");
@@ -544,7 +549,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; tree [absolute-directory]; find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
-    write_text("Native: newproj/editproj/buildproj/installproj/projstatus/cleanproj <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/installproj/projstatus/cleanproj/asm/edit\n");
+    write_text("Native: newproj/editproj/buildproj/runproj/installproj/projstatus/cleanproj <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/runproj/installproj/projstatus/cleanproj/asm/edit\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -820,6 +825,7 @@ static int project_name_is_valid(const char *name) {
 }
 
 static int run_foreground(char *argument, int verbose);
+static int vfs_lookup_child(const char *parent, const char *name, struct myos_vfs_directory_entry *entry);
 
 static void command_newproj(const char *argument) {
     static const char project_template[] =
@@ -916,6 +922,32 @@ static void command_buildproj(const char *argument) {
         return;
     }
     (void)run_foreground(program, 1);
+}
+
+static void command_runproj(const char *argument) {
+    char project_directory[MYOS_VFS_PATH_MAX];
+    char output[MYOS_VFS_PATH_MAX];
+    struct myos_vfs_directory_entry entry = { { 0 }, 0U, 0U };
+    uint64_t project_length = 0U;
+    uint64_t output_length = 0U;
+
+    if (project_name_is_valid(argument) == 0
+        || append_text(project_directory, sizeof(project_directory), &project_length, "/users/myos/projects/") == 0
+        || append_text(project_directory, sizeof(project_directory), &project_length, argument) == 0
+        || append_text(output, sizeof(output), &output_length, project_directory) == 0
+        || append_text(output, sizeof(output), &output_length, "/main.elf") == 0) {
+        write_text("Usage: runproj <project-name>\n");
+        return;
+    }
+    if (vfs_lookup_child(project_directory, "main.elf", &entry) == 0) {
+        write_text("Build output is missing. Run buildproj first.\n");
+        return;
+    }
+    if (entry.type != MYOS_VFS_OBJECT_REGULAR) {
+        write_text("Build output is not a regular file.\n");
+        return;
+    }
+    (void)run_foreground(output, 1);
 }
 
 static void command_installproj(const char *argument) {
@@ -1705,6 +1737,8 @@ static void execute_command(char *line) {
         command_editproj(argument);
     } else if (text_equal(line, "buildproj")) {
         command_buildproj(argument);
+    } else if (text_equal(line, "runproj")) {
+        command_runproj(argument);
     } else if (text_equal(line, "installproj")) {
         command_installproj(argument);
     } else if (text_equal(line, "projstatus")) {
