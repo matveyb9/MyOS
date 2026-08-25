@@ -7,7 +7,7 @@
 
 Это руководство предназначено для человека, который хочет **собрать, запустить и попробовать MyOS**, не изучая устройство ядра. MyOS — экспериментальная учебно-практическая ОС для `x86_64`, написанная с нуля на freestanding C11 и x86_64 NASM. Используйте QEMU в первую очередь; запуск на физическом компьютере выполняйте только с отдельной тестовой флешкой.
 
-> **Текущая линия разработки:** `feature/gui`, версия `0.13.1-gui-preview.1`. Стабильная консольная граница сохранена immutable тегом `v0.12.1-console`; GUI и MYPFS004 пока не переносятся в эту границу автоматически.
+> **Текущая линия разработки:** `main`, экспериментальная QEMU-validated integration line. `console-stable` остаётся стабильным console baseline на immutable теге `v0.12.1-console`. GUI и MYPFS004 интегрированы в `main`, но публичные artifacts остаются только Pre-releases, пока не будет принята policy physical-PC validation.
 
 Для установки toolchain на Windows, WSL, macOS и другие host-платформы сначала откройте [руководство по платформам](PLATFORMS_RU.md). Ниже описано использование MyOS после подготовки build environment.
 
@@ -281,7 +281,7 @@ run native-args hello MyOS
 
 ## 9. Experimental GUI
 
-GUI доступен только в ветке `feature/gui` и запускается из console, а не автоматически:
+GUI доступен в QEMU-validated ветке `main` и запускается из console, а не автоматически:
 
 ```text
 startgui
@@ -342,6 +342,6 @@ qemu-system-x86_64 \
 
 ## 12. Ограничения текущей линии
 
-MyOS не является заменой Linux, Windows или BSD. В `feature/gui` пока нет сети, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, полноценного native C compiler или production security hardening. Restricted native assembler реализован, но GUI остаётся bounded framebuffer environment, а не general-purpose desktop.
+MyOS не является заменой Linux, Windows или BSD. В QEMU-validated ветке `main` пока нет сети, USB HID, SMP, Secure Boot, demand paging, package manager, user accounts/permissions, полноценного native C compiler или production security hardening. Restricted native assembler реализован, но GUI остаётся bounded framebuffer environment, а не general-purpose desktop. Physical-PC validation пока недоступна, поэтому публикуемые artifacts остаются Pre-releases.
 
 Если сборка или запуск не работают, выполните `make clean`, затем `make all img`, `make smoke` и `make regression`. Smoke command headlessly проверяет BIOS и UEFI boot markers, persistent AHCI mount и automatic `[myos]$` entry. Regression command использует disposable image copy: он создаёт и сохраняет default GUI note через mouse tile `EDIT NOTE`, вводит QMP PS/2 `Alt+Tab` для focus MONITOR, `Alt+F4` для закрытия focused MONITOR, `Esc` для viewer return, `Alt+F4` для editor cancel-to-viewer и `Ctrl+Q` для clean exit, затем проверяет centered launcher tiles NOTES и FILES, включая visible transitions title текущего пути File Workspace при parent и `/system` navigation, оконные controls закрытия SYSTEM/MONITOR, подъём MONITOR по title bar, viewer close-to-home и editor cancel-to-viewer через PPM framebuffer transitions. Он также сохраняет BIOS проверку alias `startgui home`, использует direct shell `cp` для копирования editor-authored file размером 305 bytes через 256-byte request boundary, сохраняет `run cp` compatibility rejection, проверяет exact target data и отклоняет overwrite, затем проверяет direct `wc` на persisted file 259 bytes, чьё final word пересекает boundary chunk 256 bytes, и сохраняет `run wc` compatibility check, собирает и устанавливает native packages в BIOS, проверяет legacy forward-only branches, empty и forwarded native arguments, exact-match и fallback paths инструкции `input`, корректный вывод RTC `HH:MM:SS`, modular add/sub arithmetic `(250 + 8 - 2) mod 256` с rejected uninitialized `add`, persisted multiply/divide arithmetic `MULDIV` с rejected `div 0`, persisted private-slot comparison `EQ`/`NE` с rejected uninitialized или slot-`8` `cmp` и rejected invalid control flow, затем проверяет persisted files, `cp` target и installed input/time/argument/arithmetic packages через UEFI. Обе команды не заменяют physical-PC test. После этого повторите QEMU command из раздела 3. Для host-platform setup используйте [PLATFORMS_RU.md](PLATFORMS_RU.md), для release gates — [RELEASE_STABILIZATION_RU.md](RELEASE_STABILIZATION_RU.md), а для технической диагностики — [DEVELOPER_GUIDE_RU.md](DEVELOPER_GUIDE_RU.md).

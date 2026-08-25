@@ -10,9 +10,9 @@
 
 | Reference | Назначение | Статус |
 |---|---|---|
-| `console-stable` | Проверенный baseline консольной ОС. | Стабильная линия на `v0.12.1-console`. |
-| `main` | Поддерживаемая консольная линия. | Только console maintenance и документация. |
-| `feature/gui` | GUI и native-development line. | Экспериментальная, не сливается в `main` автоматически. |
+| `console-stable` | Проверенный baseline консольной ОС. | Текущая стабильная линия на `v0.12.1-console`; GUI integration её не меняет. |
+| `main` | QEMU-validated integration line для GUI и user-program development. | Экспериментальная; родитель всех новых короткоживущих feature-веток. |
+| `feature/gui` | Историческая GUI integration line. | Локально слита в main-based integration branch; сохраняется до отдельного решения об архивировании. |
 
 ## Неизменяемые checkpoints
 
@@ -30,10 +30,11 @@
 
 | Цель | Действие |
 |---|---|
-| Использовать проверенную консольную ОС | `git switch main` или `git switch console-stable`. |
+| Использовать проверенную стабильную консольную ОС | `git switch console-stable`. |
+| Собрать или проверить текущую экспериментальную платформу | `git switch main`. |
+| Начать новую GUI, native или platform work | Создать короткоживущую branch от `main`. |
 | Изучить конкретный checkpoint | `git switch --detach <tag>`. |
-| Продолжить GUI или native-development work | `git switch feature/gui`. |
-| Исправить консольную линию | Создать отдельную branch от `main`. |
+| Исправить стабильную консольную линию | Создать отдельную maintenance branch от `console-stable`. |
 
 ## Двуязычные commits
 
@@ -127,13 +128,13 @@ Release description всегда содержит два равноправны�
 
 ## Безопасная публикация
 
-Перед новым tag выполните applicable checks, убедитесь в clean Git tree и получите явное подтверждение на Release или Pre-release. Build artifacts `myos.iso` и `myos.img` не добавляются в source history; они attach only to an explicitly approved GitHub Release or Pre-release вместе с manifest `SHA256SUMS.txt`. Уже опубликованные immutable assets сохраняют исходные имена.
+Перед новым tag выполните применимые QEMU checks, убедитесь в clean Git tree и получите явное подтверждение на **Pre-release**. Пока отдельно не принята policy physical-PC validation, не создавайте stable Release из `main`. Новая функциональная работа начинается в короткоживущей feature-ветке от `main` и возвращается в `main` только после проверенного QEMU validation. Build artifacts `myos.iso` и `myos.img` не добавляются в source history; они attach only to an explicitly approved GitHub Pre-release вместе с manifest `SHA256SUMS.txt`. Уже опубликованные immutable assets сохраняют исходные имена.
 
 ```bash
 make release-check
 git status --short
 git tag --list
-git push origin main console-stable feature/gui
+git push origin main console-stable
 ```
 
-Публикация tag, GitHub Release или Pre-release выполняется только после отдельного подтверждения. Она не является побочным эффектом обычного documentation или code commit.
+Публикация tag или GitHub Pre-release выполняется только после отдельного подтверждения. Она не является побочным эффектом обычного documentation или code commit. `console-stable` остаётся текущей стабильной линией; её обновление — отдельное maintenance decision и не подразумевается merge в `main`.

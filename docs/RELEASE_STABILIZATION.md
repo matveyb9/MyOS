@@ -5,7 +5,7 @@
 </p>
 
 
-> **Status:** active checklist for branch `feature/gui`. It does not create a release tag and does not allow automatic merge into `main`. Its purpose is to provide reproducible evidence prior to a separate decision on the first stable GUI release.
+> **Status:** active checklist for the QEMU-validated `main` integration line. It does not create a tag or publication. Its purpose is to provide reproducible evidence for an explicitly approved **Pre-release** while `console-stable` remains the current stable console line.
 
 ## Automated checks
 
@@ -35,17 +35,17 @@ release candidate: artifacts
 release candidate: automated checks passed
 ```
 
-## Manual release gates
+## Manual publication gates
 
-Automated commands are intentionally limited. Before a new GUI release tag is created, the following must be manually confirmed:
+Automated commands are intentionally limited. Before a new GUI **Pre-release** tag is created, the QEMU evidence and scope below must be manually confirmed. Physical-PC evidence is deliberately deferred and does not block a QEMU-only Pre-release.
 
 | Gate | Required evidence |
 |---|---|
 | Framebuffer visual check | Desktop, windows, pointer, focus, title-bar raise, per-window `X` behavior, note editor, and return to shell remain readable in a graphical QEMU session. |
 | Fresh persistent workflow | On a fresh `myos.img` create a note and a native package, then reboot the guest separately and verify both results. |
 | Migration fixtures | MYPFS003→MYPFS004 and MYPFS002→MYPFS004 fixtures complete recovery/migration and are readable after a second clean mount. |
-| Physical x86_64 PC | Boot from a disposable USB, test keyboard input, framebuffer output, and clean poweroff/reboot smoke. This cannot be replaced by QEMU. |
-| Release scope | Document known limitations, release notes, and the exact immutable tag target. `make release-check` provides a reproducible source SHA and artifact SHA-256, but does not create a public release. |
+| Physical x86_64 PC | **Deferred stable-release evidence.** Boot from a disposable USB, test keyboard input, framebuffer output, and clean poweroff/reboot smoke when physical validation becomes available. This cannot be replaced by QEMU and is not claimed by a Pre-release. |
+| Pre-release scope | Document QEMU-only validation, known limitations, release notes, and the exact immutable tag target. `make release-check` provides a reproducible source SHA and artifact SHA-256, but does not create a public release. |
 
 ## What these tests do not prove
 
@@ -53,4 +53,4 @@ Automated commands are intentionally limited. Before a new GUI release tag is cr
 
 ## Publication rule
 
-After automated and manual gates are complete, creating a public Pre-release or release still requires a separate explicit confirmation. A new immutable tag must not be retagged or force-pushed; `main` must not be updated until a separate merge decision.
+After the applicable QEMU and manual Pre-release gates are complete, creating a public **Pre-release** still requires a separate explicit confirmation. Until a physical-PC validation policy is adopted, do not create a stable Release. A new immutable tag must not be retagged or force-pushed; `console-stable` remains unchanged unless a separate stable-maintenance decision is made.

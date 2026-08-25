@@ -10,9 +10,9 @@ This guide explains which MyOS line to choose, which references must not change,
 
 | Reference | Purpose | Status |
 |---|---|---|
-| `console-stable` | Reviewed console operating-system baseline. | Stable line at `v0.12.1-console`. |
-| `main` | Maintained console line. | Console maintenance and documentation only. |
-| `feature/gui` | GUI and native-development line. | Experimental; never merged into `main` automatically. |
+| `console-stable` | Reviewed console operating-system baseline. | Current stable line at `v0.12.1-console`; GUI integration does not change it. |
+| `main` | QEMU-validated integration line for GUI and user-program development. | Experimental; the parent for all new short-lived feature branches. |
+| `feature/gui` | Historical GUI integration line. | Merged into the local main-based integration branch; retained until a separate archival decision. |
 
 ## Immutable checkpoints
 
@@ -30,10 +30,11 @@ This guide explains which MyOS line to choose, which references must not change,
 
 | Goal | Action |
 |---|---|
-| Use the reviewed console OS | `git switch main` or `git switch console-stable`. |
+| Use the reviewed stable console OS | `git switch console-stable`. |
+| Build or validate the current experimental platform | `git switch main`. |
+| Start new GUI, native or platform work | Create a short-lived branch from `main`. |
 | Study a particular checkpoint | `git switch --detach <tag>`. |
-| Continue GUI or native-development work | `git switch feature/gui`. |
-| Fix the console line | Create a separate branch from `main`. |
+| Fix the stable console line | Create a separate maintenance branch from `console-stable`. |
 
 ## Bilingual commits
 
@@ -127,13 +128,13 @@ Every release description contains two equivalent, visually marked sections: **`
 
 ## Safe publication
 
-Before a new tag, run applicable checks, confirm a clean Git tree and obtain explicit approval for a Release or Pre-release. Generated `myos.iso` and `myos.img` artifacts do not enter source history; attach them only to an explicitly approved GitHub Release or Pre-release together with a `SHA256SUMS.txt` manifest. Already published immutable assets retain their original names.
+Before a new tag, run the applicable QEMU checks, confirm a clean Git tree and obtain explicit approval for a **Pre-release**. Until a physical-PC validation policy is separately adopted, do not create a stable Release from `main`. New functional work begins in a short-lived feature branch from `main`; it returns to `main` only after reviewed QEMU validation. Generated `myos.iso` and `myos.img` artifacts do not enter source history; attach them only to an explicitly approved GitHub Pre-release together with a `SHA256SUMS.txt` manifest. Already published immutable assets retain their original names.
 
 ```bash
 make release-check
 git status --short
 git tag --list
-git push origin main console-stable feature/gui
+git push origin main console-stable
 ```
 
-Publishing a tag, GitHub Release or Pre-release always requires separate confirmation. It is never a side effect of an ordinary documentation or code commit.
+Publishing a tag or GitHub Pre-release always requires separate confirmation. It is never a side effect of an ordinary documentation or code commit. `console-stable` remains the current stable line; updating it is a separate maintenance decision and is never implied by a merge into `main`.

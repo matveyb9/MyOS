@@ -5,7 +5,7 @@
 </p>
 
 
-> **Статус:** активный checklist для ветки `feature/gui`. Он не создаёт release tag и не разрешает перенос в `main` автоматически. Его задача — дать воспроизводимые доказательства перед отдельным решением о первом stable GUI release.
+> **Статус:** активный checklist для QEMU-validated integration line `main`. Он не создаёт tag или публикацию. Его задача — дать воспроизводимые доказательства для отдельно подтверждённого **Pre-release**, пока `console-stable` остаётся текущей стабильной консольной линией.
 
 ## Автоматизированные проверки
 
@@ -35,17 +35,17 @@ release candidate: artifacts
 release candidate: automated checks passed
 ```
 
-## Ручные release gates
+## Ручные publication gates
 
-Автоматизированные commands намеренно ограничены. До нового GUI release tag необходимо вручную подтвердить следующее:
+Автоматизированные commands намеренно ограничены. До нового GUI **Pre-release** tag вручную подтверждаются QEMU evidence и scope ниже. Physical-PC evidence намеренно отложено и не блокирует QEMU-only Pre-release.
 
 | Gate | Требуемое evidence |
 |---|---|
 | Framebuffer visual check | Desktop, windows, pointer, focus, title-bar raise, per-window `X` behavior, note editor and return to shell остаются readable in a graphical QEMU session. |
 | Fresh persistent workflow | На fresh `myos.img` создать note и native package, затем отдельно перезагрузить guest и проверить оба результата. |
 | Migration fixtures | MYPFS003→MYPFS004 и MYPFS002→MYPFS004 fixtures завершают recovery/migration и читаются после second clean mount. |
-| Physical x86_64 PC | Boot от disposable USB, keyboard input, framebuffer output и clean poweroff/reboot smoke. Это нельзя заменить QEMU. |
-| Release scope | Зафиксировать known limitations, release notes и exact immutable tag target. `make release-check` предоставляет reproducible source SHA и artifact SHA-256, но не создаёт public release. |
+| Physical x86_64 PC | **Отложенное evidence для stable release.** Когда physical validation станет доступна, загрузить disposable USB, проверить keyboard input, framebuffer output и clean poweroff/reboot smoke. Это нельзя заменить QEMU и не заявляется Pre-release. |
+| Pre-release scope | Зафиксировать QEMU-only validation, known limitations, release notes и exact immutable tag target. `make release-check` предоставляет reproducible source SHA и artifact SHA-256, но не создаёт public release. |
 
 ## Что не доказывают эти tests
 
@@ -53,4 +53,4 @@ release candidate: automated checks passed
 
 ## Publication rule
 
-После того как automated и manual gates завершены, создание публичного Pre-release или release всё ещё требует отдельного explicit confirmation. Новый immutable tag нельзя retag or force-push; `main` не должен обновляться до отдельного merge decision.
+После applicable QEMU и manual Pre-release gates создание публичного **Pre-release** всё ещё требует отдельного explicit confirmation. Пока не будет принята policy physical-PC validation, stable Release не создаётся. Новый immutable tag нельзя retag or force-push; `console-stable` не изменяется без отдельного stable-maintenance decision.
