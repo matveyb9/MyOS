@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "tree", "find", "head", "sort", "tail", "stat", "touch", "mkdir", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "runproj", "installproj", "uninstallproj", "projlist", "projstatus", "cleanproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "runproj", "installproj", "uninstallproj", "projlist", "projstatus", "cleanproj", "rmproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -538,6 +538,11 @@ static void command_help(const char *topic) {
         write_text("Removes only the regular generated <project>/main.elf; source and installed package stay unchanged.\n");
         return;
     }
+    if (text_equal(topic, "rmproj")) {
+        write_text("rmproj <project-name>\n");
+        write_text("After cleanproj, removes only the regular project source and empty project directory; installed package stays unchanged.\n");
+        return;
+    }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
         write_text("Source: input; time; args; set <0..255>; not; neg; inc; dec; parity; clz; add/sub/mul/and/or/xor/test <0..255>; shl/shr/rol/ror <1..7>; div/mod <1..255>; store/load/cmp/swap <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
@@ -561,7 +566,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; tree [absolute-directory]; find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
-    write_text("Native: newproj/editproj/buildproj/runproj/installproj/uninstallproj/projlist/projstatus/cleanproj <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/runproj/installproj/uninstallproj/projlist/projstatus/cleanproj/asm/edit\n");
+    write_text("Native: newproj/editproj/buildproj/runproj/installproj/uninstallproj/projlist/projstatus/cleanproj/rmproj <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/runproj/installproj/uninstallproj/projlist/projstatus/cleanproj/rmproj/asm/edit\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -1171,6 +1176,73 @@ static void command_uninstallproj(const char *argument) {
         return;
     }
     write_text("Removed package output ");
+    write_text(request.path);
+    write_char('\n');
+}
+
+static int project_directory_has_only_known_entries(const char *project_directory) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+
+    if (copy_vfs_path(request.path, project_directory) == 0) { return 0; }
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            return 1;
+        }
+        if (text_equal(request.entry.name, "main.mya") == 0 && text_equal(request.entry.name, "main.elf") == 0) {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static void command_rmproj(const char *argument) {
+    char project_directory[MYOS_VFS_PATH_MAX];
+    char source[MYOS_VFS_PATH_MAX];
+    struct myos_vfs_directory_entry project_entry = { { 0 }, 0U, 0U };
+    struct myos_vfs_directory_entry entry = { { 0 }, 0U, 0U };
+    struct myos_vfs_path_request request;
+    uint64_t project_length = 0U;
+    uint64_t source_length = 0U;
+
+    if (project_name_is_valid(argument) == 0
+        || append_text(project_directory, sizeof(project_directory), &project_length, "/users/myos/projects/") == 0
+        || append_text(project_directory, sizeof(project_directory), &project_length, argument) == 0
+        || append_text(source, sizeof(source), &source_length, project_directory) == 0
+        || append_text(source, sizeof(source), &source_length, "/main.mya") == 0
+        || make_vfs_path_request(&request, project_directory) == 0) {
+        write_text("Usage: rmproj <project-name>\n");
+        return;
+    }
+    if (vfs_lookup_child("/users/myos/projects", argument, &project_entry) == 0) {
+        write_text("Project is already absent.\n");
+        return;
+    }
+    if (project_entry.type != MYOS_VFS_OBJECT_DIRECTORY || project_directory_has_only_known_entries(project_directory) == 0) {
+        write_text("Project directory is not removable.\n");
+        return;
+    }
+    if (vfs_lookup_child(project_directory, "main.elf", &entry) != 0) {
+        if (entry.type != MYOS_VFS_OBJECT_REGULAR) {
+            write_text("Build output is not a regular file.\n");
+        } else {
+            write_text("Build output is present. Run cleanproj first.\n");
+        }
+        return;
+    }
+    if (vfs_lookup_child(project_directory, "main.mya", &entry) != 0) {
+        if (entry.type != MYOS_VFS_OBJECT_REGULAR || make_vfs_path_request(&request, source) == 0
+            || system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            write_text("Unable to remove project source.\n");
+            return;
+        }
+    }
+    if (make_vfs_path_request(&request, project_directory) == 0
+        || system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+        write_text("Unable to remove empty project directory.\n");
+        return;
+    }
+    write_text("Removed project directory ");
     write_text(request.path);
     write_char('\n');
 }
@@ -1860,6 +1932,8 @@ static void execute_command(char *line) {
         command_projstatus(argument);
     } else if (text_equal(line, "cleanproj")) {
         command_cleanproj(argument);
+    } else if (text_equal(line, "rmproj")) {
+        command_rmproj(argument);
     } else if (text_equal(line, "pipe")) {
         command_pipe(argument);
     } else if (text_equal(line, "wait")) {

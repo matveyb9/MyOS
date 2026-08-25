@@ -1169,10 +1169,16 @@ def run_bios(image_path, work_dir):
         args_template_run_output = bytes(guest.output[args_template_run_start:])
         if b"[starter args]\n" not in args_template_run_output and b"[starter args]\r\n" not in args_template_run_output:
             raise RegressionFailure(f"BIOS: args newproj template did not forward direct arguments\n{guest._tail()}")
+        guest.command(f"installproj {ARGS_PROJ_NAME}", "exited with status 0")
+        args_package_run_start = len(guest.output)
+        guest.command(f"run {ARGS_PROJ_NAME} starter args", "exited with status 0")
+        if b"[starter args]\n" not in bytes(guest.output[args_package_run_start:]) and b"[starter args]\r\n" not in bytes(guest.output[args_package_run_start:]):
+            raise RegressionFailure(f"BIOS: installed args starter did not forward package arguments\n{guest._tail()}")
+        guest.command(f"rmproj {ARGS_PROJ_NAME}", "Build output is present. Run cleanproj first.")
         guest.command(f"cleanproj {ARGS_PROJ_NAME}", "Removed build output")
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "source: READY")
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "build: MISSING")
-        guest.command(f"projstatus {ARGS_PROJ_NAME}", "package: MISSING")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "package: READY")
         guest.command(f"newproj {NEWPROJ_NAME}", f"Created project {NEWPROJ_DIRECTORY}")
         newproj_read_start = len(guest.output)
         guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
@@ -1189,6 +1195,7 @@ def run_bios(image_path, work_dir):
         guest.command("help projstatus", "Shows regular-file state and size for fixed source, build and installed package paths.")
         guest.command("help uninstallproj", "Removes only the regular installed /apps/<project-name>/main.elf; project source and build stay unchanged.")
         guest.command("help cleanproj", "Removes only the regular generated <project>/main.elf; source and installed package stay unchanged.")
+        guest.command("help rmproj", "After cleanproj, removes only the regular project source and empty project directory; installed package stays unchanged.")
         guest.command(f"projstatus {NEWPROJ_NAME}", "source: READY")
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
         guest.command(f"projstatus {NEWPROJ_NAME}", "package: MISSING")
@@ -1249,6 +1256,20 @@ def run_bios(image_path, work_dir):
         if b"Hello from MyOS project\n" not in rebuilt_direct_run_output and b"Hello from MyOS project\r\n" not in rebuilt_direct_run_output:
             raise RegressionFailure(f"BIOS: rebuilt runproj output changed the generated template\n{guest._tail()}")
         guest.command(f"cleanproj {NEWPROJ_NAME}", "Removed build output")
+        guest.command(f"rmproj {ARGS_PROJ_NAME}", "Removed project directory")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "source: MISSING")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "build: MISSING")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "package: READY")
+        guest.command(f"rmproj {ARGS_PROJ_NAME}", "Project is already absent.")
+        project_list_start = len(guest.output)
+        guest.command("projlist", f"PROJECT {NEWPROJ_NAME}")
+        project_list_output = bytes(guest.output[project_list_start:])
+        if f"PROJECT {ARGS_PROJ_NAME}".encode("ascii") in project_list_output:
+            raise RegressionFailure(f"BIOS: rmproj left the removed project in projlist\n{guest._tail()}")
+        args_package_run_start = len(guest.output)
+        guest.command(f"run {ARGS_PROJ_NAME} starter args", "exited with status 0")
+        if b"[starter args]\n" not in bytes(guest.output[args_package_run_start:]) and b"[starter args]\r\n" not in bytes(guest.output[args_package_run_start:]):
+            raise RegressionFailure(f"BIOS: rmproj changed the installed args package\n{guest._tail()}")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
         guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
@@ -1655,19 +1676,18 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.command(f"cat {SDK_WRITE_UEFI_TARGET}", "sdk-write: persistent VFS example")
         if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_uefi_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: sdk-write UEFI payload readback is not exact\\n{guest._tail()}")
-        args_template_read_start = len(guest.output)
-        guest.command(f"cat {ARGS_PROJ_SOURCE_PATH}", "write \"[\"")
-        guest.command(f"projstatus {ARGS_PROJ_NAME}", "source: READY")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "source: MISSING")
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "build: MISSING")
-        guest.command(f"projstatus {ARGS_PROJ_NAME}", "package: MISSING")
-        guest.command(f"runproj {ARGS_PROJ_NAME}", "Build output is missing. Run buildproj first.")
-        if ARGS_PROJ_TEMPLATE not in bytes(guest.output[args_template_read_start:]).replace(b"\r", b""):
-            raise RegressionFailure(f"UEFI: persisted args newproj template is not exact\n{guest._tail()}")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "package: READY")
+        args_package_run_start = len(guest.output)
+        guest.command(f"run {ARGS_PROJ_NAME} ovmf args", "exited with status 0")
+        if b"[ovmf args]\n" not in bytes(guest.output[args_package_run_start:]) and b"[ovmf args]\r\n" not in bytes(guest.output[args_package_run_start:]):
+            raise RegressionFailure(f"UEFI: rmproj did not preserve the installed args package\n{guest._tail()}")
         project_list_start = len(guest.output)
-        guest.command("projlist", f"PROJECT {ARGS_PROJ_NAME}")
+        guest.command("projlist", f"PROJECT {NEWPROJ_NAME}")
         project_list_output = bytes(guest.output[project_list_start:])
-        if f"PROJECT {NEWPROJ_NAME}".encode("ascii") not in project_list_output or b"  source: READY" not in project_list_output:
-            raise RegressionFailure(f"UEFI: projlist did not report the persisted starter projects\n{guest._tail()}")
+        if f"PROJECT {ARGS_PROJ_NAME}".encode("ascii") in project_list_output:
+            raise RegressionFailure(f"UEFI: projlist retained the removed args project\n{guest._tail()}")
         newproj_read_start = len(guest.output)
         guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
         guest.command(f"projstatus {NEWPROJ_NAME}", "source: READY")
