@@ -295,7 +295,7 @@ startgui
 # Compatibility alias: startgui home
 ```
 
-Without an argument `startgui` opens **MYOS DESKTOP**, a bounded mouse-first launcher; `startgui home` remains an alias. Click `SYSTEM` for the system message, `NOTES` for notes, or `EDIT NOTE` for the default personal-note editor. Up to four installed packages with `/apps/<name>/main.elf` also appear below the fixed tiles as `OPEN APP`; clicking one starts that program, closes the GUI and returns its normal output to the console. Click `FILES` to start at `/users/myos/`; use `startgui projects` to enter the same File Workspace directly at `/users/myos/projects`, or `startgui project <name>` to open one existing project directory after its bounded 1–31-character name and directory type are revalidated. Add the exact `edit` suffix to open only that project's revalidated regular writable `main.mya` in the existing GUI editor. Invalid or absent project requests report `UNABLE TO OPEN PROJECT`; a missing or non-regular direct source reports `UNABLE TO OPEN PROJECT SOURCE`, without opening a viewer. Its window title shows the complete current logical-VFS path and updates after parent or child navigation. Click the top-bar `X` to exit. Launcher and window actions are mouse-only. The retained GUI-level keyboard shortcuts are `Alt+Tab` to move focus to the next visible window, `Alt+F4` to close the focused window, `Esc` to return or cancel, and `Ctrl+Q` to exit. For a personal note you can pass an absolute path:
+Without an argument `startgui` opens **MYOS DESKTOP**, a bounded mouse-first launcher; `startgui home` remains an alias. Click `SYSTEM` for the system message, `NOTES` for notes, or `EDIT NOTE` for the default personal-note editor. Up to four installed packages with `/apps/<name>/main.elf` also appear below the fixed tiles as `OPEN APP`; clicking one starts that program, closes the GUI and returns its normal output to the console. Click `FILES` to start at `/users/myos/`; use `startgui projects` to enter the same File Workspace directly at `/users/myos/projects`, or `startgui project <name>` to open one existing project directory after its bounded 1–31-character name and directory type are revalidated. Add the exact `edit` suffix to open only that project's revalidated regular writable `main.mya` in the existing GUI editor. The exact read-only `status` suffix reports the fixed source, build and installed-package `READY <size> bytes`, `MISSING` or `NOT REGULAR` rows without mutation. Invalid or absent project requests report `UNABLE TO OPEN PROJECT`; a missing or non-regular direct source reports `UNABLE TO OPEN PROJECT SOURCE`, without opening a viewer. Its window title shows the complete current logical-VFS path and updates after parent or child navigation. Click the top-bar `X` to exit. Launcher and window actions are mouse-only. The retained GUI-level keyboard shortcuts are `Alt+Tab` to move focus to the next visible window, `Alt+F4` to close the focused window, `Esc` to return or cancel, and `Ctrl+Q` to exit. For a personal note you can pass an absolute path:
 
 ```text
 startgui /users/myos/files/notes/note
@@ -305,6 +305,8 @@ startgui projects
 startgui project native-args
 # Exact project source editor:
 startgui project native-args edit
+# Read-only project lifecycle view:
+startgui project native-args status
 ```
 
 To add a desktop app tile, first use the existing package boundary:

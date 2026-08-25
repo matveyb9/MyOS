@@ -126,14 +126,14 @@ static int project_argument_requested(const char *arguments) {
     return 1;
 }
 
-static int make_project_workspace_path(char *destination, const char *arguments, int *editor_requested) {
+static int make_project_workspace_path(char *destination, const char *arguments, int *requested_mode) {
     struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
     char name[32] = { 0 };
     const char *argument_name;
     uint64_t name_length = 0U;
     uint64_t offset = 0U;
 
-    if (destination == (char *)0 || editor_requested == (int *)0 || project_argument_requested(arguments) == 0) {
+    if (destination == (char *)0 || requested_mode == (int *)0 || project_argument_requested(arguments) == 0) {
         return 0;
     }
     argument_name = arguments + 8U;
@@ -143,9 +143,11 @@ static int make_project_workspace_path(char *destination, const char *arguments,
     }
     if (project_name_is_valid(name) == 0) { return 0; }
     if (argument_name[name_length] == '\0') {
-        *editor_requested = 0;
+        *requested_mode = 0;
     } else if (text_equal(argument_name + name_length, " edit") != 0) {
-        *editor_requested = 1;
+        *requested_mode = 1;
+    } else if (text_equal(argument_name + name_length, " status") != 0) {
+        *requested_mode = 2;
     } else {
         return 0;
     }
@@ -484,6 +486,73 @@ static void content_append_path_tail(uint8_t *data, uint64_t *length, const char
     for (uint64_t index = start; index < path_length; index++) {
         content_append_char(data, length, path[index]);
     }
+}
+
+static int make_project_package_directory(char *destination, const char *project_path) {
+    uint64_t name_offset = 0U;
+    uint64_t offset = 0U;
+
+    if (destination == (char *)0 || project_path == (const char *)0) { return 0; }
+    for (uint64_t index = 0U; project_path[index] != '\0'; index++) {
+        if (project_path[index] == '/') { name_offset = index + 1U; }
+    }
+    if (project_path[name_offset] == '\0') { return 0; }
+    destination[offset++] = '/';
+    destination[offset++] = 'a';
+    destination[offset++] = 'p';
+    destination[offset++] = 'p';
+    destination[offset++] = 's';
+    destination[offset++] = '/';
+    for (uint64_t index = name_offset; project_path[index] != '\0' && offset + 1U < MYOS_VFS_PATH_MAX; index++) {
+        destination[offset++] = project_path[index];
+    }
+    destination[offset] = '\0';
+    return project_path[name_offset] != '\0' && disk_path_is_valid(destination) != 0;
+}
+
+static void append_project_file_status(uint8_t *data, uint64_t *length, const char *label,
+                                       const char *directory, const char *name) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+
+    content_append_text(data, length, label, 16U);
+    content_append_text(data, length, ": ", 2U);
+    if (make_path(request.path, directory) != 0) {
+        for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+            request.index = index;
+            if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+                break;
+            }
+            if (text_equal(request.entry.name, name) != 0) {
+                if (request.entry.type == MYOS_VFS_OBJECT_REGULAR) {
+                    content_append_text(data, length, "READY ", 6U);
+                    content_append_decimal(data, length, request.entry.size);
+                    content_append_text(data, length, " bytes", 6U);
+                } else {
+                    content_append_text(data, length, "NOT REGULAR", 11U);
+                }
+                content_append_char(data, length, '\n');
+                return;
+            }
+        }
+    }
+    content_append_text(data, length, "MISSING\n", 8U);
+}
+
+static void show_project_status(const char *project_path) {
+    char package_directory[MYOS_VFS_PATH_MAX] = { 0 };
+    uint64_t length = 0U;
+
+    content_append_text(gui_scratch_data, &length, "PROJECT STATUS\n", 15U);
+    content_append_path_tail(gui_scratch_data, &length, project_path);
+    content_append_char(gui_scratch_data, &length, '\n');
+    append_project_file_status(gui_scratch_data, &length, "source", project_path, "main.mya");
+    append_project_file_status(gui_scratch_data, &length, "build", project_path, "main.elf");
+    if (make_project_package_directory(package_directory, project_path) != 0) {
+        append_project_file_status(gui_scratch_data, &length, "package", package_directory, "main.elf");
+    } else {
+        content_append_text(gui_scratch_data, &length, "package: MISSING\n", 17U);
+    }
+    (void)set_viewer_content("PROJECT STATUS", gui_scratch_data, length, 0U, 0U, 0U);
 }
 
 static int browser_set_directory(const char *path) {
@@ -1157,8 +1226,8 @@ void _start(uint64_t argc, const char *arguments) {
     int home_mode = arguments[0] == '\0' || text_equal(arguments, "home");
     const int project_mode = text_equal(arguments, "projects");
     const int direct_project_request = project_argument_requested(arguments);
-    int direct_project_editor = 0;
-    const int direct_project_mode = make_project_workspace_path(project_path, arguments, &direct_project_editor);
+    int direct_project_view = 0;
+    const int direct_project_mode = make_project_workspace_path(project_path, arguments, &direct_project_view);
     int browser_mode = 0;
     int browser_new_file_mode = 0;
     int session_finished = 0;
@@ -1173,7 +1242,7 @@ void _start(uint64_t argc, const char *arguments) {
         } else if (project_mode != 0 || direct_project_mode != 0) {
             browser_mode = 1;
             (void)browser_set_directory(direct_project_mode != 0 ? project_path : GUI_BROWSER_PROJECT_PATH);
-            if (direct_project_mode != 0 && direct_project_editor != 0) {
+            if (direct_project_mode != 0 && direct_project_view == 1) {
                 if (make_project_source_path(project_source_path, project_path) == 0
                     || project_source_is_regular(project_path) == 0 || select_disk_path(project_source_path) == 0) {
                     set_viewer_status("UNABLE TO OPEN PROJECT SOURCE");
@@ -1187,6 +1256,8 @@ void _start(uint64_t argc, const char *arguments) {
                         show_file_browser();
                     }
                 }
+            } else if (direct_project_mode != 0 && direct_project_view == 2) {
+                show_project_status(project_path);
             } else {
                 show_file_browser();
             }

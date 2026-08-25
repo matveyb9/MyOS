@@ -295,7 +295,7 @@ startgui
 # Compatibility alias: startgui home
 ```
 
-Без аргумента `startgui` открывает **MYOS DESKTOP** — bounded mouse-first launcher; `startgui home` остаётся alias. Click по `SYSTEM` открывает system message, по `NOTES` — notes, по `EDIT NOTE` — editor default personal note. До четырёх installed packages с `/apps/<name>/main.elf` также появляются под fixed tiles как `OPEN APP`; click по одному запускает программу, закрывает GUI и возвращает её normal output в console. Click по `FILES` запускает путь `/users/myos/`; `startgui projects` сразу открывает тот же File Workspace в `/users/myos/projects`, а `startgui project <name>` открывает один existing project directory после revalidation его bounded name из 1–31 characters и directory type. Exact suffix `edit` открывает только revalidated regular writable `main.mya` этого project в existing GUI editor. Invalid либо absent project request сообщает `UNABLE TO OPEN PROJECT`; missing или non-regular direct source сообщает `UNABLE TO OPEN PROJECT SOURCE`, без открытия viewer. Title его окна показывает полный current logical-VFS path и обновляется после parent или child navigation. Click по top-bar `X` выполняет выход. Launcher и window actions выполняются только мышью. Сохранившиеся GUI-level keyboard shortcuts: `Alt+Tab` переводит focus на следующее видимое окно, `Alt+F4` закрывает focused window, `Esc` возвращает или отменяет, а `Ctrl+Q` выходит. Для personal note можно передать absolute path:
+Без аргумента `startgui` открывает **MYOS DESKTOP** — bounded mouse-first launcher; `startgui home` остаётся alias. Click по `SYSTEM` открывает system message, по `NOTES` — notes, по `EDIT NOTE` — editor default personal note. До четырёх installed packages с `/apps/<name>/main.elf` также появляются под fixed tiles как `OPEN APP`; click по одному запускает программу, закрывает GUI и возвращает её normal output в console. Click по `FILES` запускает путь `/users/myos/`; `startgui projects` сразу открывает тот же File Workspace в `/users/myos/projects`, а `startgui project <name>` открывает один existing project directory после revalidation его bounded name из 1–31 characters и directory type. Exact suffix `edit` открывает только revalidated regular writable `main.mya` этого project в existing GUI editor. Exact read-only suffix `status` выводит fixed source, build и installed-package rows `READY <size> bytes`, `MISSING` или `NOT REGULAR` без mutation. Invalid либо absent project request сообщает `UNABLE TO OPEN PROJECT`; missing или non-regular direct source сообщает `UNABLE TO OPEN PROJECT SOURCE`, без открытия viewer. Title его окна показывает полный current logical-VFS path и обновляется после parent или child navigation. Click по top-bar `X` выполняет выход. Launcher и window actions выполняются только мышью. Сохранившиеся GUI-level keyboard shortcuts: `Alt+Tab` переводит focus на следующее видимое окно, `Alt+F4` закрывает focused window, `Esc` возвращает или отменяет, а `Ctrl+Q` выходит. Для personal note можно передать absolute path:
 
 ```text
 startgui /users/myos/files/notes/note
@@ -305,6 +305,8 @@ startgui projects
 startgui project native-args
 # Exact project source editor:
 startgui project native-args edit
+# Read-only project lifecycle view:
+startgui project native-args status
 ```
 
 Чтобы добавить desktop app tile, сначала используйте existing package boundary:
