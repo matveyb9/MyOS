@@ -157,6 +157,8 @@ static int make_project_workspace_path(char *destination, const char *arguments,
         *requested_mode = 5;
     } else if (text_equal(argument_name + name_length, " uninstall") != 0) {
         *requested_mode = 6;
+    } else if (text_equal(argument_name + name_length, " clean") != 0) {
+        *requested_mode = 7;
     } else if (argument_name[name_length] == ' ') {
         uint64_t run_length = 0U;
         const char *tail = argument_name + name_length + 1U;
@@ -732,6 +734,17 @@ static int launch_project_install(const char *project_path, uint64_t *child_stat
     *child_status = system_call(MYOS_SYS_WAIT, child, 0U, 0U);
     if (*child_status == UINT64_MAX) { *child_status = 1U; }
     return 1;
+}
+
+static int remove_project_build(const char *project_path) {
+    struct myos_vfs_path_request request = { { 0 } };
+    char build_path[MYOS_VFS_PATH_MAX] = { 0 };
+
+    if (make_project_build_path(build_path, project_path) == 0 || project_build_is_regular(project_path) == 0
+        || make_path(request.path, build_path) == 0) {
+        return 0;
+    }
+    return system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) != UINT64_MAX;
 }
 
 static int remove_project_package(const char *project_path) {
@@ -1498,6 +1511,14 @@ void _start(uint64_t argc, const char *arguments) {
                     set_viewer_status("PROJECT PACKAGE REMOVED");
                 } else {
                     set_viewer_status("UNABLE TO REMOVE PROJECT PACKAGE");
+                }
+            } else if (direct_project_mode != 0 && direct_project_view == 7) {
+                if (project_build_is_regular(project_path) == 0) {
+                    set_viewer_status("UNABLE TO OPEN PROJECT OUTPUT");
+                } else if (remove_project_build(project_path) != 0) {
+                    set_viewer_status("PROJECT BUILD REMOVED");
+                } else {
+                    set_viewer_status("UNABLE TO REMOVE PROJECT BUILD");
                 }
             } else {
                 show_file_browser();
