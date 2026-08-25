@@ -1644,6 +1644,85 @@ int vfs_rename_object(const char *source, const char *target) {
 }
 
 
+static int persistent_move_anchor(uint16_t index, uint16_t *anchor) {
+    for (uint64_t depth = 0U; depth < VFS_PATH_DEPTH_MAX; depth++) {
+        const struct persistent_node *node;
+        if (anchor == (uint16_t *)0 || index >= VFS_PERSIST_MAX_FILES) { return 0; }
+        node = &persistent_nodes[index];
+        if (node->used == 0U || node->type != VFS_OBJECT_DIRECTORY) { return 0; }
+        if (node->parent == PERSIST_PARENT_ROOT || node->parent == PERSIST_PARENT_SYSTEM) {
+            *anchor = index;
+            return 1;
+        }
+        index = node->parent;
+    }
+    return 0;
+}
+int vfs_move_object(const char *source, const char *target) {
+    struct path_parts source_parts;
+    struct path_parts target_parts;
+    struct vfs_target source_object;
+    struct vfs_target target_parent;
+    const char *target_name;
+    uint64_t target_length;
+    int existing;
+    if (parse_path(source, &source_parts) == 0 || parse_path(target, &target_parts) == 0
+        || resolve_mutable(&source_parts, &source_object) == 0
+        || resolve_parent(&target_parts, &target_parent, &target_name) == 0) {
+        return 0;
+    }
+    target_length = text_length(target_name, VFS_NAME_MAX);
+    if (source_object.kind == TARGET_PERSIST && source_object.index >= 12U
+        && target_parent.kind == TARGET_PERSIST
+        && persistent_nodes[source_object.index].type == VFS_OBJECT_REGULAR
+        && persistent_nodes[target_parent.index].type == VFS_OBJECT_DIRECTORY) {
+        struct persistent_node *node = &persistent_nodes[source_object.index];
+        uint16_t source_anchor;
+        uint16_t target_anchor;
+        uint16_t old_parent;
+        uint8_t old_name_length;
+        char old_name[VFS_NAME_MAX];
+        if (persistent_move_anchor(node->parent, &source_anchor) == 0
+            || persistent_move_anchor(target_parent.index, &target_anchor) == 0
+            || source_anchor != target_anchor) {
+            return 0;
+        }
+        existing = persistent_find_child(target_parent.index, target_name);
+        if (existing >= 0) { return 0; }
+        old_parent = node->parent;
+        old_name_length = node->name_length;
+        text_copy(old_name, sizeof(old_name), node->name);
+        node->parent = target_parent.index;
+        text_copy(node->name, VFS_NAME_MAX, target_name);
+        node->name_length = (uint8_t)target_length;
+        if (persistent_store_node(source_object.index) == 0) {
+            node->parent = old_parent;
+            text_copy(node->name, VFS_NAME_MAX, old_name);
+            node->name_length = old_name_length;
+            return 0;
+        }
+        return 1;
+    }
+    if (source_object.kind == TARGET_TEMP && source_object.index < VFS_TMPFS_MAX_FILES
+        && tmp_nodes[source_object.index].type == VFS_OBJECT_REGULAR) {
+        uint16_t target_parent_index;
+        if (target_parent.kind == TARGET_TEMP) {
+            if (tmp_nodes[target_parent.index].type != VFS_OBJECT_DIRECTORY) { return 0; }
+            target_parent_index = target_parent.index;
+        } else if (target_parent.kind == TARGET_TEMP_ROOT) {
+            target_parent_index = TMP_PARENT_ROOT;
+        } else {
+            return 0;
+        }
+        existing = tmp_find_child(target_parent_index, target_name);
+        if (existing >= 0) { return 0; }
+        tmp_nodes[source_object.index].parent = target_parent_index;
+        text_copy(tmp_nodes[source_object.index].name, VFS_NAME_MAX, target_name);
+        tmp_nodes[source_object.index].name_length = (uint8_t)target_length;
+        return 1;
+    }
+    return 0;
+}
 int vfs_get_entry(uint64_t index, char *name, uint64_t name_capacity, uint64_t *size) {
     struct vfs_directory_entry entry;
 

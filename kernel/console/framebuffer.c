@@ -606,7 +606,8 @@ static char gui_browser_action_at_pointer(const gui_window_t *window) {
     if (row == 6U + MYOS_GUI_BROWSER_ENTRY_MAX) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_REMOVE; }
     if (row == 7U + MYOS_GUI_BROWSER_ENTRY_MAX) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_COPY; }
     if (row == 8U + MYOS_GUI_BROWSER_ENTRY_MAX) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_RENAME; }
-    if (row == 9U + MYOS_GUI_BROWSER_ENTRY_MAX) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_SEARCH; }
+    if (row == 9U + MYOS_GUI_BROWSER_ENTRY_MAX) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_MOVE; }
+    if (row == 10U + MYOS_GUI_BROWSER_ENTRY_MAX) { return (char)MYOS_INPUT_GUI_ACTION_BROWSER_SEARCH; }
     return '\0';
 }
 

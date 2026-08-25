@@ -381,6 +381,18 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t descriptor, uint64_t buffer,
         }
         return 0U;
     }
+    if (number == MYOS_SYS_VFS_MOVE) {
+        struct myos_vfs_rename_request request;
+
+        if (descriptor != 0U || buffer == 0U || length != sizeof(request)
+            || copy_from_user(&request, buffer, sizeof(request)) == 0
+            || request_string_is_terminated(request.source, MYOS_VFS_PATH_MAX, 1) == 0
+            || request_string_is_terminated(request.target, MYOS_VFS_PATH_MAX, 1) == 0
+            || vfs_move_object(request.source, request.target) == 0) {
+            return UINT64_MAX;
+        }
+        return 0U;
+    }
     if (number == MYOS_SYS_VFS_WRITE) {
         struct myos_vfs_write_request request;
 

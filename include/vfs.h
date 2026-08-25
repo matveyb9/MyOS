@@ -42,6 +42,7 @@ int vfs_create_directory(const char *path);
 int vfs_write_file(const char *path, uint64_t offset, const uint8_t *data, uint64_t length);
 int vfs_remove_object(const char *path);
 int vfs_rename_object(const char *source, const char *target);
+int vfs_move_object(const char *source, const char *target);
 int vfs_get_entry(uint64_t index, char *name, uint64_t name_capacity, uint64_t *size);
 
 /* Temporary compatibility wrappers for the legacy syscall ABI. */
