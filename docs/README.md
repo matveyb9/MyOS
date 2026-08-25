@@ -14,6 +14,7 @@ This folder contains the detailed documentation for the current branch. Start wi
 | [Platform Guide](PLATFORMS.md) | Host setup on Linux, Windows/WSL and macOS. |
 | [Developer Guide](DEVELOPER_GUIDE.md) | Source tree, architecture, ABI, storage invariants and validation. |
 | [Release Guide](RELEASES.md) | Branch roles, tags, release notes and bilingual commit format. |
+| [Development Workflow](DEVELOPMENT_WORKFLOW.md) | Feature-branch lifecycle, Pre-release criteria and future stable-line requirements. |
 | [Roadmap](ROADMAP.md) | Completed milestones and planned work. |
 | [Documentation Policy](DOCUMENTATION_POLICY.md) | Required same-commit updates, translations and link review. |
 
@@ -21,7 +22,7 @@ This folder contains the detailed documentation for the current branch. Start wi
 
 | Guide | Use it for |
 |---|---|
-| [GUI Bring-up](GUI_BRINGUP.md) | The experimental framebuffer desktop in `feature/gui`. |
+| [GUI Bring-up](GUI_BRINGUP.md) | The experimental framebuffer desktop integrated in QEMU-validated `main`. |
 | [Text Editor](TEXT_EDITOR.md) | Editing ordinary files and multi-line `.mya` source inside MyOS. |
 | [Native Build](NATIVE_BUILD.md) | Writing, building, installing and running bounded `.mya` programs. |
 | [MyOS SDK](SDK.md) | Building freestanding C11 programs on the host. |
