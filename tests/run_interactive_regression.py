@@ -1148,6 +1148,13 @@ def run_bios(image_path, work_dir):
         guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
         if NEWPROJ_TEMPLATE not in bytes(guest.output[duplicate_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"BIOS: duplicate newproj changed its existing template\n{guest._tail()}")
+        guest.command("help editproj", "Opens /users/myos/projects/<project-name>/main.mya in the bounded editor.")
+        editproj_start = len(guest.output)
+        guest.send(f"editproj {NEWPROJ_NAME}\n")
+        guest.expect(f"File: {NEWPROJ_SOURCE_PATH}", editproj_start)
+        guest.send(b"\x11")
+        guest.expect("exited with status 0", editproj_start)
+        guest.expect(PROMPT, editproj_start)
         guest.command("help buildproj", "Builds /users/myos/projects/<project-name>/main.mya to main.elf.")
         guest.command("help installproj", "an existing package target is replaced")
         guest.command(f"buildproj {NEWPROJ_NAME}", "exited with status 0")

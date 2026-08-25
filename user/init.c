@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "tree", "find", "head", "sort", "tail", "stat", "touch", "mkdir", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "buildproj", "installproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "installproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -496,6 +496,11 @@ static void command_help(const char *topic) {
         write_text("Names are 1..31 ASCII letters, digits, '-' or '_'; existing projects are never overwritten.\n");
         return;
     }
+    if (text_equal(topic, "editproj")) {
+        write_text("editproj <project-name>\n");
+        write_text("Opens /users/myos/projects/<project-name>/main.mya in the bounded editor.\n");
+        return;
+    }
     if (text_equal(topic, "buildproj")) {
         write_text("buildproj <project-name>\n");
         write_text("Builds /users/myos/projects/<project-name>/main.mya to main.elf.\n");
@@ -529,7 +534,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; tree [absolute-directory]; find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
-    write_text("Native: newproj/buildproj/installproj <name>; build <source.mya> <output.elf>; help newproj/buildproj/installproj/asm/edit\n");
+    write_text("Native: newproj/editproj/buildproj/installproj <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/installproj/asm/edit\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -857,7 +862,25 @@ static void command_newproj(const char *argument) {
     write_text(directory);
     write_text("\nSource: ");
     write_text(source);
-    write_text("\nNext: edit, build, install and run.\n");
+    write_text("\nNext: editproj, buildproj, installproj and run.\n");
+}
+
+static void command_editproj(const char *argument) {
+    char source[MYOS_VFS_PATH_MAX];
+    char program[USER_LINE_CAPACITY] = "edit";
+    uint64_t source_length = 0U;
+    uint64_t program_length = 4U;
+
+    if (project_name_is_valid(argument) == 0
+        || append_text(source, sizeof(source), &source_length, "/users/myos/projects/") == 0
+        || append_text(source, sizeof(source), &source_length, argument) == 0
+        || append_text(source, sizeof(source), &source_length, "/main.mya") == 0
+        || append_text(program, sizeof(program), &program_length, " ") == 0
+        || append_text(program, sizeof(program), &program_length, source) == 0) {
+        write_text("Usage: editproj <project-name>\n");
+        return;
+    }
+    (void)run_foreground(program, 1);
 }
 
 static void command_buildproj(const char *argument) {
@@ -1579,6 +1602,8 @@ static void execute_command(char *line) {
         command_build(argument);
     } else if (text_equal(line, "newproj")) {
         command_newproj(argument);
+    } else if (text_equal(line, "editproj")) {
+        command_editproj(argument);
     } else if (text_equal(line, "buildproj")) {
         command_buildproj(argument);
     } else if (text_equal(line, "installproj")) {

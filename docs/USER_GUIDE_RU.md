@@ -260,11 +260,11 @@ SDK собирает собственные freestanding C11 programs на host 
 
 ## 8. Native build прямо в MyOS
 
-Native build workflow использует restricted assembler и command `build`. `newproj <name>` безопасно создаёт `/users/myos/projects/<name>/main.mya` из одного runnable template; name — 1–31 ASCII letters, digits, `-` или `_`, а existing project никогда не перезаписывается. Затем `buildproj <name>` и `installproj <name>` разрешают только эти fixed project paths и `/apps/<name>/main.elf`, сохраняя assembler и package installer behavior. Project name длиной 16–31 characters по-прежнему запускается из shell, но его package намеренно не получает GUI launcher tile, потому что launcher names ограничены 15 printable characters. Для multi-line source используйте общий command `edit`; `write` остаётся удобным для short one-line files.
+Native build workflow использует restricted assembler и command `build`. `newproj <name>` безопасно создаёт `/users/myos/projects/<name>/main.mya` из одного runnable template; name — 1–31 ASCII letters, digits, `-` или `_`, а existing project никогда не перезаписывается. Затем `editproj <name>`, `buildproj <name>` и `installproj <name>` разрешают только эти fixed project paths и `/apps/<name>/main.elf`, сохраняя editor, assembler и package installer behavior. Project name длиной 16–31 characters по-прежнему запускается из shell, но его package намеренно не получает GUI launcher tile, потому что launcher names ограничены 15 printable characters. Для multi-line source используйте общий command `edit`; `write` остаётся удобным для short one-line files.
 
 ```text
 newproj native-args
-edit /users/myos/projects/native-args/main.mya
+editproj native-args
 # Наберите эти source lines, затем Ctrl-S:
 write "["
 args
