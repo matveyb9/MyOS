@@ -491,9 +491,10 @@ static void command_help(const char *topic) {
         return;
     }
     if (text_equal(topic, "newproj")) {
-        write_text("newproj <project-name>\n");
-        write_text("Creates /users/myos/projects/<project-name>/main.mya from one fixed template.\n");
-        write_text("Names are 1..31 ASCII letters, digits, '-' or '_'; existing projects are never overwritten.\n");
+        write_text("newproj <project-name> [hello|args]\n");
+        write_text("Creates /users/myos/projects/<project-name>/main.mya from one fixed runnable template.\n");
+        write_text("hello is the default; args writes the bounded native argument string. Existing projects are never overwritten.\n");
+        write_text("Names are 1..31 ASCII letters, digits, '-' or '_'; unknown templates create nothing.\n");
         return;
     }
     if (text_equal(topic, "editproj")) {
@@ -828,11 +829,19 @@ static int project_name_is_valid(const char *name) {
 static int run_foreground(char *argument, int verbose);
 static int vfs_lookup_child(const char *parent, const char *name, struct myos_vfs_directory_entry *entry);
 
-static void command_newproj(const char *argument) {
-    static const char project_template[] =
+static void command_newproj(char *argument) {
+    static const char hello_template[] =
         "# MyOS project template\n"
         "write \"Hello from MyOS project\\n\"\n"
         "exit 0\n";
+    static const char args_template[] =
+        "# MyOS argument project template\n"
+        "write \"[\"\n"
+        "args\n"
+        "write \"]\\n\"\n"
+        "exit 0\n";
+    const char *template_name = first_argument(argument);
+    const char *project_template = (const char *)0;
     char directory[MYOS_VFS_PATH_MAX];
     char source[MYOS_VFS_PATH_MAX];
     struct myos_vfs_path_request directory_request;
@@ -840,8 +849,17 @@ static void command_newproj(const char *argument) {
     struct myos_vfs_write_request write_request;
     uint64_t directory_length = 0U;
     uint64_t source_length = 0U;
-    const uint64_t template_length = sizeof(project_template) - 1U;
+    uint64_t template_length;
 
+    if (template_name[0] == '\0' || text_equal(template_name, "hello") != 0) {
+        project_template = hello_template;
+    } else if (text_equal(template_name, "args") != 0) {
+        project_template = args_template;
+    } else {
+        write_text("Usage: newproj <project-name> [hello|args]\n");
+        return;
+    }
+    template_length = text_length(project_template);
     if (project_name_is_valid(argument) == 0
         || append_text(directory, sizeof(directory), &directory_length, "/users/myos/projects/") == 0
         || append_text(directory, sizeof(directory), &directory_length, argument) == 0
@@ -850,7 +868,7 @@ static void command_newproj(const char *argument) {
         || make_vfs_path_request(&directory_request, directory) == 0
         || make_vfs_path_request(&source_request, source) == 0
         || template_length > MYOS_VFS_READ_CHUNK) {
-        write_text("Usage: newproj <project-name>\n");
+        write_text("Usage: newproj <project-name> [hello|args]\n");
         return;
     }
     if (system_call(MYOS_SYS_VFS_CREATE_DIRECTORY, 0U, (uint64_t)(uintptr_t)&directory_request,
@@ -877,9 +895,11 @@ static void command_newproj(const char *argument) {
     }
     write_text("Created project ");
     write_text(directory);
+    write_text("\nTemplate: ");
+    write_text(template_name[0] == '\0' ? "hello" : template_name);
     write_text("\nSource: ");
     write_text(source);
-    write_text("\nNext: editproj, buildproj, installproj and run.\n");
+    write_text("\nNext: editproj, buildproj, runproj, installproj and run.\n");
 }
 
 static void command_editproj(const char *argument) {

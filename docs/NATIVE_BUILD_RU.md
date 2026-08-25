@@ -14,24 +14,23 @@
 
 ## Быстрый workflow
 
-Начните project с fixed skeleton, затем отредактируйте source перед project shortcut build/install/run path.
+Начните project с default fixed skeleton `hello` или fixed skeleton `args`, затем соберите и запустите его через project shortcuts.
 
 ```text
-newproj native-args
-editproj native-args
+newproj native-args args
 buildproj native-args
-runproj native-args
+runproj native-args hello MyOS
 installproj native-args
-run native-args
+run native-args hello MyOS
 ```
 
-`newproj` записывает runnable program `Hello from MyOS project`. Замените его содержимое через `edit`, например на `write "["; args; write "]\n"; time; exit 37`; затем `run native-args hello MyOS` выводит `[hello MyOS]`, корректную строку времени `HH:MM:SS` и exit status `37`. Без parameters эта authored program выводит `[]`. Для output ELF используйте persistent project paths: generated images немного больше 4 KiB, а temporary VFS намеренно мал.
+`newproj` по умолчанию записывает runnable program `Hello from MyOS project`; `newproj <name> args` записывает fixed bracketed starter `args`. Starter напрямую выводит `[hello MyOS]` через `runproj native-args hello MyOS` и `run native-args hello MyOS`, а без parameters выводит `[]`. Замените любой source через `edit`, чтобы написать другую program; например добавьте `time` перед final `exit 37`, чтобы вывести корректную строку `HH:MM:SS` и вернуть status `37`. Для output ELF используйте persistent project paths: generated images немного больше 4 KiB, а temporary VFS намеренно мал.
 
 ## Команды shell
 
 | Команда | Назначение |
 |---|---|
-| `newproj <project-name>` | Создаёт `/users/myos/projects/<project-name>/main.mya` из одного fixed runnable template. Names — 1–31 ASCII letters, digits, `-` или `_`; existing project отклоняется без overwrite. |
+| `newproj <project-name> [hello|args]` | Создаёт `/users/myos/projects/<project-name>/main.mya` из одного fixed runnable starter: `hello` используется по умолчанию, а `args` записывает bracketed native-argument program. Names — 1–31 ASCII letters, digits, `-` или `_`; existing project или unknown template отклоняется без создания либо overwrite. |
 | `editproj <project-name>` | Открывает fixed path `<project>/main.mya` через bounded program `edit`. Не создаёт file или directory. |
 | `buildproj <project-name>` | Вызывает `build` через fixed project paths `<project>/main.mya` → `<project>/main.elf`. Не создаёт directory и сохраняет assembler replacement/error behavior. |
 | `runproj <project-name> [arguments]` | Повторно проверяет и запускает только regular generated `<project>/main.elf` через existing foreground loader без создания или замены package. Он передаёт existing native argument string не более 127 visible bytes; при missing build сообщает, что сначала нужен `buildproj`. |
@@ -44,7 +43,7 @@ run native-args
 | `install <source> /apps/<name>/main.elf` | Копирует ELF в executable package location. |
 | `run <name>` | Разрешает и запускает `/apps/<name>/main.elf`. |
 
-Все paths должны быть absolute. `newproj` — единственный project helper, создающий fixed directory и template `main.mya`; он использует существующие VFS create/write operations, отклоняет existing directory и удаляет только directory или file, которые сам успел создать, если его собственный последующий setup step завершился failure. Project name длиной 16–31 characters остаётся valid для shell `run`, но его installed package намеренно не получает launcher tile: GUI принимает максимум 15 printable name characters, поэтому framebuffer и user-space action mappings остаются identical. `editproj`, `buildproj`, `runproj`, `installproj`, `projstatus` и `cleanproj` принимают тот же restricted name и только формируют fixed existing project/package paths. `editproj`, `buildproj` и `installproj` делегируют established programs `edit`, `asm` и `install`; `runproj` повторно проверяет regular `main.elf`, затем без mutation делегирует existing foreground loader, передавая только ordinary native argument tail не более 127 visible bytes. Его kernel loader allowlist допускает только этот exact bounded path `/users/myos/projects/<name>/main.elf` и всё ещё отклоняет каждый иной executable path `/users/...`; `projstatus` читает не более 128 entries в каждом fixed parent directory, а `cleanproj` повторно проверяет regular `main.elf` перед одним remove request. Они не добавляют VFS operation, не меняют established package-replacement behavior и не заявляют crash-transactional persistence. Сам assembler не создаёт parent directories. Он разбирает весь source и формирует ELF до замены requested output file.
+Все paths должны быть absolute. `newproj` — единственный project helper, создающий fixed directory и template `main.mya`; он принимает только default `hello` или starter `args`, проверяет выбор до любой VFS mutation, использует существующие VFS create/write operations, отклоняет existing directory и удаляет только directory или file, которые сам успел создать, если его собственный последующий setup step завершился failure. Project name длиной 16–31 characters остаётся valid для shell `run`, но его installed package намеренно не получает launcher tile: GUI принимает максимум 15 printable name characters, поэтому framebuffer и user-space action mappings остаются identical. `editproj`, `buildproj`, `runproj`, `installproj`, `projstatus` и `cleanproj` принимают тот же restricted name и только формируют fixed existing project/package paths. `editproj`, `buildproj` и `installproj` делегируют established programs `edit`, `asm` и `install`; `runproj` повторно проверяет regular `main.elf`, затем без mutation делегирует existing foreground loader, передавая только ordinary native argument tail не более 127 visible bytes. Его kernel loader allowlist допускает только этот exact bounded path `/users/myos/projects/<name>/main.elf` и всё ещё отклоняет каждый иной executable path `/users/...`; `projstatus` читает не более 128 entries в каждом fixed parent directory, а `cleanproj` повторно проверяет regular `main.elf` перед одним remove request. Они не добавляют VFS operation, не меняют established package-replacement behavior и не заявляют crash-transactional persistence. Сам assembler не создаёт parent directories. Он разбирает весь source и формирует ELF до замены requested output file.
 
 ## Source language `.mya`
 
@@ -153,7 +152,7 @@ asm: syntax error; set/load/input must precede not/neg/inc/dec/clz/parity/test/a
 | BIOS private comparison | Четвёртая программа сохраняет `73` в slot `5`, проверяет equality с `cmp 5` через `jump_if_zero`, затем проверяет inequality после `set 72` через `jump_if_nonzero`; она выводит `EQ` и `NE`, завершается со status `51` и отклоняет uninitialized comparison или slot `8`. |
 | Rejection cases | Missing condition, ordinary backward target и exact-conditional backward target возвращают documented syntax diagnostic и status `2`. |
 | UEFI persistence | Установленные input/time, argument и variable packages снова запускаются после UEFI/OVMF boot; `A` выбирает ожидаемый path, `[ovmf args]` выводится из forwarded arguments, package `store`/`load` выбирает `VAR`, persisted add/sub arithmetic package выбирает `ARITH`, persisted mul/div package выбирает `MULDIV`, persisted bitwise package выбирает `BITWISE`, persisted XOR package выбирает `XOR`, persisted shift package выбирает `SHIFT`, persisted rotate package выбирает `ROTATE`, persisted remainder package выбирает `MOD`, persisted negation package выбирает `NEG`, persisted increment package выбирает `INC`, persisted decrement package выбирает `DEC`, persisted swap package выбирает `SWAP`, persisted leading-zero package выбирает `CLZ`, persisted parity package выбирает `PARITY`, persisted test package выбирает `TEST`, persisted comparison package выбирает и `EQ`, и `NE`, а каждая time line остаётся корректной. |
-| Project direct-run lifecycle | BIOS доказывает, что `buildproj` → `runproj` запускает uninstalled generated template, затем edited project напрямую передаёт normal native argument string до `installproj`, создающего package; после `cleanproj` package всё ещё запускается при missing build, затем rebuild снова запускается напрямую перед final clean. UEFI подтверждает persisted source/package и final missing build output. |
+| Project starter/direct-run lifecycle | BIOS доказывает exact default-template bytes, duplicate и unknown-template rejection без project creation, затем `buildproj` → `runproj` запускает uninstalled generated template, а starter `args` напрямую передаёт normal native argument string до `installproj`, создающего package; после `cleanproj` package всё ещё запускается при missing build, затем rebuild снова запускается напрямую перед final clean. UEFI подтверждает persisted source/package и final missing build output. |
 | Automated regression | `make regression` выполняет disposable-image BIOS GUI/editor/native workflow, затем проверяет persistent files и installed native packages при UEFI/OVMF. |
 
 ## Связь с SDK и следующий шаг

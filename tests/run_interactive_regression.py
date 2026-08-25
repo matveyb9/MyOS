@@ -23,6 +23,10 @@ NEWPROJ_NAME = "scaffold-harness"
 NEWPROJ_DIRECTORY = "/users/myos/projects/scaffold-harness"
 NEWPROJ_SOURCE_PATH = "/users/myos/projects/scaffold-harness/main.mya"
 NEWPROJ_TEMPLATE = b"# MyOS project template\nwrite \"Hello from MyOS project\\n\"\nexit 0\n"
+ARGS_PROJ_NAME = "starter-args"
+ARGS_PROJ_DIRECTORY = "/users/myos/projects/starter-args"
+ARGS_PROJ_SOURCE_PATH = "/users/myos/projects/starter-args/main.mya"
+ARGS_PROJ_TEMPLATE = b"# MyOS argument project template\nwrite \"[\"\nargs\nwrite \"]\\n\"\nexit 0\n"
 SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
 APP_PATH = "/apps/release-harness/main.elf"
@@ -1149,7 +1153,26 @@ def run_bios(image_path, work_dir):
         if grep_output.count(b"needle-crosses\n") != 1 or b"x" * 122 + b"needle" in grep_output:
             raise RegressionFailure(f"BIOS: direct grep did not skip the overlong matching line or print the short match exactly\n{guest._tail()}")
         guest.command(f"run grep needle {GREP_MATCH_PATH}", "needle-crosses")
-        guest.command("help newproj", "existing projects are never overwritten")
+        guest.command("help newproj", "hello is the default; args writes the bounded native argument string")
+        guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args]")
+        guest.command("newproj rejected-template hello", "Created project /users/myos/projects/rejected-template")
+        guest.command("rm /users/myos/projects/rejected-template/main.mya", "Removed")
+        guest.command("rm /users/myos/projects/rejected-template", "Removed")
+        guest.command(f"newproj {ARGS_PROJ_NAME} args", f"Created project {ARGS_PROJ_DIRECTORY}")
+        args_template_read_start = len(guest.output)
+        guest.command(f"cat {ARGS_PROJ_SOURCE_PATH}", "write \"[\"")
+        if ARGS_PROJ_TEMPLATE not in bytes(guest.output[args_template_read_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"BIOS: args newproj template is not exact\n{guest._tail()}")
+        guest.command(f"buildproj {ARGS_PROJ_NAME}", "exited with status 0")
+        args_template_run_start = len(guest.output)
+        guest.command(f"runproj {ARGS_PROJ_NAME} starter args", "exited with status 0")
+        args_template_run_output = bytes(guest.output[args_template_run_start:])
+        if b"[starter args]\n" not in args_template_run_output and b"[starter args]\r\n" not in args_template_run_output:
+            raise RegressionFailure(f"BIOS: args newproj template did not forward direct arguments\n{guest._tail()}")
+        guest.command(f"cleanproj {ARGS_PROJ_NAME}", "Removed build output")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "source: READY")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "build: MISSING")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "package: MISSING")
         guest.command(f"newproj {NEWPROJ_NAME}", f"Created project {NEWPROJ_DIRECTORY}")
         newproj_read_start = len(guest.output)
         guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
@@ -1210,21 +1233,6 @@ def run_bios(image_path, work_dir):
         if b"Hello from MyOS project\n" not in rebuilt_direct_run_output and b"Hello from MyOS project\r\n" not in rebuilt_direct_run_output:
             raise RegressionFailure(f"BIOS: rebuilt runproj output changed the generated template\n{guest._tail()}")
         guest.command(f"cleanproj {NEWPROJ_NAME}", "Removed build output")
-        argument_project_name = "args-harness"
-        argument_project_directory = f"/users/myos/projects/{argument_project_name}"
-        argument_project_source = f"{argument_project_directory}/main.mya"
-        project_argument_source = 'write "[";args;write "]\\n";exit 38'
-        guest.command(f"newproj {argument_project_name}", f"Created project {argument_project_directory}")
-        guest.command(f"write {argument_project_source} {project_argument_source}", "Wrote")
-        guest.command(f"buildproj {argument_project_name}", "exited with status 0")
-        project_arguments_start = len(guest.output)
-        guest.command(f"runproj {argument_project_name} direct project", "exited with status 38")
-        project_arguments_output = bytes(guest.output[project_arguments_start:])
-        if b"[direct project]\n" not in project_arguments_output and b"[direct project]\r\n" not in project_arguments_output:
-            raise RegressionFailure(f"BIOS: runproj did not forward the project native arguments exactly\n{guest._tail()}")
-        guest.command(f"cleanproj {argument_project_name}", "Removed build output")
-        guest.command(f"rm {argument_project_source}", "Removed")
-        guest.command(f"rm {argument_project_directory}", "Removed")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
         guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
@@ -1631,6 +1639,14 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.command(f"cat {SDK_WRITE_UEFI_TARGET}", "sdk-write: persistent VFS example")
         if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_uefi_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: sdk-write UEFI payload readback is not exact\\n{guest._tail()}")
+        args_template_read_start = len(guest.output)
+        guest.command(f"cat {ARGS_PROJ_SOURCE_PATH}", "write \"[\"")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "source: READY")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "build: MISSING")
+        guest.command(f"projstatus {ARGS_PROJ_NAME}", "package: MISSING")
+        guest.command(f"runproj {ARGS_PROJ_NAME}", "Build output is missing. Run buildproj first.")
+        if ARGS_PROJ_TEMPLATE not in bytes(guest.output[args_template_read_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"UEFI: persisted args newproj template is not exact\n{guest._tail()}")
         newproj_read_start = len(guest.output)
         guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
         guest.command(f"projstatus {NEWPROJ_NAME}", "source: READY")
