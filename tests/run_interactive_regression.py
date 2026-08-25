@@ -1185,12 +1185,18 @@ def run_bios(image_path, work_dir):
         if NEWPROJ_TEMPLATE not in bytes(guest.output[duplicate_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"BIOS: duplicate newproj changed its existing template\n{guest._tail()}")
         guest.command("help editproj", "Opens /users/myos/projects/<project-name>/main.mya in the bounded editor.")
+        guest.command("help projlist", "Lists up to 128 valid project directories with read-only source, build and installed package status rows.")
         guest.command("help projstatus", "Shows regular-file state and size for fixed source, build and installed package paths.")
         guest.command("help uninstallproj", "Removes only the regular installed /apps/<project-name>/main.elf; project source and build stay unchanged.")
         guest.command("help cleanproj", "Removes only the regular generated <project>/main.elf; source and installed package stay unchanged.")
         guest.command(f"projstatus {NEWPROJ_NAME}", "source: READY")
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
         guest.command(f"projstatus {NEWPROJ_NAME}", "package: MISSING")
+        project_list_start = len(guest.output)
+        guest.command("projlist", f"PROJECT {NEWPROJ_NAME}")
+        project_list_output = bytes(guest.output[project_list_start:])
+        if f"PROJECT {ARGS_PROJ_NAME}".encode("ascii") not in project_list_output or b"  source: READY" not in project_list_output:
+            raise RegressionFailure(f"BIOS: projlist did not report both bounded starter projects\n{guest._tail()}")
         editproj_start = len(guest.output)
         guest.send(f"editproj {NEWPROJ_NAME}\n")
         guest.expect(f"File: {NEWPROJ_SOURCE_PATH}", editproj_start)
@@ -1657,6 +1663,11 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.command(f"runproj {ARGS_PROJ_NAME}", "Build output is missing. Run buildproj first.")
         if ARGS_PROJ_TEMPLATE not in bytes(guest.output[args_template_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: persisted args newproj template is not exact\n{guest._tail()}")
+        project_list_start = len(guest.output)
+        guest.command("projlist", f"PROJECT {ARGS_PROJ_NAME}")
+        project_list_output = bytes(guest.output[project_list_start:])
+        if f"PROJECT {NEWPROJ_NAME}".encode("ascii") not in project_list_output or b"  source: READY" not in project_list_output:
+            raise RegressionFailure(f"UEFI: projlist did not report the persisted starter projects\n{guest._tail()}")
         newproj_read_start = len(guest.output)
         guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
         guest.command(f"projstatus {NEWPROJ_NAME}", "source: READY")

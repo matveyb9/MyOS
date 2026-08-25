@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "tree", "find", "head", "sort", "tail", "stat", "touch", "mkdir", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "runproj", "installproj", "uninstallproj", "projstatus", "cleanproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "runproj", "installproj", "uninstallproj", "projlist", "projstatus", "cleanproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -518,6 +518,11 @@ static void command_help(const char *topic) {
         write_text("Installs project main.elf as /apps/<project-name>/main.elf; an existing package target is replaced.\n");
         return;
     }
+    if (text_equal(topic, "projlist")) {
+        write_text("projlist\n");
+        write_text("Lists up to 128 valid project directories with read-only source, build and installed package status rows.\n");
+        return;
+    }
     if (text_equal(topic, "projstatus")) {
         write_text("projstatus <project-name>\n");
         write_text("Shows regular-file state and size for fixed source, build and installed package paths.\n");
@@ -556,7 +561,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; tree [absolute-directory]; find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
-    write_text("Native: newproj/editproj/buildproj/runproj/installproj/uninstallproj/projstatus/cleanproj <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/runproj/installproj/uninstallproj/projstatus/cleanproj/asm/edit\n");
+    write_text("Native: newproj/editproj/buildproj/runproj/installproj/uninstallproj/projlist/projstatus/cleanproj <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/runproj/installproj/uninstallproj/projlist/projstatus/cleanproj/asm/edit\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -1047,6 +1052,43 @@ static void print_project_file_status(const char *label, const char *parent, con
         write_number(entry.size);
         write_text(" bytes\n");
     }
+}
+
+static void command_projlist(const char *argument) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+    uint64_t project_count = 0U;
+
+    if (argument[0] != '\0' || copy_vfs_path(request.path, "/users/myos/projects") == 0) {
+        write_text("Usage: projlist\n");
+        return;
+    }
+    write_text("PROJECTS\n");
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        char project_directory[MYOS_VFS_PATH_MAX];
+        char package_directory[MYOS_VFS_PATH_MAX];
+        uint64_t project_length = 0U;
+        uint64_t package_length = 0U;
+
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            break;
+        }
+        if (request.entry.type != MYOS_VFS_OBJECT_DIRECTORY || project_name_is_valid(request.entry.name) == 0
+            || append_text(project_directory, sizeof(project_directory), &project_length, "/users/myos/projects/") == 0
+            || append_text(project_directory, sizeof(project_directory), &project_length, request.entry.name) == 0
+            || append_text(package_directory, sizeof(package_directory), &package_length, "/apps/") == 0
+            || append_text(package_directory, sizeof(package_directory), &package_length, request.entry.name) == 0) {
+            continue;
+        }
+        write_text("PROJECT ");
+        write_text(request.entry.name);
+        write_char('\n');
+        print_project_file_status("  source", project_directory, "main.mya");
+        print_project_file_status("  build", project_directory, "main.elf");
+        print_project_file_status("  package", package_directory, "main.elf");
+        project_count++;
+    }
+    if (project_count == 0U) { write_text("No bounded projects.\n"); }
 }
 
 static void command_projstatus(const char *argument) {
@@ -1812,6 +1854,8 @@ static void execute_command(char *line) {
         command_installproj(argument);
     } else if (text_equal(line, "uninstallproj")) {
         command_uninstallproj(argument);
+    } else if (text_equal(line, "projlist")) {
+        command_projlist(argument);
     } else if (text_equal(line, "projstatus")) {
         command_projstatus(argument);
     } else if (text_equal(line, "cleanproj")) {
