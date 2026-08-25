@@ -260,11 +260,11 @@ SDK собирает собственные freestanding C11 programs на host 
 
 ## 8. Native build прямо в MyOS
 
-Native build workflow использует restricted assembler и command `build`. Source хранится в `/users/myos/projects/`, generated ELF остаётся рядом с source, а для запуска program устанавливается в global package `/apps/<name>/main.elf`. Для multi-line source используйте общий command `edit`; `write` остаётся удобным для short one-line files.
+Native build workflow использует restricted assembler и command `build`. `newproj <name>` безопасно создаёт `/users/myos/projects/<name>/main.mya` из одного runnable template; name — 1–31 ASCII letters, digits, `-` или `_`, а existing project никогда не перезаписывается. Generated ELF остаётся рядом с source, а для запуска program устанавливается в global package `/apps/<name>/main.elf`. Для multi-line source используйте общий command `edit`; `write` остаётся удобным для short one-line files.
 
 ```text
-mkdir /users/myos/projects/native
-edit /users/myos/projects/native/args.mya
+newproj native-args
+edit /users/myos/projects/native-args/main.mya
 # Наберите эти source lines, затем Ctrl-S:
 write "["
 args
@@ -272,8 +272,8 @@ write "]\n"
 time
 exit 37
 
-build /users/myos/projects/native/args.mya /users/myos/projects/native/args.elf
-install /users/myos/projects/native/args.elf /apps/native-args/main.elf
+build /users/myos/projects/native-args/main.mya /users/myos/projects/native-args/main.elf
+install /users/myos/projects/native-args/main.elf /apps/native-args/main.elf
 run native-args hello MyOS
 ```
 

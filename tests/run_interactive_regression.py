@@ -19,6 +19,12 @@ EDITOR_TEXT_PATH = "/users/myos/projects/editor-harness.txt"
 EDITOR_SOURCE_PATH = "/users/myos/projects/editor-harness.mya"
 EDITOR_ELF_PATH = "/users/myos/projects/editor-harness.elf"
 EDITOR_APP_PATH = "/apps/editor-harness/main.elf"
+NEWPROJ_NAME = "scaffold-harness"
+NEWPROJ_DIRECTORY = "/users/myos/projects/scaffold-harness"
+NEWPROJ_SOURCE_PATH = "/users/myos/projects/scaffold-harness/main.mya"
+NEWPROJ_ELF_PATH = "/users/myos/projects/scaffold-harness/main.elf"
+NEWPROJ_APP_PATH = "/apps/newproj-harness/main.elf"
+NEWPROJ_TEMPLATE = b"# MyOS project template\nwrite \"Hello from MyOS project\\n\"\nexit 0\n"
 SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
 APP_PATH = "/apps/release-harness/main.elf"
@@ -497,23 +503,32 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
-    def gui_installed_app_tile_and_exit(self, app_count):
+    def gui_installed_app_tile_and_exit(self, app_name, expected_output):
+        list_start = len(self.output)
+        self.command("ls /apps", f"[dir] {app_name}")
+        names = []
+        for line in bytes(self.output[list_start:]).replace(b"\r", b"").splitlines():
+            if line.startswith(b"[dir] "):
+                names.append(line[6:].decode("ascii"))
+        if app_name not in names:
+            raise RegressionFailure(f"{self.name}: installed app {app_name} was not listed\n{self._tail()}")
+        app_index = names.index(app_name)
+        visible_count = min(len(names), 4)
+        if app_index >= visible_count:
+            raise RegressionFailure(f"{self.name}: installed app {app_name} is outside the four-tile launcher bound\n{self._tail()}")
+        total_width = visible_count * 136 + (visible_count - 1) * 16
+        tile_center_x = (1280 - total_width) // 2 + app_index * (136 + 16) + 68
         start = len(self.output)
         self.send("startgui\n")
         self.expect("Started process ", start)
         time.sleep(0.25)
         launcher = self.qmp_screendump("app-tile-launcher")
-        if app_count == 1:
-            self.qmp_move(delta_y=-96)
-        elif app_count == 4:
-            self.qmp_move(delta_x=-228, delta_y=-96)
-        else:
-            raise RegressionFailure(f"{self.name}: unsupported app-tile regression count {app_count}")
+        self.qmp_move(delta_x=tile_center_x - 640, delta_y=-96)
         self.qmp_left_click()
         time.sleep(0.25)
         console = self.qmp_screendump("app-tile-console")
         self.require_framebuffer_transition(launcher, console, "installed app tile launch")
-        self.expect("editor", start)
+        self.expect(expected_output, start)
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
@@ -1121,11 +1136,30 @@ def run_bios(image_path, work_dir):
         if grep_output.count(b"needle-crosses\n") != 1 or b"x" * 122 + b"needle" in grep_output:
             raise RegressionFailure(f"BIOS: direct grep did not skip the overlong matching line or print the short match exactly\n{guest._tail()}")
         guest.command(f"run grep needle {GREP_MATCH_PATH}", "needle-crosses")
+        guest.command("help newproj", "existing projects are never overwritten")
+        guest.command(f"newproj {NEWPROJ_NAME}", f"Created project {NEWPROJ_DIRECTORY}")
+        newproj_read_start = len(guest.output)
+        guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
+        newproj_source_output = bytes(guest.output[newproj_read_start:]).replace(b"\r", b"")
+        if NEWPROJ_TEMPLATE not in newproj_source_output:
+            raise RegressionFailure(f"BIOS: newproj template is not exact\n{guest._tail()}")
+        guest.command(f"newproj {NEWPROJ_NAME}", "Unable to create project.")
+        duplicate_read_start = len(guest.output)
+        guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
+        if NEWPROJ_TEMPLATE not in bytes(guest.output[duplicate_read_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"BIOS: duplicate newproj changed its existing template\n{guest._tail()}")
+        guest.command(f"build {NEWPROJ_SOURCE_PATH} {NEWPROJ_ELF_PATH}", "exited with status 0")
+        guest.command(f"install {NEWPROJ_ELF_PATH} {NEWPROJ_APP_PATH}", "exited with status 0")
+        newproj_run_start = len(guest.output)
+        guest.command("run newproj-harness", "exited with status 0")
+        newproj_run_output = bytes(guest.output[newproj_run_start:])
+        if b"Hello from MyOS project\n" not in newproj_run_output and b"Hello from MyOS project\r\n" not in newproj_run_output:
+            raise RegressionFailure(f"BIOS: newproj package did not run its fixed template\n{guest._tail()}")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
         guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
         guest.command(f"install {EDITOR_ELF_PATH} {EDITOR_APP_PATH}", "exited with status 0")
-        guest.gui_installed_app_tile_and_exit(1)
+        guest.gui_installed_app_tile_and_exit("editor-harness", "editor")
         run_start = len(guest.output)
         guest.command("run editor-harness", "editor")
         run_output = guest.output[run_start:]
@@ -1527,12 +1561,21 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.command(f"cat {SDK_WRITE_UEFI_TARGET}", "sdk-write: persistent VFS example")
         if SDK_WRITE_PAYLOAD not in bytes(guest.output[sdk_write_uefi_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: sdk-write UEFI payload readback is not exact\\n{guest._tail()}")
+        newproj_read_start = len(guest.output)
+        guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
+        if NEWPROJ_TEMPLATE not in bytes(guest.output[newproj_read_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"UEFI: persisted newproj template is not exact\\n{guest._tail()}")
+        newproj_run_start = len(guest.output)
+        guest.command("run newproj-harness", "exited with status 0")
+        newproj_run_output = bytes(guest.output[newproj_run_start:])
+        if b"Hello from MyOS project\n" not in newproj_run_output and b"Hello from MyOS project\r\n" not in newproj_run_output:
+            raise RegressionFailure(f"UEFI: persisted newproj package did not run its fixed template\\n{guest._tail()}")
         run_start = len(guest.output)
         guest.command("run editor-harness", "editor")
         run_output = guest.output[run_start:]
         if b"bad" in run_output or b"exited with status 44" not in run_output:
             raise RegressionFailure(f"UEFI: persisted editor-authored program did not skip code or return status 44\n{guest._tail()}")
-        guest.gui_installed_app_tile_and_exit(4)
+        guest.gui_installed_app_tile_and_exit("editor-harness", "editor")
         run_start = len(guest.output)
         guest.command("run release-harness", "Z")
         run_output = guest.output[run_start:]

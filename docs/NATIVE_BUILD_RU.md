@@ -4,7 +4,7 @@
   <strong>🇷🇺 РУССКИЙ</strong> / <a href="NATIVE_BUILD.md">🇺🇸 ENGLISH</a>
 </p>
 
-> **Статус:** реализовано и проверено в `feature/gui`. Встроенный `asm` поддерживает вывод текста, bounded forwarding program arguments, ввод одного байта, вывод времени RTC, именованные метки, одно ограниченное condition value и безусловные или условные переходы только вперёд. Это не general-purpose assembler, C compiler и не замена host [MyOS SDK](SDK_RU.md).
+> **Статус:** реализовано и проверено в QEMU-validated integration line `main`. Встроенный `asm` поддерживает вывод текста, bounded forwarding program arguments, ввод одного байта, вывод времени RTC, именованные метки, одно ограниченное condition value и безусловные или условные переходы только вперёд. Это не general-purpose assembler, C compiler и не замена host [MyOS SDK](SDK_RU.md).
 
 ## Назначение
 
@@ -14,29 +14,30 @@
 
 ## Быстрый workflow
 
-Эта программа выводит точную argument string, переданную после `run native-args`, внутри квадратных скобок, затем выводит время RTC в виде `HH:MM:SS`.
+Начните project с fixed skeleton, затем отредактируйте source перед обычным build/install/run path.
 
 ```text
-mkdir /users/myos/projects/native
-write /users/myos/projects/native/args.mya write "["; args; write "]\n"; time; exit 37
-build /users/myos/projects/native/args.mya /users/myos/projects/native/args.elf
-install /users/myos/projects/native/args.elf /apps/native-args/main.elf
-run native-args hello MyOS
+newproj native-args
+edit /users/myos/projects/native-args/main.mya
+build /users/myos/projects/native-args/main.mya /users/myos/projects/native-args/main.elf
+install /users/myos/projects/native-args/main.elf /apps/native-args/main.elf
+run native-args
 ```
 
-User shell сообщает `[hello MyOS]`, корректную строку времени `HH:MM:SS` и exit status `37`. Без parameters та же программа выводит `[]`. Для output ELF используйте persistent project paths: generated images немного больше 4 KiB, а temporary VFS намеренно мал.
+`newproj` записывает runnable program `Hello from MyOS project`. Замените его содержимое через `edit`, например на `write "["; args; write "]\n"; time; exit 37`; затем `run native-args hello MyOS` выводит `[hello MyOS]`, корректную строку времени `HH:MM:SS` и exit status `37`. Без parameters эта authored program выводит `[]`. Для output ELF используйте persistent project paths: generated images немного больше 4 KiB, а temporary VFS намеренно мал.
 
 ## Команды shell
 
 | Команда | Назначение |
 |---|---|
+| `newproj <project-name>` | Создаёт `/users/myos/projects/<project-name>/main.mya` из одного fixed runnable template. Names — 1–31 ASCII letters, digits, `-` или `_`; existing project отклоняется без overwrite. |
 | `build <source.mya> <output.elf>` | Public workflow wrapper; запускает `asm` в foreground. |
 | `run asm <source.mya> <output.elf>` | Прямой вызов assembler для диагностики. |
 | `help asm` | Показывает краткий current syntax reference. |
 | `install <source> /apps/<name>/main.elf` | Копирует ELF в executable package location. |
 | `run <name>` | Разрешает и запускает `/apps/<name>/main.elf`. |
 
-Все paths должны быть absolute. Assembler не создаёт parent directories. Он разбирает весь source и формирует ELF до замены requested output file.
+Все paths должны быть absolute. `newproj` — единственный project helper, создающий fixed directory и template `main.mya`; он использует существующие VFS create/write operations, отклоняет existing directory и удаляет только directory или file, которые сам успел создать, если его собственный последующий setup step завершился failure. Он не заявляет crash-transactional persistence. Сам assembler не создаёт parent directories. Он разбирает весь source и формирует ELF до замены requested output file.
 
 ## Source language `.mya`
 

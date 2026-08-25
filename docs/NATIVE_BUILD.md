@@ -4,7 +4,7 @@
   <a href="NATIVE_BUILD_RU.md">🇷🇺 РУССКИЙ</a> / <strong>🇺🇸 ENGLISH</strong>
 </p>
 
-> **Status:** implemented and validated in `feature/gui`. The built-in `asm` supports text output, bounded forwarding of program arguments, single-byte input, RTC time output, named labels, one bounded condition value, and forward-only unconditional or conditional jumps. It is not a general assembler, C compiler or replacement for the host [MyOS SDK](SDK.md).
+> **Status:** implemented and validated in the QEMU-validated `main` integration line. The built-in `asm` supports text output, bounded forwarding of program arguments, single-byte input, RTC time output, named labels, one bounded condition value, and forward-only unconditional or conditional jumps. It is not a general assembler, C compiler or replacement for the host [MyOS SDK](SDK.md).
 
 ## Purpose
 
@@ -14,29 +14,30 @@ The deliberately small language validates the complete **source → ELF → pack
 
 ## Quick workflow
 
-This program prints the exact argument string passed after `run native-args`, enclosed in brackets, then prints the RTC time as `HH:MM:SS`.
+Start a project with the fixed skeleton, then edit the source before its ordinary build/install/run path.
 
 ```text
-mkdir /users/myos/projects/native
-write /users/myos/projects/native/args.mya write "["; args; write "]\n"; time; exit 37
-build /users/myos/projects/native/args.mya /users/myos/projects/native/args.elf
-install /users/myos/projects/native/args.elf /apps/native-args/main.elf
-run native-args hello MyOS
+newproj native-args
+edit /users/myos/projects/native-args/main.mya
+build /users/myos/projects/native-args/main.mya /users/myos/projects/native-args/main.elf
+install /users/myos/projects/native-args/main.elf /apps/native-args/main.elf
+run native-args
 ```
 
-The user shell reports `[hello MyOS]`, a valid `HH:MM:SS` time line, and exit status `37`. Without parameters the same program reports `[]`. Use persistent project paths for output ELF files: generated images are slightly larger than 4 KiB, while the temporary VFS is intentionally small.
+`newproj` writes a runnable `Hello from MyOS project` program. Replace its contents through `edit` to author a program such as `write "["; args; write "]\n"; time; exit 37`; then `run native-args hello MyOS` reports `[hello MyOS]`, a valid `HH:MM:SS` time line, and exit status `37`. Without parameters the same authored program reports `[]`. Use persistent project paths for output ELF files: generated images are slightly larger than 4 KiB, while the temporary VFS is intentionally small.
 
 ## Shell commands
 
 | Command | Purpose |
 |---|---|
+| `newproj <project-name>` | Creates `/users/myos/projects/<project-name>/main.mya` from one fixed runnable template. Names are 1–31 ASCII letters, digits, `-` or `_`; an existing project is rejected without overwrite. |
 | `build <source.mya> <output.elf>` | Public workflow wrapper; runs `asm` in the foreground. |
 | `run asm <source.mya> <output.elf>` | Direct assembler invocation for diagnostics. |
 | `help asm` | Shows the concise current syntax reference. |
 | `install <source> /apps/<name>/main.elf` | Copies an ELF into an executable package location. |
 | `run <name>` | Resolves and runs `/apps/<name>/main.elf`. |
 
-All paths must be absolute. The assembler does not create parent directories. It parses the full source and builds the ELF before replacing the requested output file.
+All paths must be absolute. `newproj` is the only project helper that creates its fixed directory and `main.mya` template; it uses existing VFS create/write operations, rejects an existing directory and removes only the directory or file it just created if its own later setup step fails. It does not promise crash-transactional persistence. The assembler itself does not create parent directories. It parses the full source and builds the ELF before replacing the requested output file.
 
 ## Source language `.mya`
 

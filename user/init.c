@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "tree", "find", "head", "sort", "tail", "stat", "touch", "mkdir", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "install", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -490,6 +490,12 @@ static void command_help(const char *topic) {
         write_text("Prints read-only boot, compiled-in driver and detected-device inventory from /system/live.\n");
         return;
     }
+    if (text_equal(topic, "newproj")) {
+        write_text("newproj <project-name>\n");
+        write_text("Creates /users/myos/projects/<project-name>/main.mya from one fixed template.\n");
+        write_text("Names are 1..31 ASCII letters, digits, '-' or '_'; existing projects are never overwritten.\n");
+        return;
+    }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
         write_text("Source: input; time; args; set <0..255>; not; neg; inc; dec; parity; clz; add/sub/mul/and/or/xor/test <0..255>; shl/shr/rol/ror <1..7>; div/mod <1..255>; store/load/cmp/swap <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
@@ -513,7 +519,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; tree [absolute-directory]; find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
-    write_text("Native: build <source.mya> <output.elf>; help asm/edit for syntax and controls\n");
+    write_text("Native: newproj <name>; build <source.mya> <output.elf>; help newproj/asm/edit for syntax and controls\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -771,6 +777,75 @@ static void command_write(char *argument) {
         return;
     }
     write_text("Wrote "); write_number(text_length_value); write_text(" byte(s) to "); write_text(request.path); write_char('\n');
+}
+
+static int project_name_is_valid(const char *name) {
+    uint64_t length = 0U;
+
+    while (name[length] != '\0' && length < 31U) {
+        const char character = name[length];
+
+        if (!((character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z')
+              || (character >= '0' && character <= '9') || character == '-' || character == '_')) {
+            return 0;
+        }
+        length++;
+    }
+    return length != 0U && name[length] == '\0';
+}
+
+static void command_newproj(const char *argument) {
+    static const char project_template[] =
+        "# MyOS project template\n"
+        "write \"Hello from MyOS project\\n\"\n"
+        "exit 0\n";
+    char directory[MYOS_VFS_PATH_MAX];
+    char source[MYOS_VFS_PATH_MAX];
+    struct myos_vfs_path_request directory_request;
+    struct myos_vfs_path_request source_request;
+    struct myos_vfs_write_request write_request;
+    uint64_t directory_length = 0U;
+    uint64_t source_length = 0U;
+    const uint64_t template_length = sizeof(project_template) - 1U;
+
+    if (project_name_is_valid(argument) == 0
+        || append_text(directory, sizeof(directory), &directory_length, "/users/myos/projects/") == 0
+        || append_text(directory, sizeof(directory), &directory_length, argument) == 0
+        || append_text(source, sizeof(source), &source_length, directory) == 0
+        || append_text(source, sizeof(source), &source_length, "/main.mya") == 0
+        || make_vfs_path_request(&directory_request, directory) == 0
+        || make_vfs_path_request(&source_request, source) == 0
+        || template_length > MYOS_VFS_READ_CHUNK) {
+        write_text("Usage: newproj <project-name>\n");
+        return;
+    }
+    if (system_call(MYOS_SYS_VFS_CREATE_DIRECTORY, 0U, (uint64_t)(uintptr_t)&directory_request,
+                    sizeof(directory_request)) == UINT64_MAX) {
+        write_text("Unable to create project.\n");
+        return;
+    }
+    if (system_call(MYOS_SYS_VFS_CREATE_FILE, 0U, (uint64_t)(uintptr_t)&source_request,
+                    sizeof(source_request)) == UINT64_MAX) {
+        (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&directory_request, sizeof(directory_request));
+        write_text("Unable to create project template.\n");
+        return;
+    }
+    for (uint64_t index = 0U; index < MYOS_VFS_PATH_MAX; index++) { write_request.path[index] = source_request.path[index]; }
+    for (uint64_t index = 0U; index < MYOS_VFS_READ_CHUNK; index++) { write_request.data[index] = 0U; }
+    for (uint64_t index = 0U; index < template_length; index++) { write_request.data[index] = (uint8_t)project_template[index]; }
+    write_request.offset = 0U;
+    write_request.length = template_length;
+    if (system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request)) == UINT64_MAX) {
+        (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&source_request, sizeof(source_request));
+        (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&directory_request, sizeof(directory_request));
+        write_text("Unable to write project template.\n");
+        return;
+    }
+    write_text("Created project ");
+    write_text(directory);
+    write_text("\nSource: ");
+    write_text(source);
+    write_text("\nNext: edit, build, install and run.\n");
 }
 
 static void command_rm(const char *argument) {
@@ -1440,6 +1515,8 @@ static void execute_command(char *line) {
         command_install(argument);
     } else if (text_equal(line, "build")) {
         command_build(argument);
+    } else if (text_equal(line, "newproj")) {
+        command_newproj(argument);
     } else if (text_equal(line, "pipe")) {
         command_pipe(argument);
     } else if (text_equal(line, "wait")) {
