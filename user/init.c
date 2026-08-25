@@ -507,8 +507,9 @@ static void command_help(const char *topic) {
         return;
     }
     if (text_equal(topic, "runproj")) {
-        write_text("runproj <project-name>\n");
+        write_text("runproj <project-name> [arguments]\n");
         write_text("Runs only the regular generated /users/myos/projects/<project-name>/main.elf without installation.\n");
+        write_text("Arguments use the existing native ABI and are limited to 127 visible bytes.\n");
         return;
     }
     if (text_equal(topic, "installproj")) {
@@ -924,19 +925,31 @@ static void command_buildproj(const char *argument) {
     (void)run_foreground(program, 1);
 }
 
-static void command_runproj(const char *argument) {
+static void command_runproj(char *argument) {
     char project_directory[MYOS_VFS_PATH_MAX];
     char output[MYOS_VFS_PATH_MAX];
+    char program[USER_LINE_CAPACITY];
+    char *arguments = first_argument(argument);
     struct myos_vfs_directory_entry entry = { { 0 }, 0U, 0U };
     uint64_t project_length = 0U;
     uint64_t output_length = 0U;
+    uint64_t program_length = 0U;
+    uint64_t arguments_length = 0U;
 
+    while (arguments[arguments_length] != '\0' && arguments_length + 1U < MYOS_SPAWN_ARGUMENTS_MAX) {
+        arguments_length++;
+    }
     if (project_name_is_valid(argument) == 0
+        || arguments[arguments_length] != '\0'
         || append_text(project_directory, sizeof(project_directory), &project_length, "/users/myos/projects/") == 0
         || append_text(project_directory, sizeof(project_directory), &project_length, argument) == 0
         || append_text(output, sizeof(output), &output_length, project_directory) == 0
-        || append_text(output, sizeof(output), &output_length, "/main.elf") == 0) {
-        write_text("Usage: runproj <project-name>\n");
+        || append_text(output, sizeof(output), &output_length, "/main.elf") == 0
+        || append_text(program, sizeof(program), &program_length, output) == 0
+        || (arguments_length != 0U
+            && (append_text(program, sizeof(program), &program_length, " ") == 0
+                || append_text(program, sizeof(program), &program_length, arguments) == 0))) {
+        write_text("Usage: runproj <project-name> [arguments] (arguments: at most 127 bytes)\n");
         return;
     }
     if (vfs_lookup_child(project_directory, "main.elf", &entry) == 0) {
@@ -947,7 +960,7 @@ static void command_runproj(const char *argument) {
         write_text("Build output is not a regular file.\n");
         return;
     }
-    (void)run_foreground(output, 1);
+    (void)run_foreground(program, 1);
 }
 
 static void command_installproj(const char *argument) {

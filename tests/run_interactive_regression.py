@@ -1177,6 +1177,7 @@ def run_bios(image_path, work_dir):
         guest.command("help runproj", "Runs only the regular generated /users/myos/projects/<project-name>/main.elf without installation.")
         guest.command("help installproj", "an existing package target is replaced")
         guest.command(f"buildproj {NEWPROJ_NAME}", "exited with status 0")
+        guest.command(f"runproj {NEWPROJ_NAME} " + "x" * 128, "arguments: at most 127 bytes")
         direct_run_start = len(guest.output)
         guest.command(f"runproj {NEWPROJ_NAME}", "exited with status 0")
         direct_run_output = bytes(guest.output[direct_run_start:])
@@ -1209,6 +1210,21 @@ def run_bios(image_path, work_dir):
         if b"Hello from MyOS project\n" not in rebuilt_direct_run_output and b"Hello from MyOS project\r\n" not in rebuilt_direct_run_output:
             raise RegressionFailure(f"BIOS: rebuilt runproj output changed the generated template\n{guest._tail()}")
         guest.command(f"cleanproj {NEWPROJ_NAME}", "Removed build output")
+        argument_project_name = "args-harness"
+        argument_project_directory = f"/users/myos/projects/{argument_project_name}"
+        argument_project_source = f"{argument_project_directory}/main.mya"
+        project_argument_source = 'write "[";args;write "]\\n";exit 38'
+        guest.command(f"newproj {argument_project_name}", f"Created project {argument_project_directory}")
+        guest.command(f"write {argument_project_source} {project_argument_source}", "Wrote")
+        guest.command(f"buildproj {argument_project_name}", "exited with status 0")
+        project_arguments_start = len(guest.output)
+        guest.command(f"runproj {argument_project_name} direct project", "exited with status 38")
+        project_arguments_output = bytes(guest.output[project_arguments_start:])
+        if b"[direct project]\n" not in project_arguments_output and b"[direct project]\r\n" not in project_arguments_output:
+            raise RegressionFailure(f"BIOS: runproj did not forward the project native arguments exactly\n{guest._tail()}")
+        guest.command(f"cleanproj {argument_project_name}", "Removed build output")
+        guest.command(f"rm {argument_project_source}", "Removed")
+        guest.command(f"rm {argument_project_directory}", "Removed")
         editor_source = b"set 0\njump_if_zero done\nwrite \"bad\\n\"\nlabel done:\nwrite \"editor\\n\"\nexit 44\n"
         guest.console_edit_and_save(EDITOR_SOURCE_PATH, editor_source)
         guest.command(f"build {EDITOR_SOURCE_PATH} {EDITOR_ELF_PATH}", "exited with status 0")
