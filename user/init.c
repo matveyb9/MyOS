@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "tree", "find", "head", "sort", "tail", "stat", "touch", "mkdir", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "installproj", "projstatus", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "editproj", "buildproj", "installproj", "projstatus", "cleanproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -516,6 +516,11 @@ static void command_help(const char *topic) {
         write_text("Shows regular-file state and size for fixed source, build and installed package paths.\n");
         return;
     }
+    if (text_equal(topic, "cleanproj")) {
+        write_text("cleanproj <project-name>\n");
+        write_text("Removes only the regular generated <project>/main.elf; source and installed package stay unchanged.\n");
+        return;
+    }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
         write_text("Source: input; time; args; set <0..255>; not; neg; inc; dec; parity; clz; add/sub/mul/and/or/xor/test <0..255>; shl/shr/rol/ror <1..7>; div/mod <1..255>; store/load/cmp/swap <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
@@ -539,7 +544,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; tree [absolute-directory]; find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
-    write_text("Native: newproj/editproj/buildproj/installproj/projstatus <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/installproj/projstatus/asm/edit\n");
+    write_text("Native: newproj/editproj/buildproj/installproj/projstatus/cleanproj <name>; build <source.mya> <output.elf>; help newproj/editproj/buildproj/installproj/projstatus/cleanproj/asm/edit\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -994,6 +999,37 @@ static void command_projstatus(const char *argument) {
     print_project_file_status("source", project_directory, "main.mya");
     print_project_file_status("build", project_directory, "main.elf");
     print_project_file_status("package", package_directory, "main.elf");
+}
+
+static void command_cleanproj(const char *argument) {
+    char project_directory[MYOS_VFS_PATH_MAX];
+    char output[MYOS_VFS_PATH_MAX];
+    struct myos_vfs_directory_entry entry = { { 0 }, 0U, 0U };
+    struct myos_vfs_path_request request;
+    uint64_t project_length = 0U;
+    uint64_t output_length = 0U;
+
+    if (project_name_is_valid(argument) == 0
+        || append_text(project_directory, sizeof(project_directory), &project_length, "/users/myos/projects/") == 0
+        || append_text(project_directory, sizeof(project_directory), &project_length, argument) == 0
+        || append_text(output, sizeof(output), &output_length, project_directory) == 0
+        || append_text(output, sizeof(output), &output_length, "/main.elf") == 0
+        || make_vfs_path_request(&request, output) == 0) {
+        write_text("Usage: cleanproj <project-name>\n");
+        return;
+    }
+    if (vfs_lookup_child(project_directory, "main.elf", &entry) == 0) {
+        write_text("Build output is already absent.\n");
+        return;
+    }
+    if (entry.type != MYOS_VFS_OBJECT_REGULAR
+        || system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+        write_text("Unable to remove build output.\n");
+        return;
+    }
+    write_text("Removed build output ");
+    write_text(request.path);
+    write_char('\n');
 }
 
 static void command_rm(const char *argument) {
@@ -1673,6 +1709,8 @@ static void execute_command(char *line) {
         command_installproj(argument);
     } else if (text_equal(line, "projstatus")) {
         command_projstatus(argument);
+    } else if (text_equal(line, "cleanproj")) {
+        command_cleanproj(argument);
     } else if (text_equal(line, "pipe")) {
         command_pipe(argument);
     } else if (text_equal(line, "wait")) {

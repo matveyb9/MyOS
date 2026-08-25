@@ -260,7 +260,7 @@ The SDK builds freestanding C11 programs on the host computer. Its public header
 
 ## 8. Native build directly in MyOS
 
-The native build workflow uses the restricted assembler and the `build` command. `newproj <name>` safely creates `/users/myos/projects/<name>/main.mya` from one runnable template; names are 1–31 ASCII letters, digits, `-` or `_`, and an existing project is never overwritten. `editproj <name>`, `buildproj <name>` and `installproj <name>` then resolve only those fixed project paths and `/apps/<name>/main.elf`, preserving the editor, assembler and package installer behavior. `projstatus <name>` read-only reports whether each fixed source, build and package file is `READY`, `MISSING` or `NOT REGULAR`, with its byte size when ready. A 16–31-character project name still runs from the shell, but its package intentionally has no GUI launcher tile because launcher names are capped at 15 printable characters. Use the general `edit` command for multi-line source; `write` remains useful for short one-line files.
+The native build workflow uses the restricted assembler and the `build` command. `newproj <name>` safely creates `/users/myos/projects/<name>/main.mya` from one runnable template; names are 1–31 ASCII letters, digits, `-` or `_`, and an existing project is never overwritten. `editproj <name>`, `buildproj <name>` and `installproj <name>` then resolve only those fixed project paths and `/apps/<name>/main.elf`, preserving the editor, assembler and package installer behavior. `projstatus <name>` read-only reports whether each fixed source, build and package file is `READY`, `MISSING` or `NOT REGULAR`, with its byte size when ready. `cleanproj <name>` removes only the generated project `main.elf`, keeping the source and installed package so a later `buildproj` can regenerate the output. A 16–31-character project name still runs from the shell, but its package intentionally has no GUI launcher tile because launcher names are capped at 15 printable characters. Use the general `edit` command for multi-line source; `write` remains useful for short one-line files.
 
 ```text
 newproj native-args
@@ -275,6 +275,8 @@ exit 37
 buildproj native-args
 installproj native-args
 projstatus native-args
+cleanproj native-args
+buildproj native-args
 run native-args hello MyOS
 ```
 
