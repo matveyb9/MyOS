@@ -648,6 +648,20 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_direct_project_new_and_exit(self, project_name, starter=""):
+        start = len(self.output)
+        suffix = " new" + (f" {starter}" if starter else "")
+        self.send(f"startgui project {project_name}{suffix}\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        if b"exited with status" in bytes(self.output[start:]):
+            raise RegressionFailure(f"GUI project creation unexpectedly ended the session\n{self._tail()}")
+        status = self.qmp_screendump("direct-project-new-status")
+        self.require_nonuniform_region(status, 330, 210, 200, 24, "direct project creation status")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_direct_project_remove_and_exit(self, project_name):
         start = len(self.output)
         self.send(f"startgui project {project_name} remove\n")
@@ -1352,7 +1366,8 @@ def run_bios(image_path, work_dir):
         guest.command("rm /users/myos/projects/gui-build-no-source/main.mya", "Removed")
         guest.gui_direct_project_build_source_missing_and_exit("gui-build-no-source")
         guest.command("rm /users/myos/projects/gui-build-no-source", "Removed")
-        guest.command(f"newproj {ARGS_PROJ_NAME} args", f"Created project {ARGS_PROJ_DIRECTORY}")
+        guest.gui_direct_project_new_and_exit(ARGS_PROJ_NAME, "args")
+        guest.gui_direct_project_new_and_exit(ARGS_PROJ_NAME, "args")
         args_template_read_start = len(guest.output)
         guest.command(f"cat {ARGS_PROJ_SOURCE_PATH}", "write \"[\"")
         if ARGS_PROJ_TEMPLATE not in bytes(guest.output[args_template_read_start:]).replace(b"\r", b""):
@@ -1375,7 +1390,7 @@ def run_bios(image_path, work_dir):
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "source: READY")
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "build: MISSING")
         guest.command(f"projstatus {ARGS_PROJ_NAME}", "package: READY")
-        guest.command(f"newproj {NEWPROJ_NAME}", f"Created project {NEWPROJ_DIRECTORY}")
+        guest.gui_direct_project_new_and_exit(NEWPROJ_NAME)
         newproj_read_start = len(guest.output)
         guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
         newproj_source_output = bytes(guest.output[newproj_read_start:]).replace(b"\r", b"")
