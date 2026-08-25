@@ -14,13 +14,13 @@
 
 ## Быстрый workflow
 
-Начните project с fixed skeleton, затем отредактируйте source перед обычным build/install/run path.
+Начните project с fixed skeleton, затем отредактируйте source перед project shortcut build/install/run path.
 
 ```text
 newproj native-args
 edit /users/myos/projects/native-args/main.mya
-build /users/myos/projects/native-args/main.mya /users/myos/projects/native-args/main.elf
-install /users/myos/projects/native-args/main.elf /apps/native-args/main.elf
+buildproj native-args
+installproj native-args
 run native-args
 ```
 
@@ -31,13 +31,15 @@ run native-args
 | Команда | Назначение |
 |---|---|
 | `newproj <project-name>` | Создаёт `/users/myos/projects/<project-name>/main.mya` из одного fixed runnable template. Names — 1–31 ASCII letters, digits, `-` или `_`; existing project отклоняется без overwrite. |
+| `buildproj <project-name>` | Вызывает `build` через fixed project paths `<project>/main.mya` → `<project>/main.elf`. Не создаёт directory и сохраняет assembler replacement/error behavior. |
+| `installproj <project-name>` | Вызывает `install` из `<project>/main.elf` в `/apps/<project-name>/main.elf`; existing package target намеренно заменяется, как и при `install`. |
 | `build <source.mya> <output.elf>` | Public workflow wrapper; запускает `asm` в foreground. |
 | `run asm <source.mya> <output.elf>` | Прямой вызов assembler для диагностики. |
 | `help asm` | Показывает краткий current syntax reference. |
 | `install <source> /apps/<name>/main.elf` | Копирует ELF в executable package location. |
 | `run <name>` | Разрешает и запускает `/apps/<name>/main.elf`. |
 
-Все paths должны быть absolute. `newproj` — единственный project helper, создающий fixed directory и template `main.mya`; он использует существующие VFS create/write operations, отклоняет existing directory и удаляет только directory или file, которые сам успел создать, если его собственный последующий setup step завершился failure. Он не заявляет crash-transactional persistence. Сам assembler не создаёт parent directories. Он разбирает весь source и формирует ELF до замены requested output file.
+Все paths должны быть absolute. `newproj` — единственный project helper, создающий fixed directory и template `main.mya`; он использует существующие VFS create/write operations, отклоняет existing directory и удаляет только directory или file, которые сам успел создать, если его собственный последующий setup step завершился failure. Project name длиной 16–31 characters остаётся valid для shell `run`, но его installed package намеренно не получает launcher tile: GUI принимает максимум 15 printable name characters, поэтому framebuffer и user-space action mappings остаются identical. `buildproj` и `installproj` принимают тот же restricted name и только формируют fixed existing project/package paths перед делегированием established programs `asm` и `install`. Они не добавляют VFS operation, не меняют established package-replacement behavior и не заявляют crash-transactional persistence. Сам assembler не создаёт parent directories. Он разбирает весь source и формирует ELF до замены requested output file.
 
 ## Source language `.mya`
 

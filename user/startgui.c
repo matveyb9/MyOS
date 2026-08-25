@@ -7,6 +7,7 @@
 #define GUI_NOTE_PATH_CAPACITY MYOS_VFS_PATH_MAX
 #define GUI_VFS_ENTRY_SCAN_LIMIT UINT64_C(64)
 #define GUI_APP_DIRECTORY "/apps"
+#define GUI_LAUNCHER_APP_NAME_MAX UINT64_C(16)
 #define GUI_BROWSER_START_PATH "/users/myos"
 #define GUI_BROWSER_PAGE_SIZE MYOS_GUI_BROWSER_ENTRY_MAX
 #define GUI_BROWSER_READ_TOO_LARGE (UINT64_MAX - UINT64_C(1))
@@ -212,7 +213,7 @@ static int make_launcher_app_path(char *destination, const char *name) {
         destination[offset++] = prefix[index];
     }
     for (uint64_t index = 0U; name[index] != '\0' && offset + sizeof(suffix) < MYOS_VFS_PATH_MAX; index++) {
-        if (name[index] == '/' || name[index] < ' ' || name[index] > '~') {
+        if (name[index] == '/' || name[index] < ' ' || name[index] > '~' || index + 1U >= GUI_LAUNCHER_APP_NAME_MAX) {
             return 0;
         }
         destination[offset++] = name[index];

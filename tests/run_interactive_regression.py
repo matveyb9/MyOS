@@ -22,8 +22,6 @@ EDITOR_APP_PATH = "/apps/editor-harness/main.elf"
 NEWPROJ_NAME = "scaffold-harness"
 NEWPROJ_DIRECTORY = "/users/myos/projects/scaffold-harness"
 NEWPROJ_SOURCE_PATH = "/users/myos/projects/scaffold-harness/main.mya"
-NEWPROJ_ELF_PATH = "/users/myos/projects/scaffold-harness/main.elf"
-NEWPROJ_APP_PATH = "/apps/newproj-harness/main.elf"
 NEWPROJ_TEMPLATE = b"# MyOS project template\nwrite \"Hello from MyOS project\\n\"\nexit 0\n"
 SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
@@ -509,9 +507,11 @@ class Guest:
         names = []
         for line in bytes(self.output[list_start:]).replace(b"\r", b"").splitlines():
             if line.startswith(b"[dir] "):
-                names.append(line[6:].decode("ascii"))
+                name = line[6:].decode("ascii")
+                if len(name) <= 15:
+                    names.append(name)
         if app_name not in names:
-            raise RegressionFailure(f"{self.name}: installed app {app_name} was not listed\n{self._tail()}")
+            raise RegressionFailure(f"{self.name}: launcher-visible app {app_name} was not listed\n{self._tail()}")
         app_index = names.index(app_name)
         visible_count = min(len(names), 4)
         if app_index >= visible_count:
@@ -1148,10 +1148,13 @@ def run_bios(image_path, work_dir):
         guest.command(f"cat {NEWPROJ_SOURCE_PATH}", "Hello from MyOS project")
         if NEWPROJ_TEMPLATE not in bytes(guest.output[duplicate_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"BIOS: duplicate newproj changed its existing template\n{guest._tail()}")
-        guest.command(f"build {NEWPROJ_SOURCE_PATH} {NEWPROJ_ELF_PATH}", "exited with status 0")
-        guest.command(f"install {NEWPROJ_ELF_PATH} {NEWPROJ_APP_PATH}", "exited with status 0")
+        guest.command("help buildproj", "Builds /users/myos/projects/<project-name>/main.mya to main.elf.")
+        guest.command("help installproj", "an existing package target is replaced")
+        guest.command(f"buildproj {NEWPROJ_NAME}", "exited with status 0")
+        guest.command(f"installproj {NEWPROJ_NAME}", "exited with status 0")
+        guest.command(f"installproj {NEWPROJ_NAME}", "exited with status 0")
         newproj_run_start = len(guest.output)
-        guest.command("run newproj-harness", "exited with status 0")
+        guest.command(f"run {NEWPROJ_NAME}", "exited with status 0")
         newproj_run_output = bytes(guest.output[newproj_run_start:])
         if b"Hello from MyOS project\n" not in newproj_run_output and b"Hello from MyOS project\r\n" not in newproj_run_output:
             raise RegressionFailure(f"BIOS: newproj package did not run its fixed template\n{guest._tail()}")
@@ -1566,7 +1569,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         if NEWPROJ_TEMPLATE not in bytes(guest.output[newproj_read_start:]).replace(b"\r", b""):
             raise RegressionFailure(f"UEFI: persisted newproj template is not exact\\n{guest._tail()}")
         newproj_run_start = len(guest.output)
-        guest.command("run newproj-harness", "exited with status 0")
+        guest.command(f"run {NEWPROJ_NAME}", "exited with status 0")
         newproj_run_output = bytes(guest.output[newproj_run_start:])
         if b"Hello from MyOS project\n" not in newproj_run_output and b"Hello from MyOS project\r\n" not in newproj_run_output:
             raise RegressionFailure(f"UEFI: persisted newproj package did not run its fixed template\\n{guest._tail()}")

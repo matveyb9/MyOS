@@ -20,7 +20,7 @@ static char shell_history[SHELL_HISTORY_MAX][USER_LINE_CAPACITY];
 static uint64_t shell_history_count;
 static const char *const shell_commands[] = {
     "help", "echo", "uname", "sysinfo", "ps", "meminfo", "date", "uptime", "ls", "cat", "cp", "wc", "grep", "tree", "find", "head", "sort", "tail", "stat", "touch", "mkdir", "write", "rm",
-    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
+    "set", "get", "env", "sleep", "run", "spawn", "install", "build", "newproj", "buildproj", "installproj", "pipe", "wait", "kill", "stress", "calc", "edit", "startgui",
     "reboot", "poweroff", "dmesg", "clear", "exit"
 };
 
@@ -496,6 +496,16 @@ static void command_help(const char *topic) {
         write_text("Names are 1..31 ASCII letters, digits, '-' or '_'; existing projects are never overwritten.\n");
         return;
     }
+    if (text_equal(topic, "buildproj")) {
+        write_text("buildproj <project-name>\n");
+        write_text("Builds /users/myos/projects/<project-name>/main.mya to main.elf.\n");
+        return;
+    }
+    if (text_equal(topic, "installproj")) {
+        write_text("installproj <project-name>\n");
+        write_text("Installs project main.elf as /apps/<project-name>/main.elf; an existing package target is replaced.\n");
+        return;
+    }
     if (text_equal(topic, "asm")) {
         write_text("run asm <source.mya> <output.elf>\n");
         write_text("Source: input; time; args; set <0..255>; not; neg; inc; dec; parity; clz; add/sub/mul/and/or/xor/test <0..255>; shl/shr/rol/ror <1..7>; div/mod <1..255>; store/load/cmp/swap <0..7>; label name:; write \"text\"; jump[_if_zero|_if_nonzero] name; jump_if <0..255> name; exit <0..255>\n");
@@ -519,7 +529,7 @@ static void command_help(const char *topic) {
     write_text("MYOS SHELL QUICK START\n");
     write_text("Files: ls [path] cat touch mkdir write rm | Processes: ps run spawn install wait kill sleep\n");
     write_text("Tools: calc <a> <op> <b>; edit <absolute-file>; tree [absolute-directory]; find <name-fragment> [absolute-directory]; head <absolute-file> [1..64 lines]; stat <absolute-path>; tail <absolute-file> [1..64 lines]; sort <absolute-file>; run <program-or-absolute-path> [arguments]; help cp/tree/find/head/stat/tail/sort/startgui\n");
-    write_text("Native: newproj <name>; build <source.mya> <output.elf>; help newproj/asm/edit for syntax and controls\n");
+    write_text("Native: newproj/buildproj/installproj <name>; build <source.mya> <output.elf>; help newproj/buildproj/installproj/asm/edit\n");
     write_text("Install: install <source> </apps/name/main.elf>; GUI: startgui [absolute-file]\n");
     write_text("System: uname sysinfo meminfo date uptime reboot poweroff clear dmesg\n");
     write_text("Input: Tab completes a unique name; Up/Down navigates history.\n");
@@ -794,6 +804,8 @@ static int project_name_is_valid(const char *name) {
     return length != 0U && name[length] == '\0';
 }
 
+static int run_foreground(char *argument, int verbose);
+
 static void command_newproj(const char *argument) {
     static const char project_template[] =
         "# MyOS project template\n"
@@ -846,6 +858,56 @@ static void command_newproj(const char *argument) {
     write_text("\nSource: ");
     write_text(source);
     write_text("\nNext: edit, build, install and run.\n");
+}
+
+static void command_buildproj(const char *argument) {
+    char source[MYOS_VFS_PATH_MAX];
+    char output[MYOS_VFS_PATH_MAX];
+    char program[USER_LINE_CAPACITY] = "asm";
+    uint64_t source_length = 0U;
+    uint64_t output_length = 0U;
+    uint64_t program_length = 3U;
+
+    if (project_name_is_valid(argument) == 0
+        || append_text(source, sizeof(source), &source_length, "/users/myos/projects/") == 0
+        || append_text(source, sizeof(source), &source_length, argument) == 0
+        || append_text(source, sizeof(source), &source_length, "/main.mya") == 0
+        || append_text(output, sizeof(output), &output_length, "/users/myos/projects/") == 0
+        || append_text(output, sizeof(output), &output_length, argument) == 0
+        || append_text(output, sizeof(output), &output_length, "/main.elf") == 0
+        || append_text(program, sizeof(program), &program_length, " ") == 0
+        || append_text(program, sizeof(program), &program_length, source) == 0
+        || append_text(program, sizeof(program), &program_length, " ") == 0
+        || append_text(program, sizeof(program), &program_length, output) == 0) {
+        write_text("Usage: buildproj <project-name>\n");
+        return;
+    }
+    (void)run_foreground(program, 1);
+}
+
+static void command_installproj(const char *argument) {
+    char source[MYOS_VFS_PATH_MAX];
+    char target[MYOS_VFS_PATH_MAX];
+    char program[USER_LINE_CAPACITY] = "install";
+    uint64_t source_length = 0U;
+    uint64_t target_length = 0U;
+    uint64_t program_length = 7U;
+
+    if (project_name_is_valid(argument) == 0
+        || append_text(source, sizeof(source), &source_length, "/users/myos/projects/") == 0
+        || append_text(source, sizeof(source), &source_length, argument) == 0
+        || append_text(source, sizeof(source), &source_length, "/main.elf") == 0
+        || append_text(target, sizeof(target), &target_length, "/apps/") == 0
+        || append_text(target, sizeof(target), &target_length, argument) == 0
+        || append_text(target, sizeof(target), &target_length, "/main.elf") == 0
+        || append_text(program, sizeof(program), &program_length, " ") == 0
+        || append_text(program, sizeof(program), &program_length, source) == 0
+        || append_text(program, sizeof(program), &program_length, " ") == 0
+        || append_text(program, sizeof(program), &program_length, target) == 0) {
+        write_text("Usage: installproj <project-name>\n");
+        return;
+    }
+    (void)run_foreground(program, 1);
 }
 
 static void command_rm(const char *argument) {
@@ -1517,6 +1579,10 @@ static void execute_command(char *line) {
         command_build(argument);
     } else if (text_equal(line, "newproj")) {
         command_newproj(argument);
+    } else if (text_equal(line, "buildproj")) {
+        command_buildproj(argument);
+    } else if (text_equal(line, "installproj")) {
+        command_installproj(argument);
     } else if (text_equal(line, "pipe")) {
         command_pipe(argument);
     } else if (text_equal(line, "wait")) {
