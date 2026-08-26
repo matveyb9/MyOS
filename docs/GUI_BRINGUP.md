@@ -34,6 +34,7 @@ startgui
 # Fixed project install: startgui project <name> install
 # Fixed project package removal: startgui project <name> uninstall
 # Fixed project build cleanup: startgui project <name> clean
+# Read-only global project overview: startgui projects status
 # Fixed project starter creation: startgui project <name> new [hello|args]
 # Fixed clean project workspace removal: startgui project <name> remove
 ```
@@ -99,6 +100,7 @@ The validation program prints a greeting and the accepted argument string. After
 | Direct project install | `startgui project <name> install` accepts only the exact bounded name/suffix pair, revalidates fixed regular `main.elf`, and invokes only the established installer with fixed project output and fixed `/apps/<name>/main.elf` target. After successful spawn it ends GUI, waits, and exits with installer status; package replacement remains the existing installer behavior. |
 | Direct project uninstall | `startgui project <name> uninstall` accepts only the exact bounded name/suffix pair, revalidates fixed regular `/apps/<name>/main.elf`, and removes only that output. Project source/build remain untouched; it keeps GUI active with a narrow success or rejection status and creates no child process. |
 | Direct project clean | `startgui project <name> clean` accepts only the exact bounded name/suffix pair, revalidates fixed regular `<project>/main.elf`, and removes only that generated output. Project source/package remain untouched; it keeps GUI active with a narrow success or rejection status and creates no child process. |
+| Global project overview | `startgui projects status` is read-only. It scans at most 128 entries of the fixed project root, filters only valid project directories, and renders only fixed source/build/package rows without mutation or child processes. |
 | Direct project creation | `startgui project <name> new [hello|args]` accepts only the bounded name and fixed starter selection, creates only the fixed workspace/source pair, rejects an existing target, and rolls back only its own partial creation state. GUI stays active with a narrow result status and no child process. |
 | Direct project removal | `startgui project <name> remove` accepts only the exact bounded name/suffix pair, immediately revalidates the directory, allows only a regular `main.mya` when present and absent `main.elf`, then removes source and empty directory. The installed package remains untouched; GUI stays active with a narrow success or rejection status and no child process. |
 | Named launch | `startgui /users/myos/files/notes/<name>` selects a specific personal note; the NOTES title shows the basename of the selected file. |

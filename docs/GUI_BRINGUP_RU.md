@@ -34,6 +34,7 @@ startgui
 # Fixed project install: startgui project <name> install
 # Fixed project package removal: startgui project <name> uninstall
 # Fixed project build cleanup: startgui project <name> clean
+# Read-only global project overview: startgui projects status
 # Fixed project starter creation: startgui project <name> new [hello|args]
 # Fixed clean project workspace removal: startgui project <name> remove
 ```
@@ -99,6 +100,7 @@ run sdk-hello external SDK validation
 | Direct project install | `startgui project <name> install` принимает только exact bounded pair name/suffix, повторно проверяет fixed regular `main.elf` и запускает только established installer с fixed project output и fixed target `/apps/<name>/main.elf`. После successful spawn GUI завершается, ожидает и возвращает installer status; package replacement остаётся existing installer behavior. |
 | Direct project uninstall | `startgui project <name> uninstall` принимает только exact bounded pair name/suffix, повторно проверяет fixed regular `/apps/<name>/main.elf` и удаляет только этот output. Project source/build остаются нетронутыми; GUI остаётся active с narrow success или rejection status и не создаёт child process. |
 | Direct project clean | `startgui project <name> clean` принимает только exact bounded pair name/suffix, повторно проверяет fixed regular `<project>/main.elf` и удаляет только этот generated output. Project source/package остаются нетронутыми; GUI остаётся active с narrow success или rejection status и не создаёт child process. |
+| Global project overview | `startgui projects status` read-only. Он сканирует не более 128 entries fixed project root, фильтрует только valid project directories и выводит только fixed source/build/package rows без mutation либо child process. |
 | Direct project creation | `startgui project <name> new [hello|args]` принимает только bounded name и fixed starter selection, создаёт только fixed workspace/source pair, отклоняет existing target и откатывает только own partial creation state. GUI остаётся active с narrow result status и не создаёт child process. |
 | Direct project removal | `startgui project <name> remove` принимает только exact bounded pair name/suffix, немедленно повторно проверяет directory, разрешает только regular `main.mya`, если он присутствует, и absent `main.elf`, затем удаляет source и empty directory. Installed package остаётся нетронутым; GUI остаётся active с narrow success или rejection status и не создаёт child process. |
 | Named launch | `startgui /users/myos/files/notes/<name>` выбирает конкретную personal note; title NOTES показывает basename выбранного file. |

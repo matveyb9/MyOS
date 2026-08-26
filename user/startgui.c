@@ -885,6 +885,48 @@ static void show_project_status(const char *project_path) {
     (void)set_viewer_content("PROJECT STATUS", gui_scratch_data, length, 0U, 0U, 0U);
 }
 
+static void show_projects_status(void) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+    uint64_t length = 0U;
+    uint64_t shown = 0U;
+
+    content_append_text(gui_scratch_data, &length, "PROJECTS STATUS\n", 16U);
+    if (make_path(request.path, GUI_BROWSER_PROJECT_PATH) == 0) {
+        content_append_text(gui_scratch_data, &length, "UNABLE TO OPEN PROJECTS\n", 24U);
+        (void)set_viewer_content("PROJECTS STATUS", gui_scratch_data, length, 0U, 0U, 0U);
+        return;
+    }
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        char project_path[MYOS_VFS_PATH_MAX] = { 0 };
+        char package_directory[MYOS_VFS_PATH_MAX] = { 0 };
+        uint64_t offset = 0U;
+
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) {
+            break;
+        }
+        if (request.entry.type != MYOS_VFS_OBJECT_DIRECTORY || project_name_is_valid(request.entry.name) == 0) {
+            continue;
+        }
+        while (GUI_BROWSER_PROJECT_PATH[offset] != '\0') { project_path[offset] = GUI_BROWSER_PROJECT_PATH[offset]; offset++; }
+        project_path[offset++] = '/';
+        for (uint64_t name_index = 0U; request.entry.name[name_index] != '\0' && offset + 1U < MYOS_VFS_PATH_MAX;
+             name_index++) { project_path[offset++] = request.entry.name[name_index]; }
+        if (request.entry.name[0] == '\0' || project_path[offset] != '\0') { continue; }
+        content_append_text(gui_scratch_data, &length, "PROJECT ", 8U);
+        content_append_text(gui_scratch_data, &length, request.entry.name, text_length_bounded(request.entry.name, 32U));
+        content_append_char(gui_scratch_data, &length, '\n');
+        append_project_file_status(gui_scratch_data, &length, "source", project_path, "main.mya");
+        append_project_file_status(gui_scratch_data, &length, "build", project_path, "main.elf");
+        if (make_project_package_directory(package_directory, project_path) != 0) {
+            append_project_file_status(gui_scratch_data, &length, "package", package_directory, "main.elf");
+        }
+        shown++;
+    }
+    if (shown == 0U) { content_append_text(gui_scratch_data, &length, "NO PROJECTS\n", 12U); }
+    (void)set_viewer_content("PROJECTS STATUS", gui_scratch_data, length, 0U, 0U, 0U);
+}
+
 static int browser_set_directory(const char *path) {
     if (disk_path_is_valid(path) == 0) { return 0; }
     for (uint64_t index = 0U; index < MYOS_VFS_PATH_MAX; index++) {
@@ -1556,6 +1598,7 @@ void _start(uint64_t argc, const char *arguments) {
     uint64_t status = 0U;
     int home_mode = arguments[0] == '\0' || text_equal(arguments, "home");
     const int project_mode = text_equal(arguments, "projects");
+    const int projects_status_mode = text_equal(arguments, "projects status");
     const int direct_project_request = project_argument_requested(arguments);
     int direct_project_view = 0;
     const int direct_project_mode = make_project_workspace_path(project_path, arguments, &direct_project_view,
@@ -1571,11 +1614,13 @@ void _start(uint64_t argc, const char *arguments) {
     } else {
         if (home_mode != 0) {
             show_desktop_home();
-        } else if (project_mode != 0 || direct_project_mode != 0) {
+        } else if (project_mode != 0 || projects_status_mode != 0 || direct_project_mode != 0) {
             browser_mode = 1;
             (void)browser_set_directory(direct_project_mode != 0 && direct_project_view != 9 && direct_project_view != 10
                                         ? project_path : GUI_BROWSER_PROJECT_PATH);
-            if (direct_project_mode != 0 && (direct_project_view == 9 || direct_project_view == 10)) {
+            if (projects_status_mode != 0) {
+                show_projects_status();
+            } else if (direct_project_mode != 0 && (direct_project_view == 9 || direct_project_view == 10)) {
                 if (create_project_workspace(project_path, direct_project_view == 10) != 0) {
                     set_viewer_status("PROJECT STARTER CREATED");
                 } else {

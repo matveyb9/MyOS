@@ -618,6 +618,19 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_projects_status_and_exit(self):
+        start = len(self.output)
+        self.send("startgui projects status\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        if b"exited with status" in bytes(self.output[start:]):
+            raise RegressionFailure(f"GUI projects status unexpectedly ended the session\n{self._tail()}")
+        status = self.qmp_screendump("projects-status")
+        self.require_nonuniform_region(status, 330, 210, 200, 24, "projects status overview")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_direct_project_workspace_and_exit(self, project_name):
         start = len(self.output)
         self.send(f"startgui project {project_name}\n")
@@ -1433,6 +1446,7 @@ def run_bios(image_path, work_dir):
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: MISSING")
         guest.command(f"projstatus {NEWPROJ_NAME}", "package: READY")
         guest.gui_invalid_project_workspace_and_exit()
+        guest.gui_projects_status_and_exit()
         project_list_start = len(guest.output)
         guest.command("projlist", f"PROJECT {NEWPROJ_NAME}")
         project_list_output = bytes(guest.output[project_list_start:])
@@ -1932,6 +1946,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
             raise RegressionFailure(f"UEFI: persisted newproj template is not exact\\n{guest._tail()}")
         guest.gui_direct_project_workspace_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_status_and_exit(NEWPROJ_NAME)
+        guest.gui_projects_status_and_exit()
         guest.gui_direct_project_editor_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_build_and_exit(NEWPROJ_NAME)
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: READY")
