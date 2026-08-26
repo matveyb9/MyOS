@@ -675,6 +675,18 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_direct_project_new_editor_and_exit(self, project_name, starter=""):
+        start = len(self.output)
+        suffix = " new" + (f" {starter}" if starter else "") + " edit"
+        self.send(f"startgui project {project_name}{suffix}\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        editor = self.qmp_screendump("direct-project-new-source-editor")
+        self.require_nonuniform_region(editor, 334, 210, 66, 7, "direct project new source editor title")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_direct_project_remove_and_exit(self, project_name):
         start = len(self.output)
         self.send(f"startgui project {project_name} remove\n")
@@ -1953,7 +1965,7 @@ def run_uefi(image_path, work_dir, code_path, vars_source):
         guest.gui_direct_project_workspace_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_status_and_exit(NEWPROJ_NAME)
         guest.gui_projects_status_and_exit()
-        guest.gui_direct_project_new_and_exit("uefi-empty", "empty")
+        guest.gui_direct_project_new_editor_and_exit("uefi-empty", "empty")
         guest.command("stat /users/myos/projects/uefi-empty/main.mya", "0 bytes")
         guest.gui_direct_project_remove_and_exit("uefi-empty")
         guest.gui_direct_project_editor_and_exit(NEWPROJ_NAME)

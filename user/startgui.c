@@ -168,6 +168,13 @@ static int make_project_workspace_path(char *destination, const char *arguments,
         *requested_mode = 10;
     } else if (text_equal(argument_name + name_length, " new empty") != 0) {
         *requested_mode = 11;
+    } else if (text_equal(argument_name + name_length, " new edit") != 0
+               || text_equal(argument_name + name_length, " new hello edit") != 0) {
+        *requested_mode = 12;
+    } else if (text_equal(argument_name + name_length, " new args edit") != 0) {
+        *requested_mode = 13;
+    } else if (text_equal(argument_name + name_length, " new empty edit") != 0) {
+        *requested_mode = 14;
     } else if (argument_name[name_length] == ' ') {
         uint64_t run_length = 0U;
         const char *tail = argument_name + name_length + 1U;
@@ -194,7 +201,7 @@ static int make_project_workspace_path(char *destination, const char *arguments,
     destination[offset++] = '/';
     for (uint64_t index = 0U; name[index] != '\0'; index++) { destination[offset++] = name[index]; }
     destination[offset] = '\0';
-    if (*requested_mode == 9 || *requested_mode == 10 || *requested_mode == 11) { return 1; }
+    if (*requested_mode >= 9 && *requested_mode <= 14) { return 1; }
     if (make_path(request.path, GUI_BROWSER_PROJECT_PATH) == 0) { return 0; }
     for (uint64_t index = 0U; index < UINT64_C(128); index++) {
         request.index = index;
@@ -1619,16 +1626,33 @@ void _start(uint64_t argc, const char *arguments) {
             show_desktop_home();
         } else if (project_mode != 0 || projects_status_mode != 0 || direct_project_mode != 0) {
             browser_mode = 1;
-            (void)browser_set_directory(direct_project_mode != 0 && direct_project_view != 9 && direct_project_view != 10
-                                        && direct_project_view != 11 ? project_path : GUI_BROWSER_PROJECT_PATH);
+            (void)browser_set_directory(direct_project_mode != 0
+                                        && (direct_project_view < 9 || direct_project_view > 14)
+                                        ? project_path : GUI_BROWSER_PROJECT_PATH);
             if (projects_status_mode != 0) {
                 show_projects_status();
-            } else if (direct_project_mode != 0
-                       && (direct_project_view == 9 || direct_project_view == 10 || direct_project_view == 11)) {
-                if (create_project_workspace(project_path, direct_project_view == 10 ? 1 : (direct_project_view == 11 ? 2 : 0)) != 0) {
-                    set_viewer_status("PROJECT STARTER CREATED");
-                } else {
+            } else if (direct_project_mode != 0 && direct_project_view >= 9 && direct_project_view <= 14) {
+                const int starter_mode = (direct_project_view == 10 || direct_project_view == 13) ? 1
+                                         : ((direct_project_view == 11 || direct_project_view == 14) ? 2 : 0);
+
+                if (create_project_workspace(project_path, starter_mode) == 0) {
                     set_viewer_status("UNABLE TO CREATE PROJECT");
+                } else if (direct_project_view >= 12) {
+                    if (make_project_source_path(project_source_path, project_path) == 0
+                        || select_disk_path(project_source_path) == 0) {
+                        set_viewer_status("UNABLE TO OPEN PROJECT SOURCE");
+                    } else {
+                        const int editor_result = edit_selected_disk_file();
+
+                        if (editor_result == GUI_EDITOR_RESULT_EXIT) {
+                            (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
+                            session_finished = 1;
+                        } else if (editor_result == GUI_EDITOR_RESULT_HOME) {
+                            show_file_browser();
+                        }
+                    }
+                } else {
+                    set_viewer_status("PROJECT STARTER CREATED");
                 }
             } else if (direct_project_mode != 0 && direct_project_view == 1) {
                 if (make_project_source_path(project_source_path, project_path) == 0
