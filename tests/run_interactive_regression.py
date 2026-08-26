@@ -29,6 +29,7 @@ ARGS_PROJ_SOURCE_PATH = "/users/myos/projects/starter-args/main.mya"
 ARGS_PROJ_TEMPLATE = b"# MyOS argument project template\nwrite \"[\"\nargs\nwrite \"]\\n\"\nexit 0\n"
 SHELL_AUTHOR_PROJ_NAME = "shell-author"
 SHELL_AUTHOR_SOURCE_PATH = "/users/myos/projects/shell-author/main.mya"
+SHELL_BUILD_PROJ_NAME = "shell-build"
 SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
 APP_PATH = "/apps/release-harness/main.elf"
@@ -1399,8 +1400,8 @@ def run_bios(image_path, work_dir):
         if grep_output.count(b"needle-crosses\n") != 1 or b"x" * 122 + b"needle" in grep_output:
             raise RegressionFailure(f"BIOS: direct grep did not skip the overlong matching line or print the short match exactly\n{guest._tail()}")
         guest.command(f"run grep needle {GREP_MATCH_PATH}", "needle-crosses")
-        guest.command("help newproj", "exact edit opens only the new source")
-        guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args|empty] [edit]")
+        guest.command("help newproj", "exact edit or build handles only the new project")
+        guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args|empty] [edit|build]")
         guest.command("newproj rejected-template hello", "Created project /users/myos/projects/rejected-template")
         guest.command("rm /users/myos/projects/rejected-template/main.mya", "Removed")
         guest.command("rm /users/myos/projects/rejected-template", "Removed")
@@ -1424,6 +1425,14 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: newproj empty edit did not save and run the authored source\n{guest._tail()}")
         guest.command(f"cleanproj {SHELL_AUTHOR_PROJ_NAME}", "Removed build output")
         guest.command(f"rmproj {SHELL_AUTHOR_PROJ_NAME}", "Removed project directory")
+        guest.command(f"newproj {SHELL_BUILD_PROJ_NAME} build", "exited with status 0")
+        guest.command(f"projstatus {SHELL_BUILD_PROJ_NAME}", "build: READY")
+        shell_build_run_start = len(guest.output)
+        guest.command(f"runproj {SHELL_BUILD_PROJ_NAME}", "exited with status 0")
+        if b"Hello from MyOS project\n" not in bytes(guest.output[shell_build_run_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"BIOS: newproj build did not run the fixed default starter\n{guest._tail()}")
+        guest.command(f"cleanproj {SHELL_BUILD_PROJ_NAME}", "Removed build output")
+        guest.command(f"rmproj {SHELL_BUILD_PROJ_NAME}", "Removed project directory")
         guest.gui_direct_project_remove_and_exit("empty-gui")
         args_template_read_start = len(guest.output)
         guest.command(f"cat {ARGS_PROJ_SOURCE_PATH}", "write \"[\"")
