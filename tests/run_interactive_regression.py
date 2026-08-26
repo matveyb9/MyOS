@@ -30,6 +30,7 @@ ARGS_PROJ_TEMPLATE = b"# MyOS argument project template\nwrite \"[\"\nargs\nwrit
 SHELL_AUTHOR_PROJ_NAME = "shell-author"
 SHELL_AUTHOR_SOURCE_PATH = "/users/myos/projects/shell-author/main.mya"
 SHELL_BUILD_PROJ_NAME = "shell-build"
+SHELL_INSTALLED_PROJ_NAME = "shell-installed"
 SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
 APP_PATH = "/apps/release-harness/main.elf"
@@ -531,7 +532,11 @@ class Guest:
             if line.startswith(b"[dir] "):
                 name = line[6:].decode("ascii")
                 if len(name) <= 15:
-                    names.append(name)
+                    status_start = len(self.output)
+                    self.command(f"stat /apps/{name}/main.elf")
+                    status = bytes(self.output[status_start:]).replace(b"\r", b"")
+                    if b"type: regular" in status and b"size: 0 bytes" not in status:
+                        names.append(name)
         if app_name not in names:
             raise RegressionFailure(f"{self.name}: launcher-visible app {app_name} was not listed\n{self._tail()}")
         app_index = names.index(app_name)
@@ -1409,8 +1414,8 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: direct grep did not skip the overlong matching line or print the short match exactly\n{guest._tail()}")
         guest.command(f"run grep needle {GREP_MATCH_PATH}", "needle-crosses")
         guest.command("help startgui", "new [hello|args|empty] [edit|build]")
-        guest.command("help newproj", "exact edit or build handles only the new project")
-        guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args|empty] [edit|build]")
+        guest.command("help newproj", "exact edit, build or install handles only the new project")
+        guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args|empty] [edit|build|install]")
         guest.command("newproj rejected-template hello", "Created project /users/myos/projects/rejected-template")
         guest.command("rm /users/myos/projects/rejected-template/main.mya", "Removed")
         guest.command("rm /users/myos/projects/rejected-template", "Removed")
@@ -1442,6 +1447,16 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: newproj build did not run the fixed default starter\n{guest._tail()}")
         guest.command(f"cleanproj {SHELL_BUILD_PROJ_NAME}", "Removed build output")
         guest.command(f"rmproj {SHELL_BUILD_PROJ_NAME}", "Removed project directory")
+        guest.command(f"newproj {SHELL_INSTALLED_PROJ_NAME} install", "exited with status 0")
+        guest.command(f"projstatus {SHELL_INSTALLED_PROJ_NAME}", "build: READY")
+        guest.command(f"projstatus {SHELL_INSTALLED_PROJ_NAME}", "package: READY")
+        shell_install_run_start = len(guest.output)
+        guest.command(f"run {SHELL_INSTALLED_PROJ_NAME}", "exited with status 0")
+        if b"Hello from MyOS project\n" not in bytes(guest.output[shell_install_run_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"BIOS: newproj install did not run the installed fixed default starter\n{guest._tail()}")
+        guest.command(f"uninstallproj {SHELL_INSTALLED_PROJ_NAME}", "Removed package output")
+        guest.command(f"cleanproj {SHELL_INSTALLED_PROJ_NAME}", "Removed build output")
+        guest.command(f"rmproj {SHELL_INSTALLED_PROJ_NAME}", "Removed project directory")
         guest.gui_direct_project_new_build_and_exit("gui-build-on-create")
         guest.command("projstatus gui-build-on-create", "build: READY")
         guest.gui_direct_project_run_and_exit("gui-build-on-create", "", "Hello from MyOS project")
