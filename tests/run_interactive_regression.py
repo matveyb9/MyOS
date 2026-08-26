@@ -27,6 +27,8 @@ ARGS_PROJ_NAME = "starter-args"
 ARGS_PROJ_DIRECTORY = "/users/myos/projects/starter-args"
 ARGS_PROJ_SOURCE_PATH = "/users/myos/projects/starter-args/main.mya"
 ARGS_PROJ_TEMPLATE = b"# MyOS argument project template\nwrite \"[\"\nargs\nwrite \"]\\n\"\nexit 0\n"
+SHELL_AUTHOR_PROJ_NAME = "shell-author"
+SHELL_AUTHOR_SOURCE_PATH = "/users/myos/projects/shell-author/main.mya"
 SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
 APP_PATH = "/apps/release-harness/main.elf"
@@ -410,6 +412,21 @@ class Guest:
         self.send(line + "\n")
         if marker is not None:
             self.expect(marker, start)
+        self.expect(PROMPT, start)
+
+    def console_newproj_edit_and_save(self, project_name, starter, content):
+        start = len(self.output)
+        self.send(f"newproj {project_name} {starter} edit\n")
+        self.expect(f"Created project /users/myos/projects/{project_name}", start)
+        self.expect("Opening editor.", start)
+        self.expect("MYOS TEXT EDITOR", start)
+        time.sleep(0.10)
+        for index in range(len(content)):
+            self.send(content[index:index + 1])
+            time.sleep(0.015)
+        self.send(b"\x13")
+        self.expect(f"edit: saved {len(content)} byte(s)", start, timeout=60.0)
+        self.expect("exited with status 0", start, timeout=60.0)
         self.expect(PROMPT, start)
 
     def gui_edit_and_exit(self):
@@ -1382,8 +1399,8 @@ def run_bios(image_path, work_dir):
         if grep_output.count(b"needle-crosses\n") != 1 or b"x" * 122 + b"needle" in grep_output:
             raise RegressionFailure(f"BIOS: direct grep did not skip the overlong matching line or print the short match exactly\n{guest._tail()}")
         guest.command(f"run grep needle {GREP_MATCH_PATH}", "needle-crosses")
-        guest.command("help newproj", "empty creates editable zero-byte source")
-        guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args|empty]")
+        guest.command("help newproj", "exact edit opens only the new source")
+        guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args|empty] [edit]")
         guest.command("newproj rejected-template hello", "Created project /users/myos/projects/rejected-template")
         guest.command("rm /users/myos/projects/rejected-template/main.mya", "Removed")
         guest.command("rm /users/myos/projects/rejected-template", "Removed")
@@ -1398,6 +1415,15 @@ def run_bios(image_path, work_dir):
         guest.gui_direct_project_new_and_exit("empty-gui", "empty")
         guest.command("stat /users/myos/projects/empty-gui/main.mya", "0 bytes")
         guest.command("rmproj empty-shell", "Removed project directory")
+        shell_author_source = b"write \"shell author\\n\"\nexit 0\n"
+        guest.console_newproj_edit_and_save(SHELL_AUTHOR_PROJ_NAME, "empty", shell_author_source)
+        guest.command(f"buildproj {SHELL_AUTHOR_PROJ_NAME}", "exited with status 0")
+        shell_author_run_start = len(guest.output)
+        guest.command(f"runproj {SHELL_AUTHOR_PROJ_NAME}", "exited with status 0")
+        if b"shell author\n" not in bytes(guest.output[shell_author_run_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"BIOS: newproj empty edit did not save and run the authored source\n{guest._tail()}")
+        guest.command(f"cleanproj {SHELL_AUTHOR_PROJ_NAME}", "Removed build output")
+        guest.command(f"rmproj {SHELL_AUTHOR_PROJ_NAME}", "Removed project directory")
         guest.gui_direct_project_remove_and_exit("empty-gui")
         args_template_read_start = len(guest.output)
         guest.command(f"cat {ARGS_PROJ_SOURCE_PATH}", "write \"[\"")
