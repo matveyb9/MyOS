@@ -72,6 +72,7 @@ startgui project native-args remove
 | `rmproj <project-name>` | Requires an absent build, accepts only a project directory containing `main.mya` and/or `main.elf`, removes a regular source then the empty directory in that order, and leaves `/apps/<name>/main.elf` unchanged. |
 | `build <source.mya> <output.elf>` | Public workflow wrapper; runs `asm` in the foreground. |
 | `run asm <source.mya> <output.elf>` | Direct assembler invocation for diagnostics. |
+| `help startgui` | Shows the bounded GUI entry points, including exact project actions and `new [hello\|args\|empty] [edit\|build]`; it creates nothing. |
 | `help asm` | Shows the concise current syntax reference. |
 | `install <source> /apps/<name>/main.elf` | Copies an ELF into an executable package location. |
 | `run <name>` | Resolves and runs `/apps/<name>/main.elf`. |

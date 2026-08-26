@@ -480,7 +480,9 @@ static void command_help(const char *topic) {
         return;
     }
     if (text_equal(topic, "startgui")) {
-        write_text("startgui [absolute-file]\n");
+        write_text("startgui [absolute-file|home|projects [status]|project <name> <action>]\n");
+        write_text("Project actions: edit, status, build, run [arguments], install, uninstall, clean, remove, or new [hello|args|empty] [edit|build].\n");
+        write_text("Project names are 1..31 ASCII letters, digits, '-' or '_'; new is bounded and never overwrites an existing project.\n");
         write_text("Without a file it opens MYOS DESKTOP; click SYSTEM, NOTES or EDIT NOTE. Click top-bar X to exit.\n");
         write_text("Hotkeys: Alt-Tab focus, Alt-F4 close, Esc back/cancel, Ctrl-Q exit and Ctrl-S save. 'home' is an alias.\n");
         return;
