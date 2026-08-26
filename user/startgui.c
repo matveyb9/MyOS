@@ -166,6 +166,8 @@ static int make_project_workspace_path(char *destination, const char *arguments,
         *requested_mode = 9;
     } else if (text_equal(argument_name + name_length, " new args") != 0) {
         *requested_mode = 10;
+    } else if (text_equal(argument_name + name_length, " new empty") != 0) {
+        *requested_mode = 11;
     } else if (argument_name[name_length] == ' ') {
         uint64_t run_length = 0U;
         const char *tail = argument_name + name_length + 1U;
@@ -192,7 +194,7 @@ static int make_project_workspace_path(char *destination, const char *arguments,
     destination[offset++] = '/';
     for (uint64_t index = 0U; name[index] != '\0'; index++) { destination[offset++] = name[index]; }
     destination[offset] = '\0';
-    if (*requested_mode == 9 || *requested_mode == 10) { return 1; }
+    if (*requested_mode == 9 || *requested_mode == 10 || *requested_mode == 11) { return 1; }
     if (make_path(request.path, GUI_BROWSER_PROJECT_PATH) == 0) { return 0; }
     for (uint64_t index = 0U; index < UINT64_C(128); index++) {
         request.index = index;
@@ -769,7 +771,7 @@ static int launch_project_install(const char *project_path, uint64_t *child_stat
     return 1;
 }
 
-static int create_project_workspace(const char *project_path, int args_template) {
+static int create_project_workspace(const char *project_path, int starter_mode) {
     static const char hello_template[] =
         "# MyOS project template\n"
         "write \"Hello from MyOS project\\n\"\n"
@@ -783,7 +785,7 @@ static int create_project_workspace(const char *project_path, int args_template)
     struct myos_vfs_path_request directory_request = { { 0 } };
     struct myos_vfs_path_request source_request = { { 0 } };
     struct myos_vfs_write_request write_request = { 0U, 0U, { 0 }, { 0 } };
-    const char *project_template = args_template != 0 ? argument_template : hello_template;
+    const char *project_template = starter_mode == 1 ? argument_template : (starter_mode == 2 ? "" : hello_template);
     char source_path[MYOS_VFS_PATH_MAX] = { 0 };
     uint64_t length = 0U;
 
@@ -806,7 +808,8 @@ static int create_project_workspace(const char *project_path, int args_template)
     for (uint64_t index = 0U; index < length; index++) { write_request.data[index] = (uint8_t)project_template[index]; }
     write_request.offset = 0U;
     write_request.length = length;
-    if (system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request)) != length) {
+    if (length != 0U
+        && system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request)) != length) {
         (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&source_request, sizeof(source_request));
         (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&directory_request, sizeof(directory_request));
         return 0;
@@ -1617,11 +1620,12 @@ void _start(uint64_t argc, const char *arguments) {
         } else if (project_mode != 0 || projects_status_mode != 0 || direct_project_mode != 0) {
             browser_mode = 1;
             (void)browser_set_directory(direct_project_mode != 0 && direct_project_view != 9 && direct_project_view != 10
-                                        ? project_path : GUI_BROWSER_PROJECT_PATH);
+                                        && direct_project_view != 11 ? project_path : GUI_BROWSER_PROJECT_PATH);
             if (projects_status_mode != 0) {
                 show_projects_status();
-            } else if (direct_project_mode != 0 && (direct_project_view == 9 || direct_project_view == 10)) {
-                if (create_project_workspace(project_path, direct_project_view == 10) != 0) {
+            } else if (direct_project_mode != 0
+                       && (direct_project_view == 9 || direct_project_view == 10 || direct_project_view == 11)) {
+                if (create_project_workspace(project_path, direct_project_view == 10 ? 1 : (direct_project_view == 11 ? 2 : 0)) != 0) {
                     set_viewer_status("PROJECT STARTER CREATED");
                 } else {
                     set_viewer_status("UNABLE TO CREATE PROJECT");

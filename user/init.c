@@ -855,6 +855,7 @@ static void command_newproj(char *argument) {
         "args\n"
         "write \"]\\n\"\n"
         "exit 0\n";
+    static const char empty_template[] = "";
     const char *template_name = first_argument(argument);
     const char *project_template = (const char *)0;
     char directory[MYOS_VFS_PATH_MAX];
@@ -870,8 +871,10 @@ static void command_newproj(char *argument) {
         project_template = hello_template;
     } else if (text_equal(template_name, "args") != 0) {
         project_template = args_template;
+    } else if (text_equal(template_name, "empty") != 0) {
+        project_template = empty_template;
     } else {
-        write_text("Usage: newproj <project-name> [hello|args]\n");
+        write_text("Usage: newproj <project-name> [hello|args|empty]\n");
         return;
     }
     template_length = text_length(project_template);
@@ -883,7 +886,7 @@ static void command_newproj(char *argument) {
         || make_vfs_path_request(&directory_request, directory) == 0
         || make_vfs_path_request(&source_request, source) == 0
         || template_length > MYOS_VFS_READ_CHUNK) {
-        write_text("Usage: newproj <project-name> [hello|args]\n");
+        write_text("Usage: newproj <project-name> [hello|args|empty]\n");
         return;
     }
     if (system_call(MYOS_SYS_VFS_CREATE_DIRECTORY, 0U, (uint64_t)(uintptr_t)&directory_request,
@@ -902,7 +905,8 @@ static void command_newproj(char *argument) {
     for (uint64_t index = 0U; index < template_length; index++) { write_request.data[index] = (uint8_t)project_template[index]; }
     write_request.offset = 0U;
     write_request.length = template_length;
-    if (system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request)) == UINT64_MAX) {
+    if (template_length != 0U
+        && system_call(MYOS_SYS_VFS_WRITE, 0U, (uint64_t)(uintptr_t)&write_request, sizeof(write_request)) == UINT64_MAX) {
         (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&source_request, sizeof(source_request));
         (void)system_call(MYOS_SYS_VFS_REMOVE, 0U, (uint64_t)(uintptr_t)&directory_request, sizeof(directory_request));
         write_text("Unable to write project template.\n");
