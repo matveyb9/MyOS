@@ -32,6 +32,7 @@ SHELL_AUTHOR_SOURCE_PATH = "/users/myos/projects/shell-author/main.mya"
 SHELL_BUILD_PROJ_NAME = "shell-build"
 SHELL_RUN_PROJ_NAME = "shell-run"
 SHELL_INSTALLED_PROJ_NAME = "shell-installed"
+WORKBENCH_PROJ_NAME = "workbench-demo"
 SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
 APP_PATH = "/apps/release-harness/main.elf"
@@ -661,8 +662,38 @@ class Guest:
         self.expect("Started process ", start)
         time.sleep(0.25)
         browser = self.qmp_screendump("direct-project-workspace-browser")
-        self.require_nonuniform_region(browser, 334, 210, 66, 7, "direct project workspace current-path title")
-        self.require_nonuniform_region(browser, 441, 284, 28, 7, "direct project workspace source metadata")
+        self.require_nonuniform_region(browser, 334, 210, 96, 7, "Project Workbench title")
+        self.require_nonuniform_region(browser, 334, 284, 64, 7, "Project Workbench build action")
+        self.qmp_hotkey("ctrl", "q")
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
+    def gui_project_workbench_action_and_exit(self, project_name, row, expected_output=None, expect_projects_root=False):
+        start = len(self.output)
+        self.send(f"startgui project {project_name}\n")
+        self.expect("Started process ", start)
+        time.sleep(0.25)
+        workbench = self.qmp_screendump("project-workbench")
+        self.require_nonuniform_region(workbench, 334, 210, 96, 7, "Project Workbench title")
+        # Browser rows 1..9 are Refresh, Edit, Build, Run, Install, Uninstall, Clean, Remove, Status.
+        # QMP positive Y deltas move the guest pointer upward; content begins at (336, 248).
+        self.qmp_move(delta_x=-140, delta_y=400 - (248 + row * 12 + 6))
+        time.sleep(0.10)
+        ready = self.qmp_screendump("project-workbench-action-ready")
+        self.qmp_left_click()
+        if expected_output is not None:
+            self.expect(expected_output, start)
+            self.expect("exited with status 0", start)
+            self.expect(PROMPT, start)
+            return
+        time.sleep(0.25)
+        result = self.qmp_screendump("project-workbench-action-result")
+        if expect_projects_root:
+            self.require_region_transition(ready, result, 330, 208, 280, 48,
+                                           "Project Workbench removal transition to project root")
+        else:
+            self.require_region_transition(ready, result, 330, 245, 280, 132,
+                                           "Project Workbench action result")
         self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
@@ -736,6 +767,7 @@ class Guest:
             raise RegressionFailure(f"GUI project removal unexpectedly ended the session\n{self._tail()}")
         status = self.qmp_screendump("direct-project-remove-status")
         self.require_nonuniform_region(status, 330, 210, 200, 24, "direct project removal status")
+        time.sleep(0.10)
         self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
@@ -749,6 +781,7 @@ class Guest:
             raise RegressionFailure(f"GUI unclean-project removal unexpectedly ended the session\n{self._tail()}")
         status = self.qmp_screendump("direct-project-remove-rejected-status")
         self.require_nonuniform_region(status, 330, 210, 200, 24, "direct project removal rejected status")
+        time.sleep(0.10)
         self.qmp_hotkey("ctrl", "q")
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
@@ -1534,6 +1567,18 @@ def run_bios(image_path, work_dir):
         guest.gui_direct_project_uninstall_package_missing_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_workspace_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_status_and_exit(NEWPROJ_NAME)
+        guest.command(f"newproj {WORKBENCH_PROJ_NAME}", f"Created project /users/myos/projects/{WORKBENCH_PROJ_NAME}")
+        guest.gui_project_workbench_action_and_exit(WORKBENCH_PROJ_NAME, 3, "exited with status 0")
+        guest.command(f"projstatus {WORKBENCH_PROJ_NAME}", "build: READY")
+        guest.gui_project_workbench_action_and_exit(WORKBENCH_PROJ_NAME, 4, "Hello from MyOS project")
+        guest.gui_project_workbench_action_and_exit(WORKBENCH_PROJ_NAME, 5, "exited with status 0")
+        guest.command(f"projstatus {WORKBENCH_PROJ_NAME}", "package: READY")
+        guest.gui_project_workbench_action_and_exit(WORKBENCH_PROJ_NAME, 6)
+        guest.command(f"projstatus {WORKBENCH_PROJ_NAME}", "package: MISSING")
+        guest.gui_project_workbench_action_and_exit(WORKBENCH_PROJ_NAME, 7)
+        guest.command(f"projstatus {WORKBENCH_PROJ_NAME}", "build: MISSING")
+        guest.gui_project_workbench_action_and_exit(WORKBENCH_PROJ_NAME, 8, expect_projects_root=True)
+        guest.command(f"projstatus {WORKBENCH_PROJ_NAME}", "source: MISSING")
         guest.gui_direct_project_editor_and_exit(NEWPROJ_NAME)
         guest.gui_direct_project_build_and_exit(NEWPROJ_NAME)
         guest.command(f"projstatus {NEWPROJ_NAME}", "build: READY")

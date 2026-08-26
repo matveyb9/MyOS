@@ -909,6 +909,28 @@ static void show_project_status(const char *project_path) {
     (void)set_viewer_content("PROJECT STATUS", gui_scratch_data, length, 0U, 0U, 0U);
 }
 
+static void show_project_workbench(const char *project_path, const char *message) {
+    static const char actions[] =
+        "[REFRESH]\n[EDIT SOURCE]\n[BUILD]\n[RUN]\n[INSTALL]\n[UNINSTALL]\n[CLEAN BUILD]\n[REMOVE WORKSPACE]\n[STATUS]\n";
+    char package_directory[MYOS_VFS_PATH_MAX] = { 0 };
+    uint64_t length = 0U;
+    content_append_text(gui_scratch_data, &length, "PROJECT WORKBENCH\n", 18U);
+    /* Browser action rows 1..9 must remain visually aligned with the kernel hit map. */
+    content_append_text(gui_scratch_data, &length, actions, sizeof(actions) - 1U);
+    content_append_path_tail(gui_scratch_data, &length, project_path);
+    content_append_char(gui_scratch_data, &length, '\n');
+    append_project_file_status(gui_scratch_data, &length, "source", project_path, "main.mya");
+    append_project_file_status(gui_scratch_data, &length, "build", project_path, "main.elf");
+    if (make_project_package_directory(package_directory, project_path) != 0) {
+        append_project_file_status(gui_scratch_data, &length, "package", package_directory, "main.elf");
+    } else {
+        content_append_text(gui_scratch_data, &length, "package: MISSING\n", 17U);
+    }
+    content_append_text(gui_scratch_data, &length, message, text_length_bounded(message, 48U));
+    content_append_char(gui_scratch_data, &length, '\n');
+    (void)set_viewer_content("PROJECT WORKBENCH", gui_scratch_data, length, MYOS_GUI_CONTENT_FLAG_BROWSER, 0U, 0U);
+}
+
 static void show_projects_status(void) {
     struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
     uint64_t length = 0U;
@@ -1628,6 +1650,7 @@ void _start(uint64_t argc, const char *arguments) {
     const int direct_project_mode = make_project_workspace_path(project_path, arguments, &direct_project_view,
                                                                  project_run_arguments);
     int browser_mode = 0;
+    int project_workbench_mode = 0;
     int browser_new_file_mode = 0;
     int session_finished = 0;
     const char *initial_path = arguments;
@@ -1686,6 +1709,9 @@ void _start(uint64_t argc, const char *arguments) {
                 } else {
                     set_viewer_status("PROJECT STARTER CREATED");
                 }
+            } else if (direct_project_mode != 0 && direct_project_view == 0) {
+                project_workbench_mode = 1;
+                show_project_workbench(project_path, "SELECT AN ACTION");
             } else if (direct_project_mode != 0 && direct_project_view == 1) {
                 if (make_project_source_path(project_source_path, project_path) == 0
                     || project_source_is_regular(project_path) == 0 || select_disk_path(project_source_path) == 0) {
@@ -1999,6 +2025,83 @@ void _start(uint64_t argc, const char *arguments) {
                 home_mode = 0;
                 (void)browser_set_directory(GUI_BROWSER_START_PATH);
                 show_file_browser();
+            } else if (project_workbench_mode != 0
+                       && ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_PARENT
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_PREVIOUS
+                           || ((uint8_t)character >= MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE
+                               && (uint8_t)character - MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE < GUI_BROWSER_PAGE_SIZE)
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_NEXT
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE_DIRECTORY
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_REMOVE
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_COPY
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_RENAME
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_MOVE
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_SEARCH)) {
+                const uint8_t action = (uint8_t)character;
+
+                if (action == MYOS_INPUT_GUI_ACTION_BROWSER_PARENT
+                    || action == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE_DIRECTORY) {
+                    show_project_workbench(project_path, action == MYOS_INPUT_GUI_ACTION_BROWSER_PARENT
+                                                        ? "PROJECT REFRESHED" : "PROJECT STATUS");
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_PREVIOUS) {
+                    if (make_project_source_path(project_source_path, project_path) == 0
+                        || project_source_is_regular(project_path) == 0 || select_disk_path(project_source_path) == 0) {
+                        show_project_workbench(project_path, "UNABLE TO OPEN PROJECT SOURCE");
+                    } else {
+                        const int editor_result = edit_selected_disk_file();
+
+                        if (editor_result == GUI_EDITOR_RESULT_EXIT) {
+                            (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
+                            break;
+                        }
+                        show_project_workbench(project_path, editor_result == GUI_EDITOR_RESULT_HOME
+                                                              ? "SOURCE EDIT CANCELLED" : "SOURCE EDIT COMPLETE");
+                    }
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE) {
+                    if (project_source_is_regular(project_path) == 0) {
+                        show_project_workbench(project_path, "UNABLE TO OPEN PROJECT SOURCE");
+                    } else if (launch_project_build(project_path, &status) != 0) {
+                        session_finished = 1;
+                    } else {
+                        show_project_workbench(project_path, "UNABLE TO BUILD PROJECT");
+                    }
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE + 1U) {
+                    if (project_build_is_regular(project_path) == 0) {
+                        show_project_workbench(project_path, "UNABLE TO OPEN PROJECT OUTPUT");
+                    } else if (launch_project_run(project_path, "", &status) != 0) {
+                        session_finished = 1;
+                    } else {
+                        show_project_workbench(project_path, "UNABLE TO RUN PROJECT");
+                    }
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE + 2U) {
+                    if (project_build_is_regular(project_path) == 0) {
+                        show_project_workbench(project_path, "UNABLE TO OPEN PROJECT OUTPUT");
+                    } else if (launch_project_install(project_path, &status) != 0) {
+                        session_finished = 1;
+                    } else {
+                        show_project_workbench(project_path, "UNABLE TO INSTALL PROJECT");
+                    }
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE + 3U) {
+                    show_project_workbench(project_path, remove_project_package(project_path) != 0
+                                                          ? "PROJECT PACKAGE REMOVED" : "UNABLE TO REMOVE PROJECT PACKAGE");
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_NEXT) {
+                    show_project_workbench(project_path, remove_project_build(project_path) != 0
+                                                          ? "PROJECT BUILD REMOVED" : "UNABLE TO REMOVE PROJECT BUILD");
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE) {
+                    if (remove_project_workspace(project_path) != 0) {
+                        project_workbench_mode = 0;
+                        browser_mode = 1;
+                        home_mode = 0;
+                        browser_search_results_active = 0;
+                        (void)browser_set_directory(GUI_BROWSER_PROJECT_PATH);
+                        show_file_browser();
+                    } else {
+                        show_project_workbench(project_path, "UNABLE TO REMOVE PROJECT");
+                    }
+                } else {
+                    show_project_workbench(project_path, "SELECT A PROJECT ACTION");
+                }
             } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_PARENT) {
                 if (browser_mode != 0) {
                     if (browser_search_results_active != 0) {
