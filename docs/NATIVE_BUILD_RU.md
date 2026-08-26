@@ -37,7 +37,9 @@ startgui project native-author new args edit
 startgui project native-built new build
 # Либо создать, собрать и установить default starter только через его новые fixed project/package paths:
 startgui project native-installed new install
-# Открыть integrated Project Workbench для одного existing bounded project:
+# Открыть Project Hub и выбрать revalidated existing project в Project Workbench:
+startgui projects
+# Либо открыть integrated Project Workbench для одного existing bounded project:
 startgui project native-args
 # Затем собрать ту же fixed source/output pair через GUI entry:
 startgui project native-args build
@@ -62,6 +64,7 @@ startgui project native-args remove
 | `newproj <project-name> [hello\|args\|empty] [edit\|build\|run\|install]` | Создаёт `/users/myos/projects/<project-name>/main.mya` из одного fixed starter: `hello` используется по умолчанию как runnable template, `args` записывает bracketed native-argument program, а `empty` создаёт editable regular zero-length source без zero-length write request. Единственный optional final token — exact `edit`, `build`, `run` либо `install`: только после successful creation он запускает established editor с этим новым fixed source, established assembler только для его новой fixed source/output pair, собирает и запускает только новый fixed `main.elf` либо собирает и затем запускает established installer только для новой fixed pair `main.elf → /apps/<name>/main.elf`. `run` и `install` требуют regular new build output до loader либо installer invocation. Names — 1–31 ASCII letters, digits, `-` или `_`; existing project, unknown starter или trailing token отклоняется без создания либо overwrite. Later editor-launch, build, run либо install failure сохраняет completed project. |
 | `editproj <project-name>` | Открывает fixed path `<project>/main.mya` через bounded program `edit`. Не создаёт file или directory. |
 | `buildproj <project-name>` | Вызывает `build` через fixed project paths `<project>/main.mya` → `<project>/main.elf`. Не создаёт directory и сохраняет assembler replacement/error behavior. |
+| `startgui projects` | Открывает **Project Hub** — bounded four-entry page valid project directories fixed root. Его existing browser rows выполняют refresh, paging, read-only global status, возврат к raw project-root File Workspace либо открывают selected revalidated directory в Project Workbench. Он не принимает arbitrary path и не создаёт project. |
 | `startgui project <project-name>` | Открывает **Project Workbench** только для existing bounded project. Его rows: Refresh, Edit source, Build, Run, Install, Uninstall, Clean build, Remove workspace и Status; они работают лишь с fixed paths `main.mya`, `main.elf` и `/apps/<name>/main.elf`. Build/run/install передают выполнение established console child; Workbench run использует empty arguments, тогда как exact direct form `run [arguments]` сохраняет bounded tail 127 visible bytes. Successful Workbench removal возвращает к browser project root. |
 | `startgui project <project-name> new [hello\|args\|empty]` | Принимает только bounded absent project name и fixed default starter `hello`, `args` либо editable zero-length `empty`, создаёт только `<project>/main.mya`, отклоняет existing target и удаляет только own partial creation state после later ordinary failure. Он остаётся в GUI с narrow result status и не создаёт child. |
 | `startgui project <project-name> new [hello\|args\|empty] edit` | Использует тот же bounded absent-name и exact-starter creation contract, затем только после успеха выбирает этот новый fixed source для existing GUI editor. Child не создаётся; ordinary editor-handoff failure сохраняет completed workspace вместо его удаления. |

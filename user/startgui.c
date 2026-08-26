@@ -18,6 +18,7 @@
 #define GUI_EDITOR_RESULT_EXIT 1
 #define GUI_EDITOR_RESULT_HOME 2
 #define GUI_BROWSER_RESULT_OPENED 2
+#define GUI_BROWSER_RESULT_PROJECT_HUB 3
 
 static char selected_disk_path[GUI_NOTE_PATH_CAPACITY] = GUI_NOTE_PATH;
 static char browser_directory[MYOS_VFS_PATH_MAX] = GUI_BROWSER_START_PATH;
@@ -973,6 +974,72 @@ static void show_projects_status(void) {
     (void)set_viewer_content("PROJECTS STATUS", gui_scratch_data, length, 0U, 0U, 0U);
 }
 
+static int make_project_hub_path(char *destination, const char *name) {
+    uint64_t offset = 0U;
+
+    if (destination == (char *)0 || project_name_is_valid(name) == 0) { return 0; }
+    while (GUI_BROWSER_PROJECT_PATH[offset] != '\0' && offset + 1U < MYOS_VFS_PATH_MAX) {
+        destination[offset] = GUI_BROWSER_PROJECT_PATH[offset];
+        offset++;
+    }
+    if (GUI_BROWSER_PROJECT_PATH[offset] != '\0' || offset + 1U >= MYOS_VFS_PATH_MAX) { return 0; }
+    destination[offset++] = '/';
+    for (uint64_t index = 0U; name[index] != '\0' && offset + 1U < MYOS_VFS_PATH_MAX; index++) {
+        destination[offset++] = name[index];
+    }
+    if (name[text_length_bounded(name, 32U)] != '\0') { return 0; }
+    destination[offset] = '\0';
+    return 1;
+}
+static uint64_t project_hub_collect_page(struct myos_vfs_directory_entry *entries, uint64_t capacity) {
+    struct myos_vfs_list_request request = { 0U, { 0 }, { { 0 }, 0U, 0U } };
+    const uint64_t first = browser_page * GUI_BROWSER_PAGE_SIZE;
+    uint64_t accepted = 0U;
+    uint64_t shown = 0U;
+
+    if (entries == (struct myos_vfs_directory_entry *)0 || capacity == 0U
+        || make_path(request.path, GUI_BROWSER_PROJECT_PATH) == 0) { return 0U; }
+    for (uint64_t index = 0U; index < UINT64_C(128); index++) {
+        request.index = index;
+        if (system_call(MYOS_SYS_VFS_LIST, 0U, (uint64_t)(uintptr_t)&request, sizeof(request)) == UINT64_MAX) { break; }
+        if (request.entry.type != MYOS_VFS_OBJECT_DIRECTORY || project_name_is_valid(request.entry.name) == 0) { continue; }
+        if (accepted >= first && shown < capacity) { entries[shown++] = request.entry; }
+        accepted++;
+    }
+    return shown;
+}
+static int project_hub_entry_at(uint64_t slot, char *project_path) {
+    struct myos_vfs_directory_entry entries[MYOS_GUI_BROWSER_ENTRY_MAX + 1U] = { 0 };
+    const uint64_t count = project_hub_collect_page(entries, MYOS_GUI_BROWSER_ENTRY_MAX + 1U);
+
+    if (slot >= MYOS_GUI_BROWSER_ENTRY_MAX || slot >= count) { return 0; }
+    return make_project_hub_path(project_path, entries[slot].name);
+}
+static void show_project_hub(const char *message) {
+    struct myos_vfs_directory_entry entries[MYOS_GUI_BROWSER_ENTRY_MAX + 1U] = { 0 };
+    const uint64_t count = project_hub_collect_page(entries, MYOS_GUI_BROWSER_ENTRY_MAX + 1U);
+    uint64_t length = 0U;
+
+    content_append_text(gui_scratch_data, &length, "PROJECT HUB\n[REFRESH]\n", 22U);
+    content_append_text(gui_scratch_data, &length, browser_page != 0U ? "[PREV]\n" : "-\n",
+                        browser_page != 0U ? 7U : 2U);
+    for (uint64_t slot = 0U; slot < MYOS_GUI_BROWSER_ENTRY_MAX; slot++) {
+        if (slot < count) {
+            content_append_text(gui_scratch_data, &length, "P ", 2U);
+            content_append_text(gui_scratch_data, &length, entries[slot].name,
+                                text_length_bounded(entries[slot].name, 32U));
+        } else {
+            content_append_char(gui_scratch_data, &length, '-');
+        }
+        content_append_char(gui_scratch_data, &length, '\n');
+    }
+    content_append_text(gui_scratch_data, &length, count > MYOS_GUI_BROWSER_ENTRY_MAX ? "[NEXT]\n" : "-\n",
+                        count > MYOS_GUI_BROWSER_ENTRY_MAX ? 7U : 2U);
+    content_append_text(gui_scratch_data, &length, "[STATUS]\n[PROJECT ROOT]\n", 24U);
+    content_append_text(gui_scratch_data, &length, message, text_length_bounded(message, 48U));
+    content_append_char(gui_scratch_data, &length, '\n');
+    (void)set_viewer_content("PROJECT HUB", gui_scratch_data, length, MYOS_GUI_CONTENT_FLAG_BROWSER, 0U, 0U);
+}
 static int browser_set_directory(const char *path) {
     if (disk_path_is_valid(path) == 0) { return 0; }
     for (uint64_t index = 0U; index < MYOS_VFS_PATH_MAX; index++) {
@@ -1347,6 +1414,7 @@ static int browser_open_entry(uint8_t action) {
     browser_search_results_active = 0;
     if (entry.type == MYOS_VFS_OBJECT_DIRECTORY) {
         if (browser_set_directory(path) == 0) { return 0; }
+        if (text_equal(path, GUI_BROWSER_PROJECT_PATH) != 0) { return GUI_BROWSER_RESULT_PROJECT_HUB; }
         show_file_browser();
         return GUI_BROWSER_RESULT_OPENED;
     }
@@ -1650,7 +1718,9 @@ void _start(uint64_t argc, const char *arguments) {
     const int direct_project_mode = make_project_workspace_path(project_path, arguments, &direct_project_view,
                                                                  project_run_arguments);
     int browser_mode = 0;
+    int project_hub_mode = 0;
     int project_workbench_mode = 0;
+    int project_workbench_from_hub = 0;
     int browser_new_file_mode = 0;
     int session_finished = 0;
     const char *initial_path = arguments;
@@ -1667,7 +1737,11 @@ void _start(uint64_t argc, const char *arguments) {
                                         && (direct_project_view < 9 || direct_project_view > 20)
                                         ? project_path : GUI_BROWSER_PROJECT_PATH);
             if (projects_status_mode != 0) {
+                project_hub_mode = 1;
                 show_projects_status();
+            } else if (project_mode != 0) {
+                project_hub_mode = 1;
+                show_project_hub("SELECT A PROJECT");
             } else if (direct_project_mode != 0 && direct_project_view >= 9 && direct_project_view <= 20) {
                 const int starter_mode = (direct_project_view == 10 || direct_project_view == 13
                                           || direct_project_view == 16 || direct_project_view == 19) ? 1
@@ -1961,7 +2035,11 @@ void _start(uint64_t argc, const char *arguments) {
                 if (action == MYOS_INPUT_GUI_ACTION_HOME) {
                     if (browser_mode != 0) {
                         home_mode = 0;
-                        show_file_browser();
+                        if (project_hub_mode != 0) {
+                            show_project_hub("SELECT A PROJECT");
+                        } else {
+                            show_file_browser();
+                        }
                     } else {
                         home_mode = 1;
                         show_desktop_home();
@@ -1970,7 +2048,11 @@ void _start(uint64_t argc, const char *arguments) {
             } else if (character == '\x1b' && home_mode == 0) {
                 if (browser_mode != 0) {
                     browser_search_results_active = 0;
-                    show_file_browser();
+                    if (project_hub_mode != 0) {
+                        show_project_hub("SELECT A PROJECT");
+                    } else {
+                        show_file_browser();
+                    }
                 } else {
                     home_mode = 1;
                     show_desktop_home();
@@ -1978,7 +2060,11 @@ void _start(uint64_t argc, const char *arguments) {
             } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_HOME) {
                 if (browser_mode != 0) {
                     home_mode = 0;
-                    show_file_browser();
+                    if (project_hub_mode != 0) {
+                        show_project_hub("SELECT A PROJECT");
+                    } else {
+                        show_file_browser();
+                    }
                 } else {
                     home_mode = 1;
                     show_desktop_home();
@@ -2025,6 +2111,45 @@ void _start(uint64_t argc, const char *arguments) {
                 home_mode = 0;
                 (void)browser_set_directory(GUI_BROWSER_START_PATH);
                 show_file_browser();
+            } else if (project_hub_mode != 0
+                       && ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_PARENT
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_PREVIOUS
+                           || ((uint8_t)character >= MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE
+                               && (uint8_t)character - MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE < GUI_BROWSER_PAGE_SIZE)
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_NEXT
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE
+                           || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE_DIRECTORY)) {
+                const uint8_t action = (uint8_t)character;
+
+                if (action == MYOS_INPUT_GUI_ACTION_BROWSER_PARENT) {
+                    show_project_hub("PROJECTS REFRESHED");
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_PREVIOUS) {
+                    if (browser_page != 0U) { browser_page--; }
+                    show_project_hub("SELECT A PROJECT");
+                } else if (action >= MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE
+                           && action - MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE < GUI_BROWSER_PAGE_SIZE) {
+                    if (project_hub_entry_at(action - MYOS_INPUT_GUI_ACTION_BROWSER_ENTRY_BASE, project_path) != 0
+                        && project_workspace_is_directory(project_path) != 0) {
+                        project_hub_mode = 0;
+                        project_workbench_mode = 1;
+                        project_workbench_from_hub = 1;
+                        show_project_workbench(project_path, "SELECT AN ACTION");
+                    } else {
+                        show_project_hub("UNABLE TO OPEN PROJECT");
+                    }
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_NEXT) {
+                    struct myos_vfs_directory_entry entries[MYOS_GUI_BROWSER_ENTRY_MAX + 1U] = { 0 };
+                    if (project_hub_collect_page(entries, MYOS_GUI_BROWSER_ENTRY_MAX + 1U) > MYOS_GUI_BROWSER_ENTRY_MAX) {
+                        browser_page++;
+                    }
+                    show_project_hub("SELECT A PROJECT");
+                } else if (action == MYOS_INPUT_GUI_ACTION_BROWSER_CREATE) {
+                    show_projects_status();
+                } else {
+                    project_hub_mode = 0;
+                    (void)browser_set_directory(GUI_BROWSER_PROJECT_PATH);
+                    show_file_browser();
+                }
             } else if (project_workbench_mode != 0
                        && ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_PARENT
                            || (uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_PREVIOUS
@@ -2095,7 +2220,13 @@ void _start(uint64_t argc, const char *arguments) {
                         home_mode = 0;
                         browser_search_results_active = 0;
                         (void)browser_set_directory(GUI_BROWSER_PROJECT_PATH);
-                        show_file_browser();
+                        if (project_workbench_from_hub != 0) {
+                            project_workbench_from_hub = 0;
+                            project_hub_mode = 1;
+                            show_project_hub("PROJECT WORKSPACE REMOVED");
+                        } else {
+                            show_file_browser();
+                        }
                     } else {
                         show_project_workbench(project_path, "UNABLE TO REMOVE PROJECT");
                     }
@@ -2125,7 +2256,12 @@ void _start(uint64_t argc, const char *arguments) {
                         (void)system_call(MYOS_SYS_GUI_SESSION, MYOS_GUI_END, 0U, 0U);
                         break;
                     }
-                    if (result == 0) { set_viewer_status("UNABLE TO OPEN FILE"); }
+                    if (result == GUI_BROWSER_RESULT_PROJECT_HUB) {
+                        project_hub_mode = 1;
+                        show_project_hub("SELECT A PROJECT");
+                    } else if (result == 0) {
+                        set_viewer_status("UNABLE TO OPEN FILE");
+                    }
                 }
             } else if ((uint8_t)character == MYOS_INPUT_GUI_ACTION_BROWSER_NEXT) {
                 if (browser_mode != 0 && browser_has_next_page() != 0) {
