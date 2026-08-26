@@ -698,6 +698,14 @@ class Guest:
         self.expect("exited with status 0", start)
         self.expect(PROMPT, start)
 
+    def gui_direct_project_new_install_and_exit(self, project_name, starter=""):
+        start = len(self.output)
+        suffix = " new" + (f" {starter}" if starter else "") + " install"
+        self.send(f"startgui project {project_name}{suffix}\n")
+        self.expect("Started process ", start)
+        self.expect("exited with status 0", start)
+        self.expect(PROMPT, start)
+
     def gui_direct_project_new_build_and_exit(self, project_name, starter=""):
         start = len(self.output)
         suffix = " new" + (f" {starter}" if starter else "") + " build"
@@ -1462,6 +1470,13 @@ def run_bios(image_path, work_dir):
         guest.gui_direct_project_run_and_exit("gui-build-on-create", "", "Hello from MyOS project")
         guest.gui_direct_project_clean_and_exit("gui-build-on-create")
         guest.gui_direct_project_remove_and_exit("gui-build-on-create")
+        guest.gui_direct_project_new_install_and_exit("gui-install-on-create")
+        guest.command("projstatus gui-install-on-create", "build: READY")
+        guest.command("projstatus gui-install-on-create", "package: READY")
+        guest.gui_direct_project_run_and_exit("gui-install-on-create", "", "Hello from MyOS project")
+        guest.gui_direct_project_uninstall_and_exit("gui-install-on-create")
+        guest.gui_direct_project_clean_and_exit("gui-install-on-create")
+        guest.gui_direct_project_remove_and_exit("gui-install-on-create")
         guest.gui_direct_project_remove_and_exit("empty-gui")
         args_template_read_start = len(guest.output)
         guest.command(f"cat {ARGS_PROJ_SOURCE_PATH}", "write \"[\"")
