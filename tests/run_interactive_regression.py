@@ -30,6 +30,7 @@ ARGS_PROJ_TEMPLATE = b"# MyOS argument project template\nwrite \"[\"\nargs\nwrit
 SHELL_AUTHOR_PROJ_NAME = "shell-author"
 SHELL_AUTHOR_SOURCE_PATH = "/users/myos/projects/shell-author/main.mya"
 SHELL_BUILD_PROJ_NAME = "shell-build"
+SHELL_RUN_PROJ_NAME = "shell-run"
 SHELL_INSTALLED_PROJ_NAME = "shell-installed"
 SOURCE_PATH = "/temp/release-harness.mya"
 ELF_PATH = "/users/myos/projects/release-harness.elf"
@@ -1422,8 +1423,8 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: direct grep did not skip the overlong matching line or print the short match exactly\n{guest._tail()}")
         guest.command(f"run grep needle {GREP_MATCH_PATH}", "needle-crosses")
         guest.command("help startgui", "new [hello|args|empty] [edit|build]")
-        guest.command("help newproj", "exact edit, build or install handles only the new project")
-        guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args|empty] [edit|build|install]")
+        guest.command("help newproj", "exact edit, build, run or install handles only the new project")
+        guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args|empty] [edit|build|run|install]")
         guest.command("newproj rejected-template hello", "Created project /users/myos/projects/rejected-template")
         guest.command("rm /users/myos/projects/rejected-template/main.mya", "Removed")
         guest.command("rm /users/myos/projects/rejected-template", "Removed")
@@ -1455,6 +1456,13 @@ def run_bios(image_path, work_dir):
             raise RegressionFailure(f"BIOS: newproj build did not run the fixed default starter\n{guest._tail()}")
         guest.command(f"cleanproj {SHELL_BUILD_PROJ_NAME}", "Removed build output")
         guest.command(f"rmproj {SHELL_BUILD_PROJ_NAME}", "Removed project directory")
+        shell_run_start = len(guest.output)
+        guest.command(f"newproj {SHELL_RUN_PROJ_NAME} run", "exited with status 0")
+        if b"Hello from MyOS project\n" not in bytes(guest.output[shell_run_start:]).replace(b"\r", b""):
+            raise RegressionFailure(f"BIOS: newproj run did not execute the fixed default starter\n{guest._tail()}")
+        guest.command(f"projstatus {SHELL_RUN_PROJ_NAME}", "build: READY")
+        guest.command(f"cleanproj {SHELL_RUN_PROJ_NAME}", "Removed build output")
+        guest.command(f"rmproj {SHELL_RUN_PROJ_NAME}", "Removed project directory")
         guest.command(f"newproj {SHELL_INSTALLED_PROJ_NAME} install", "exited with status 0")
         guest.command(f"projstatus {SHELL_INSTALLED_PROJ_NAME}", "build: READY")
         guest.command(f"projstatus {SHELL_INSTALLED_PROJ_NAME}", "package: READY")

@@ -493,9 +493,9 @@ static void command_help(const char *topic) {
         return;
     }
     if (text_equal(topic, "newproj")) {
-        write_text("newproj <project-name> [hello|args|empty] [edit|build|install]\n");
+        write_text("newproj <project-name> [hello|args|empty] [edit|build|run|install]\n");
         write_text("Creates /users/myos/projects/<project-name>/main.mya from one fixed starter.\n");
-        write_text("hello is default; args writes bounded native arguments; empty creates editable zero-byte source; exact edit, build or install handles only the new project. Existing projects are never overwritten.\n");
+        write_text("hello is default; args writes bounded native arguments; empty creates editable zero-byte source; exact edit, build, run or install handles only the new project. Existing projects are never overwritten.\n");
         write_text("Names are 1..31 ASCII letters, digits, '-' or '_'; unknown templates create nothing.\n");
         return;
     }
@@ -845,6 +845,7 @@ static int project_name_is_valid(const char *name) {
 
 static int run_foreground(char *argument, int verbose);
 static void command_buildproj(const char *argument);
+static void command_runproj(char *argument);
 static void command_installproj(const char *argument);
 static int vfs_lookup_child(const char *parent, const char *name, struct myos_vfs_directory_entry *entry);
 
@@ -876,18 +877,22 @@ static void command_newproj(char *argument) {
     uint64_t template_length;
 
     if ((text_equal(template_name, "edit") != 0 || text_equal(template_name, "build") != 0
-         || text_equal(template_name, "install") != 0) && handoff_token[0] == '\0') {
+         || text_equal(template_name, "run") != 0 || text_equal(template_name, "install") != 0)
+        && handoff_token[0] == '\0') {
         handoff_mode = text_equal(template_name, "edit") != 0 ? 1
-                       : (text_equal(template_name, "build") != 0 ? 2 : 3);
+                       : (text_equal(template_name, "build") != 0 ? 2
+                          : (text_equal(template_name, "run") != 0 ? 3 : 4));
         template_name = "";
     } else if (handoff_token[0] != '\0') {
         if ((text_equal(handoff_token, "edit") == 0 && text_equal(handoff_token, "build") == 0
-             && text_equal(handoff_token, "install") == 0) || trailing_token[0] != '\0') {
-            write_text("Usage: newproj <project-name> [hello|args|empty] [edit|build|install]\n");
+             && text_equal(handoff_token, "run") == 0 && text_equal(handoff_token, "install") == 0)
+            || trailing_token[0] != '\0') {
+            write_text("Usage: newproj <project-name> [hello|args|empty] [edit|build|run|install]\n");
             return;
         }
         handoff_mode = text_equal(handoff_token, "edit") != 0 ? 1
-                       : (text_equal(handoff_token, "build") != 0 ? 2 : 3);
+                       : (text_equal(handoff_token, "build") != 0 ? 2
+                          : (text_equal(handoff_token, "run") != 0 ? 3 : 4));
     }
     if (template_name[0] == '\0' || text_equal(template_name, "hello") != 0) {
         project_template = hello_template;
@@ -896,7 +901,7 @@ static void command_newproj(char *argument) {
     } else if (text_equal(template_name, "empty") != 0) {
         project_template = empty_template;
     } else {
-        write_text("Usage: newproj <project-name> [hello|args|empty] [edit|build|install]\n");
+        write_text("Usage: newproj <project-name> [hello|args|empty] [edit|build|run|install]\n");
         return;
     }
     template_length = text_length(project_template);
@@ -908,7 +913,7 @@ static void command_newproj(char *argument) {
         || make_vfs_path_request(&directory_request, directory) == 0
         || make_vfs_path_request(&source_request, source) == 0
         || template_length > MYOS_VFS_READ_CHUNK) {
-        write_text("Usage: newproj <project-name> [hello|args|empty] [edit|build|install]\n");
+        write_text("Usage: newproj <project-name> [hello|args|empty] [edit|build|run|install]\n");
         return;
     }
     if (system_call(MYOS_SYS_VFS_CREATE_DIRECTORY, 0U, (uint64_t)(uintptr_t)&directory_request,
@@ -958,12 +963,17 @@ static void command_newproj(char *argument) {
         command_buildproj(argument);
         return;
     }
-    if (handoff_mode == 3) {
+    if (handoff_mode == 3 || handoff_mode == 4) {
         write_text("\nBuilding project.\n");
         command_buildproj(argument);
         if (vfs_lookup_child(directory, "main.elf", &output_entry) == 0
             || output_entry.type != MYOS_VFS_OBJECT_REGULAR) {
             write_text("Build did not produce a regular project output. Project preserved.\n");
+            return;
+        }
+        if (handoff_mode == 3) {
+            write_text("Running project.\n");
+            command_runproj(argument);
             return;
         }
         write_text("Installing project.\n");
