@@ -1370,7 +1370,7 @@ def run_bios(image_path, work_dir):
         if grep_output.count(b"needle-crosses\n") != 1 or b"x" * 122 + b"needle" in grep_output:
             raise RegressionFailure(f"BIOS: direct grep did not skip the overlong matching line or print the short match exactly\n{guest._tail()}")
         guest.command(f"run grep needle {GREP_MATCH_PATH}", "needle-crosses")
-        guest.command("help newproj", "hello is the default; args writes the bounded native argument string")
+        guest.command("help newproj", "empty creates editable zero-byte source")
         guest.command("newproj rejected-template nope", "Usage: newproj <project-name> [hello|args|empty]")
         guest.command("newproj rejected-template hello", "Created project /users/myos/projects/rejected-template")
         guest.command("rm /users/myos/projects/rejected-template/main.mya", "Removed")

@@ -491,9 +491,9 @@ static void command_help(const char *topic) {
         return;
     }
     if (text_equal(topic, "newproj")) {
-        write_text("newproj <project-name> [hello|args]\n");
-        write_text("Creates /users/myos/projects/<project-name>/main.mya from one fixed runnable template.\n");
-        write_text("hello is the default; args writes the bounded native argument string. Existing projects are never overwritten.\n");
+        write_text("newproj <project-name> [hello|args|empty]\n");
+        write_text("Creates /users/myos/projects/<project-name>/main.mya from one fixed starter.\n");
+        write_text("hello is default; args writes bounded native arguments; empty creates editable zero-byte source. Existing projects are never overwritten.\n");
         write_text("Names are 1..31 ASCII letters, digits, '-' or '_'; unknown templates create nothing.\n");
         return;
     }
